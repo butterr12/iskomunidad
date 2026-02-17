@@ -71,7 +71,7 @@ export function AttractionDetail({ landmark, events = [], posts = [], onClose }:
       )}
 
       <a
-        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(landmark.lat + "," + landmark.lng)}&query_place_id=${encodeURIComponent(landmark.name)}`}
+        href={`https://www.google.com/maps/search/?api=1&query=${landmark.lat},${landmark.lng}`}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-1.5 text-sm text-primary hover:underline"
