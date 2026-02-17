@@ -1,9 +1,9 @@
-/* eslint-disable */
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { signUp } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,15 +31,15 @@ export default function SignUpPage() {
     setError("");
     setLoading(true);
 
-    const { error } = await signUp.email({
+    const { error: signUpError } = await signUp.email({
       name,
       username,
       email,
       password,
     });
 
-    if (error) {
-      setError(error.message ?? "Something went wrong");
+    if (signUpError) {
+      setError(signUpError.message ?? "Something went wrong");
       setLoading(false);
       return;
     }
@@ -55,7 +55,7 @@ export default function SignUpPage() {
           Enter your details below to create your account
         </CardDescription>
       </CardHeader>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
           {error && (
             <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -110,7 +110,8 @@ export default function SignUpPage() {
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating account..." : "Create account"}
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Create account
           </Button>
           <p className="text-sm text-muted-foreground text-center">
             Already have an account?{" "}
