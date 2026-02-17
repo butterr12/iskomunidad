@@ -58,11 +58,8 @@ export function LandingPage() {
           </span>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
-              {resolvedTheme === "dark" ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
+              <Sun className="hidden h-4 w-4 dark:block" />
+              <Moon className="h-4 w-4 dark:hidden" />
               <span className="sr-only">Toggle theme</span>
             </Button>
             <Button variant="ghost" size="sm" asChild>
