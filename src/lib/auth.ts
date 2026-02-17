@@ -5,6 +5,13 @@ import * as authSchema from "./auth-schema";
 import { db } from "./db";
 import { Resend } from "resend";
 
+if (!process.env.RESEND_API_KEY) {
+  console.warn("[auth] RESEND_API_KEY is not set — emails will not be sent");
+}
+if (!process.env.BETTER_AUTH_URL) {
+  console.warn("[auth] BETTER_AUTH_URL is not set — auth redirects may fail");
+}
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const auth = betterAuth({
