@@ -1,19 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Plus, Share } from "lucide-react";
+import { Download, Plus, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { BeforeInstallPromptEvent } from "@/types/pwa";
 
 const DISMISS_KEY = "pwa-install-dismissed-at";
+const DISMISS_PERMANENTLY_KEY = "pwa-install-dismissed-permanently";
 const DISMISS_DAYS = 3;
 
 function isStandalone() {
@@ -29,8 +23,9 @@ function isIOS() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent);
 }
 
-function wasDismissedRecently(): boolean {
+function shouldHidePrompt(): boolean {
   if (typeof localStorage === "undefined") return false;
+  if (localStorage.getItem(DISMISS_PERMANENTLY_KEY) === "true") return true;
   const dismissed = localStorage.getItem(DISMISS_KEY);
   if (!dismissed) return false;
   const daysSince =
@@ -45,7 +40,7 @@ export function PwaInstallPrompt() {
   const [isIOSDevice, setIsIOSDevice] = useState(false);
 
   useEffect(() => {
-    if (!isMobile || isStandalone() || wasDismissedRecently()) return;
+    if (!isMobile || isStandalone() || shouldHidePrompt()) return;
 
     setIsIOSDevice(isIOS());
 
@@ -80,38 +75,44 @@ export function PwaInstallPrompt() {
     setOpen(false);
   }, []);
 
-  if (!isMobile) return null;
+  const handleDismissPermanently = useCallback(() => {
+    localStorage.setItem(DISMISS_PERMANENTLY_KEY, "true");
+    setOpen(false);
+  }, []);
+
+  if (!isMobile || !open) return null;
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent
-        showCloseButton={false}
-        className="bottom-0 top-auto translate-y-0 translate-x-[-50%] rounded-b-none rounded-t-2xl sm:max-w-md"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
-      >
-        <DialogHeader>
-          <DialogTitle className="text-center text-lg">
-            Get the iskomunidad App
-          </DialogTitle>
-          <DialogDescription className="text-center">
+    <div className="fixed inset-0 z-[9999]">
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={handleDismiss} />
+
+      {/* Bottom sheet */}
+      <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-background p-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
+        <button
+          onClick={handleDismiss}
+          className="absolute top-4 right-4 rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <X className="size-5" />
+        </button>
+
+        <div className="flex flex-col gap-1 text-center mb-4">
+          <h2 className="text-lg font-semibold">Get the iskomunidad App</h2>
+          <p className="text-sm text-muted-foreground">
             Install iskomunidad on your device for faster access and a better
             experience.
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
 
-        <div className="flex flex-col gap-3 pt-2">
+        <div className="flex flex-col gap-3">
           {isIOSDevice ? (
-            <>
-              <p className="text-muted-foreground text-center text-sm">
-                To install, tap{" "}
-                <Share className="inline size-4 align-text-bottom" /> Share then{" "}
-                <span className="inline-flex items-center gap-1 font-medium">
-                  <Plus className="inline size-4" /> Add to Home Screen
-                </span>
-              </p>
-            </>
+            <p className="text-muted-foreground text-center text-sm">
+              To install, tap{" "}
+              <Share className="inline size-4 align-text-bottom" /> Share then{" "}
+              <span className="inline-flex items-center gap-1 font-medium">
+                <Plus className="inline size-4" /> Add to Home Screen
+              </span>
+            </p>
           ) : (
             <Button onClick={handleInstall} size="lg" className="w-full">
               <Download className="size-5" />
@@ -119,14 +120,23 @@ export function PwaInstallPrompt() {
             </Button>
           )}
 
-          <button
-            onClick={handleDismiss}
-            className="text-muted-foreground hover:text-foreground mx-auto py-2 text-xs transition-colors"
-          >
-            Not now
-          </button>
+          <div className="flex items-center justify-center gap-4">
+            <button
+              onClick={handleDismiss}
+              className="text-muted-foreground hover:text-foreground py-2 text-xs transition-colors"
+            >
+              Not now
+            </button>
+            <span className="text-muted-foreground/40 text-xs">|</span>
+            <button
+              onClick={handleDismissPermanently}
+              className="text-muted-foreground hover:text-foreground py-2 text-xs transition-colors"
+            >
+              Don't show again
+            </button>
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
