@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Camera } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronLeft, ChevronRight, Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LandmarkPhoto } from "@/lib/landmarks";
 
@@ -11,6 +11,19 @@ interface PhotoGalleryProps {
 
 export function PhotoGallery({ photos }: PhotoGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  // Reset index and show loading when photos change (switching landmarks)
+  useEffect(() => {
+    setCurrentIndex(0);
+    setLoading(true);
+  }, [photos]);
+
+  // Show loading when switching between photos within the same landmark
+  const handleIndexChange = (newIndex: number) => {
+    setLoading(true);
+    setCurrentIndex(newIndex);
+  };
 
   if (photos.length === 0) {
     return (
@@ -27,11 +40,18 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
 
   return (
     <div>
-      <div className="relative aspect-[16/10] overflow-hidden rounded-lg">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-muted">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
         <img
           src={current.resolvedUrl}
           alt={current.caption || "Photo"}
-          className="h-full w-full object-cover"
+          className={`h-full w-full object-cover transition-opacity duration-200 ${loading ? "opacity-0" : "opacity-100"}`}
+          onLoad={() => setLoading(false)}
+          onError={() => setLoading(false)}
         />
 
         {photos.length > 1 && (
@@ -41,8 +61,8 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
               size="icon"
               className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-black/40 text-white hover:bg-black/60"
               onClick={() =>
-                setCurrentIndex((i) =>
-                  i === 0 ? photos.length - 1 : i - 1,
+                handleIndexChange(
+                  currentIndex === 0 ? photos.length - 1 : currentIndex - 1,
                 )
               }
             >
@@ -53,8 +73,8 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
               size="icon"
               className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-black/40 text-white hover:bg-black/60"
               onClick={() =>
-                setCurrentIndex((i) =>
-                  i === photos.length - 1 ? 0 : i + 1,
+                handleIndexChange(
+                  currentIndex === photos.length - 1 ? 0 : currentIndex + 1,
                 )
               }
             >
@@ -94,7 +114,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
                   ? "bg-foreground"
                   : "bg-muted-foreground/30"
               }`}
-              onClick={() => setCurrentIndex(i)}
+              onClick={() => handleIndexChange(i)}
             />
           ))}
         </div>
