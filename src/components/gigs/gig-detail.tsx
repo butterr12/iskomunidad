@@ -83,8 +83,14 @@ export function GigDetail({ gig, onBack }: GigDetailProps) {
         {/* Info rows */}
         <div className="flex flex-col gap-2 text-sm text-muted-foreground">
           <div className="flex items-start gap-2">
-            <DollarSign className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{gig.compensation}</span>
+            <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {gig.isPaid
+                ? gig.compensation.replace("PHP ", "₱").startsWith("₱")
+                  ? gig.compensation.replace("PHP ", "₱")
+                  : `₱${gig.compensation.replace("PHP ", "")}`
+                : gig.compensation}
+            </span>
           </div>
           {(gig.locationId || gig.locationNote) && (
             <div className="flex items-start gap-2">

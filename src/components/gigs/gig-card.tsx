@@ -21,14 +21,16 @@ export function GigCard({ gig, onSelect }: GigCardProps) {
       className="flex w-full gap-3 rounded-2xl border bg-card p-3 text-left shadow-sm transition-all hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
     >
       {/* Compensation box */}
-      <div className="flex shrink-0 flex-col items-center justify-center rounded-lg bg-muted px-3 py-2 text-center">
+      <div className="flex shrink-0 flex-col items-center justify-center rounded-lg bg-emerald-500/10 px-3 py-2 text-center">
         {gig.isPaid ? (
           <>
-            <span className="text-sm font-bold leading-tight">
-              {gig.compensation.replace("PHP ", "₱").split("/")[0]}
+            <span className="text-sm font-bold leading-tight text-emerald-600 dark:text-emerald-400">
+              {gig.compensation.replace("PHP ", "₱").startsWith("₱")
+                ? gig.compensation.replace("PHP ", "₱").split("/")[0]
+                : `₱${gig.compensation.replace("PHP ", "").split("/")[0]}`}
             </span>
             {gig.compensation.includes("/") && (
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">
                 /{gig.compensation.split("/")[1]}
               </span>
             )}

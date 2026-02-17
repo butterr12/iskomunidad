@@ -19,7 +19,7 @@ export function GigList({ gigs, onSelectGig }: GigListProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3">
       {gigs.map((gig) => (
         <GigCard key={gig.id} gig={gig} onSelect={onSelectGig} />
       ))}

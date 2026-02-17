@@ -21,6 +21,30 @@ export interface CampusEvent {
   rejectionReason?: string;
 }
 
+export const EVENT_CATEGORIES: EventCategory[] = [
+  "academic",
+  "cultural",
+  "social",
+  "sports",
+  "org",
+];
+
+export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
+  academic: "Academic",
+  cultural: "Cultural",
+  social: "Social",
+  sports: "Sports",
+  org: "Organization",
+};
+
+export const EVENT_CATEGORY_COLORS: Record<EventCategory, string> = {
+  academic: "#3b82f6",
+  cultural: "#8b5cf6",
+  social: "#ec4899",
+  sports: "#f59e0b",
+  org: "#10b981",
+};
+
 /** Resolve an event's locationId to its Landmark, or null if online / not found. */
 export function resolveLocation(event: CampusEvent, landmarks: Landmark[]): Landmark | null {
   if (!event.locationId) return null;
