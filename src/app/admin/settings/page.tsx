@@ -4,9 +4,16 @@ import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { SettingsPanel } from "@/components/admin/settings-panel";
 import { adminGetSettings, adminUpdateSettings } from "@/actions/admin";
+import type { ApprovalMode, ModerationPreset } from "@/actions/_helpers";
+
+interface SettingsState {
+  approvalMode: ApprovalMode;
+  moderationPreset: ModerationPreset;
+  customModerationRules: string;
+}
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<{ autoApprove: boolean } | null>(null);
+  const [settings, setSettings] = useState<SettingsState | null>(null);
 
   useEffect(() => {
     adminGetSettings().then((res) => {
@@ -14,9 +21,30 @@ export default function SettingsPage() {
     });
   }, []);
 
-  const handleToggleAutoApprove = async (value: boolean) => {
-    await adminUpdateSettings({ autoApprove: value });
-    setSettings({ autoApprove: value });
+  const handleApprovalModeChange = async (mode: ApprovalMode) => {
+    setSettings((prev) => prev && { ...prev, approvalMode: mode });
+    await adminUpdateSettings({ approvalMode: mode });
+  };
+
+  const handleModerationPresetChange = async (preset: ModerationPreset) => {
+    if (!settings) return;
+    setSettings((prev) => prev && { ...prev, moderationPreset: preset });
+    await adminUpdateSettings({
+      approvalMode: settings.approvalMode,
+      moderationPreset: preset,
+    });
+  };
+
+  const handleCustomRulesChange = (rules: string) => {
+    setSettings((prev) => prev && { ...prev, customModerationRules: rules });
+  };
+
+  const handleCustomRulesSave = async () => {
+    if (!settings) return;
+    await adminUpdateSettings({
+      approvalMode: settings.approvalMode,
+      customModerationRules: settings.customModerationRules,
+    });
   };
 
   if (!settings) {
@@ -30,7 +58,10 @@ export default function SettingsPage() {
   return (
     <SettingsPanel
       settings={settings}
-      onToggleAutoApprove={handleToggleAutoApprove}
+      onApprovalModeChange={handleApprovalModeChange}
+      onModerationPresetChange={handleModerationPresetChange}
+      onCustomRulesChange={handleCustomRulesChange}
+      onCustomRulesSave={handleCustomRulesSave}
     />
   );
 }

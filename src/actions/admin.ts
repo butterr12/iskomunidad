@@ -15,10 +15,16 @@ import {
 import { eq, sql, desc } from "drizzle-orm";
 import {
   type ActionResult,
+  type ApprovalMode,
+  type ModerationPreset,
   requireAdmin,
   getAutoApproveSetting,
+  getApprovalMode,
+  getModerationPreset,
+  getCustomModerationRules,
   createNotification,
 } from "./_helpers";
+import { parseCompensation } from "@/lib/gigs";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -77,8 +83,6 @@ const createGigSchema = z.object({
   description: z.string().min(1),
   posterCollege: z.string().optional(),
   compensation: z.string().min(1),
-  compensationValue: z.number().int().default(0),
-  isPaid: z.boolean().default(true),
   category: z.string().min(1),
   tags: z.array(z.string()).default([]),
   locationId: z.string().uuid().optional(),
@@ -89,7 +93,9 @@ const createGigSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  autoApprove: z.boolean(),
+  approvalMode: z.enum(["auto", "manual", "ai"]),
+  moderationPreset: z.enum(["strict", "moderate", "relaxed"]).optional(),
+  customModerationRules: z.string().max(2000).optional(),
 });
 
 // ─── Posts ─────────────────────────────────────────────────────────────────────
@@ -642,6 +648,8 @@ export async function adminCreateGig(
   if (!session) return { success: false, error: "Unauthorized" };
 
   const autoApprove = await getAutoApproveSetting();
+  const { value: compensationValue, isPaid } = parseCompensation(parsed.data.compensation);
+
   const [created] = await db
     .insert(gigListing)
     .values({
@@ -649,8 +657,8 @@ export async function adminCreateGig(
       description: parsed.data.description,
       posterCollege: parsed.data.posterCollege ?? null,
       compensation: parsed.data.compensation,
-      compensationValue: parsed.data.compensationValue,
-      isPaid: parsed.data.isPaid,
+      compensationValue,
+      isPaid,
       category: parsed.data.category,
       tags: parsed.data.tags,
       locationId: parsed.data.locationId ?? null,
@@ -794,13 +802,19 @@ export async function adminMarkAllNotificationsRead(): Promise<
 }
 
 export async function adminGetSettings(): Promise<
-  ActionResult<{ autoApprove: boolean }>
+  ActionResult<{
+    approvalMode: ApprovalMode;
+    moderationPreset: ModerationPreset;
+    customModerationRules: string;
+  }>
 > {
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
-  const autoApprove = await getAutoApproveSetting();
-  return { success: true, data: { autoApprove } };
+  const approvalMode = await getApprovalMode();
+  const moderationPreset = await getModerationPreset();
+  const customModerationRules = await getCustomModerationRules();
+  return { success: true, data: { approvalMode, moderationPreset, customModerationRules } };
 }
 
 export async function adminUpdateSettings(
@@ -816,13 +830,39 @@ export async function adminUpdateSettings(
   await db
     .insert(adminSetting)
     .values({
-      key: "autoApprove",
-      value: parsed.data.autoApprove,
+      key: "approvalMode",
+      value: parsed.data.approvalMode,
     })
     .onConflictDoUpdate({
       target: [adminSetting.key],
-      set: { value: parsed.data.autoApprove },
+      set: { value: parsed.data.approvalMode },
     });
+
+  if (parsed.data.moderationPreset !== undefined) {
+    await db
+      .insert(adminSetting)
+      .values({
+        key: "moderationPreset",
+        value: parsed.data.moderationPreset,
+      })
+      .onConflictDoUpdate({
+        target: [adminSetting.key],
+        set: { value: parsed.data.moderationPreset },
+      });
+  }
+
+  if (parsed.data.customModerationRules !== undefined) {
+    await db
+      .insert(adminSetting)
+      .values({
+        key: "customModerationRules",
+        value: parsed.data.customModerationRules,
+      })
+      .onConflictDoUpdate({
+        target: [adminSetting.key],
+        set: { value: parsed.data.customModerationRules },
+      });
+  }
 
   return { success: true, data: undefined };
 }

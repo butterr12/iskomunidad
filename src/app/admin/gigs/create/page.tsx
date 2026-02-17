@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -29,8 +28,6 @@ export default function CreateGigPage() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<GigCategory>("tutoring");
   const [compensation, setCompensation] = useState("");
-  const [compensationValue, setCompensationValue] = useState(0);
-  const [isPaid, setIsPaid] = useState(true);
   const [urgency, setUrgency] = useState<GigUrgency>("flexible");
   const [contactMethod, setContactMethod] = useState("");
   const [locationId, setLocationId] = useState("");
@@ -61,8 +58,6 @@ export default function CreateGigPage() {
         description: description.trim(),
         category,
         compensation: compensation.trim(),
-        compensationValue,
-        isPaid,
         urgency,
         contactMethod: contactMethod.trim(),
         locationId: locationId && locationId !== "none" ? locationId : undefined,
@@ -106,8 +101,6 @@ export default function CreateGigPage() {
               setTitle("");
               setDescription("");
               setCompensation("");
-              setCompensationValue(0);
-              setIsPaid(true);
               setContactMethod("");
               setLocationId("");
               setLocationNote("");
@@ -166,20 +159,10 @@ export default function CreateGigPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="compensation">Compensation *</Label>
-              <Input id="compensation" placeholder='e.g. "₱500/hr"' value={compensation} onChange={(e) => setCompensation(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="compensationValue">Compensation Value (for sorting)</Label>
-              <Input id="compensationValue" type="number" value={compensationValue} onChange={(e) => setCompensationValue(Number(e.target.value))} />
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Switch id="isPaid" checked={isPaid} onCheckedChange={(v) => setIsPaid(!!v)} />
-            <Label htmlFor="isPaid">Is Paid</Label>
+          <div className="space-y-2">
+            <Label htmlFor="compensation">Compensation *</Label>
+            <Input id="compensation" placeholder="e.g. ₱500/hr, Volunteer, Negotiable"
+              value={compensation} onChange={(e) => setCompensation(e.target.value)} required />
           </div>
 
           <div className="space-y-2">

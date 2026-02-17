@@ -9,8 +9,10 @@ import {
   getSessionOrThrow,
   getOptionalSession,
   getAutoApproveSetting,
+  getApprovalMode,
   createNotification,
 } from "./_helpers";
+import { moderateContent } from "@/lib/ai-moderation";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -137,8 +139,17 @@ export async function createEvent(
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
 
-  const autoApprove = await getAutoApproveSetting();
-  const status = autoApprove ? "approved" : "draft";
+  const mode = await getApprovalMode();
+  let status: string;
+  let rejectionReason: string | undefined;
+
+  if (mode === "ai") {
+    const result = await moderateContent({ type: "event", title: parsed.data.title, body: parsed.data.description });
+    status = result.approved ? "approved" : "rejected";
+    rejectionReason = result.reason;
+  } else {
+    status = mode === "auto" ? "approved" : "draft";
+  }
 
   const [created] = await db
     .insert(campusEvent)
@@ -153,17 +164,30 @@ export async function createEvent(
       tags: parsed.data.tags,
       coverColor: parsed.data.coverColor,
       status,
+      rejectionReason: rejectionReason ?? null,
       userId: session.user.id,
     })
     .returning({ id: campusEvent.id });
 
-  if (!autoApprove) {
+  if (mode === "manual") {
     await createNotification({
       type: "event_pending",
       targetId: created.id,
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
     });
+  } else if (mode === "ai") {
+    await createNotification({
+      type: status === "approved" ? "event_approved" : "event_rejected",
+      targetId: created.id,
+      targetTitle: parsed.data.title,
+      authorHandle: session.user.username ?? session.user.name,
+      reason: rejectionReason,
+    });
+  }
+
+  if (status === "rejected") {
+    return { success: false, error: `Your event was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
   return { success: true, data: { id: created.id } };

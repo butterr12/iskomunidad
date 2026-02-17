@@ -4,8 +4,9 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bookmark } from "lucide-react";
+import { Bookmark, Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CreateGigForm } from "./create-gig-form";
 import { SortToggle } from "./sort-toggle";
 import { CategoryFilter } from "./category-filter";
 import { ModeToggle } from "./mode-toggle";
@@ -18,7 +19,8 @@ import {
   type GigCategory,
   type GigSortMode,
 } from "@/lib/gigs";
-import { getApprovedGigs, swipeGig } from "@/actions/gigs";
+import { getApprovedGigs, swipeGig, createGig } from "@/actions/gigs";
+import { toast } from "sonner";
 
 function GigCardSkeleton() {
   return (
@@ -59,6 +61,7 @@ export function GigsTab() {
   const [activeCategory, setActiveCategory] = useState<GigCategory | null>(null);
   const [sortMode, setSortMode] = useState<GigSortMode>("newest");
   const [showSaved, setShowSaved] = useState(false);
+  const [showCreateGig, setShowCreateGig] = useState(false);
 
   const { data: gigs = [], isLoading } = useQuery({
     queryKey: ["approved-gigs"],
@@ -119,6 +122,17 @@ export function GigsTab() {
     );
   };
 
+  const handleCreateGig = async (data: Parameters<typeof createGig>[0]) => {
+    const res = await createGig(data);
+    if (res.success) {
+      await queryClient.invalidateQueries({ queryKey: ["approved-gigs"] });
+      toast.success("Gig posted!");
+    } else {
+      toast.error(res.error);
+    }
+    return { success: res.success };
+  };
+
   return (
     <div className="flex flex-1 flex-col pt-12 pb-14 sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
@@ -155,6 +169,24 @@ export function GigsTab() {
         </div>
       )}
 
+      {/* Tappable banner */}
+      {!selectedGig && (
+        <button
+          onClick={() => setShowCreateGig(true)}
+          className="mx-4 mt-3 flex items-center gap-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 px-5 py-5 text-left transition-all hover:from-primary/20 hover:via-primary/10 hover:border-primary/30 active:scale-[0.98]"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
+            <Plus className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="text-lg font-semibold">Need help with something?</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Tap to post a gig
+            </p>
+          </div>
+        </button>
+      )}
+
       {/* Content */}
       <div className="flex flex-1 overflow-y-auto flex-col">
         {selectedGig ? (
@@ -175,6 +207,24 @@ export function GigsTab() {
           />
         )}
       </div>
+
+      {/* FAB */}
+      {!selectedGig && (
+        <Button
+          size="icon-lg"
+          className="fixed bottom-20 right-4 z-20 rounded-full shadow-lg sm:bottom-6"
+          onClick={() => setShowCreateGig(true)}
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
+      )}
+
+      {/* Create gig sheet */}
+      <CreateGigForm
+        open={showCreateGig}
+        onOpenChange={setShowCreateGig}
+        onSubmit={handleCreateGig}
+      />
     </div>
   );
 }

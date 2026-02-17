@@ -129,3 +129,18 @@ export function sortGigs(gigs: GigListing[], mode: GigSortMode): GigListing[] {
       return sorted.sort((a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency]);
   }
 }
+
+export function parseCompensation(text: string): { value: number; isPaid: boolean } {
+  const lower = text.toLowerCase().trim();
+
+  const unpaidKeywords = ["volunteer", "voluntary", "free", "pro bono", "unpaid", "no pay"];
+  if (unpaidKeywords.some((kw) => lower.includes(kw))) {
+    return { value: 0, isPaid: false };
+  }
+
+  // Extract first number: handles ₱500, PHP 1,500, P300, 500.00
+  const numMatch = lower.replace(/,/g, "").match(/(\d+(?:\.\d+)?)/);
+  const value = numMatch ? Math.round(parseFloat(numMatch[1])) : 0;
+
+  return { value, isPaid: true };
+}

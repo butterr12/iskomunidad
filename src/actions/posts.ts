@@ -13,9 +13,10 @@ import {
   type ActionResult,
   getSessionOrThrow,
   getOptionalSession,
-  getAutoApproveSetting,
+  getApprovalMode,
   createNotification,
 } from "./_helpers";
+import { moderateContent } from "@/lib/ai-moderation";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -159,8 +160,17 @@ export async function createPost(
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
 
-  const autoApprove = await getAutoApproveSetting();
-  const status = autoApprove ? "approved" : "draft";
+  const mode = await getApprovalMode();
+  let status: string;
+  let rejectionReason: string | undefined;
+
+  if (mode === "ai") {
+    const result = await moderateContent({ type: "post", title: parsed.data.title, body: parsed.data.body });
+    status = result.approved ? "approved" : "rejected";
+    rejectionReason = result.reason;
+  } else {
+    status = mode === "auto" ? "approved" : "draft";
+  }
 
   const [created] = await db
     .insert(communityPost)
@@ -171,17 +181,30 @@ export async function createPost(
       imageColor: parsed.data.imageColor ?? null,
       imageEmoji: parsed.data.imageEmoji ?? null,
       status,
+      rejectionReason: rejectionReason ?? null,
       userId: session.user.id,
     })
     .returning({ id: communityPost.id });
 
-  if (!autoApprove) {
+  if (mode === "manual") {
     await createNotification({
       type: "post_pending",
       targetId: created.id,
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
     });
+  } else if (mode === "ai") {
+    await createNotification({
+      type: status === "approved" ? "post_approved" : "post_rejected",
+      targetId: created.id,
+      targetTitle: parsed.data.title,
+      authorHandle: session.user.username ?? session.user.name,
+      reason: rejectionReason,
+    });
+  }
+
+  if (status === "rejected") {
+    return { success: false, error: `Your post was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
   return { success: true, data: { id: created.id } };
@@ -246,6 +269,15 @@ export async function createComment(
 
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  // AI moderation for comments (no status column — reject before inserting)
+  const mode = await getApprovalMode();
+  if (mode === "ai") {
+    const result = await moderateContent({ type: "comment", body: parsed.data.body });
+    if (!result.approved) {
+      return { success: false, error: `Your comment was flagged: ${result.reason ?? "content policy violation"}` };
+    }
+  }
 
   const [created] = await db
     .insert(postComment)

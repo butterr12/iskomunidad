@@ -6,6 +6,7 @@ import "./globals.css";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { ThemeColorMeta } from "@/components/theme-color-meta";
 import { QueryProvider } from "@/components/query-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 const satoshi = localFont({
   src: [
@@ -70,6 +71,7 @@ export default function RootLayout({
             <ThemeColorMeta />
             {children}
             <PwaInstallPrompt />
+            <Toaster />
           </QueryProvider>
         </ThemeProvider>
       </body>

@@ -36,7 +36,7 @@ interface CreatePostFormProps {
     linkUrl?: string;
     imageEmoji?: string;
     imageColor?: string;
-  }) => Promise<void>;
+  }) => Promise<{ success: boolean }>;
 }
 
 export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: CreatePostFormProps) {
@@ -69,7 +69,7 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await onSubmit({
+      const result = await onSubmit({
         title: title.trim(),
         flair,
         type,
@@ -78,8 +78,10 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
         imageEmoji: type === "image" ? imageEmoji : undefined,
         imageColor: type === "image" ? imageColor : undefined,
       });
-      reset();
-      onOpenChange(false);
+      if (result.success) {
+        reset();
+        onOpenChange(false);
+      }
     } finally {
       setSubmitting(false);
     }

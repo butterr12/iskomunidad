@@ -41,12 +41,45 @@ export async function requireAdmin() {
 
 // ─── Utility helpers ──────────────────────────────────────────────────────────
 
-export async function getAutoApproveSetting(): Promise<boolean> {
+export type ApprovalMode = "auto" | "manual" | "ai";
+export type ModerationPreset = "strict" | "moderate" | "relaxed";
+
+export async function getApprovalMode(): Promise<ApprovalMode> {
+  // Check new key first
   const row = await db.query.adminSetting.findFirst({
+    where: eq(adminSetting.key, "approvalMode"),
+  });
+  if (row) return row.value as ApprovalMode;
+
+  // Backwards compat: fall back to legacy boolean key
+  const legacy = await db.query.adminSetting.findFirst({
     where: eq(adminSetting.key, "autoApprove"),
   });
-  if (!row) return true; // default: auto-approve
-  return row.value as boolean;
+  if (legacy) return (legacy.value as boolean) ? "auto" : "manual";
+
+  return "auto"; // default
+}
+
+export async function getAutoApproveSetting(): Promise<boolean> {
+  return (await getApprovalMode()) !== "manual";
+}
+
+export async function getModerationPreset(): Promise<ModerationPreset> {
+  const row = await db.query.adminSetting.findFirst({
+    where: eq(adminSetting.key, "moderationPreset"),
+  });
+  if (row && ["strict", "moderate", "relaxed"].includes(row.value as string)) {
+    return row.value as ModerationPreset;
+  }
+  return "moderate";
+}
+
+export async function getCustomModerationRules(): Promise<string> {
+  const row = await db.query.adminSetting.findFirst({
+    where: eq(adminSetting.key, "customModerationRules"),
+  });
+  if (row && typeof row.value === "string") return row.value;
+  return "";
 }
 
 export async function createNotification(data: {

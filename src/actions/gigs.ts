@@ -8,9 +8,11 @@ import {
   type ActionResult,
   getSessionOrThrow,
   getOptionalSession,
-  getAutoApproveSetting,
+  getApprovalMode,
   createNotification,
 } from "./_helpers";
+import { moderateContent } from "@/lib/ai-moderation";
+import { parseCompensation } from "@/lib/gigs";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -19,8 +21,6 @@ const createGigSchema = z.object({
   description: z.string().min(1),
   posterCollege: z.string().optional(),
   compensation: z.string().min(1),
-  compensationValue: z.number().int().default(0),
-  isPaid: z.boolean().default(true),
   category: z.string().min(1),
   tags: z.array(z.string()).default([]),
   locationId: z.string().uuid().optional(),
@@ -131,8 +131,19 @@ export async function createGig(
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
 
-  const autoApprove = await getAutoApproveSetting();
-  const status = autoApprove ? "approved" : "draft";
+  const mode = await getApprovalMode();
+  let status: string;
+  let rejectionReason: string | undefined;
+
+  if (mode === "ai") {
+    const result = await moderateContent({ type: "gig", title: parsed.data.title, body: parsed.data.description });
+    status = result.approved ? "approved" : "rejected";
+    rejectionReason = result.reason;
+  } else {
+    status = mode === "auto" ? "approved" : "draft";
+  }
+
+  const { value: compensationValue, isPaid } = parseCompensation(parsed.data.compensation);
 
   const [created] = await db
     .insert(gigListing)
@@ -141,8 +152,8 @@ export async function createGig(
       description: parsed.data.description,
       posterCollege: parsed.data.posterCollege ?? null,
       compensation: parsed.data.compensation,
-      compensationValue: parsed.data.compensationValue,
-      isPaid: parsed.data.isPaid,
+      compensationValue,
+      isPaid,
       category: parsed.data.category,
       tags: parsed.data.tags,
       locationId: parsed.data.locationId ?? null,
@@ -153,17 +164,30 @@ export async function createGig(
       urgency: parsed.data.urgency,
       contactMethod: parsed.data.contactMethod,
       status,
+      rejectionReason: rejectionReason ?? null,
       userId: session.user.id,
     })
     .returning({ id: gigListing.id });
 
-  if (!autoApprove) {
+  if (mode === "manual") {
     await createNotification({
       type: "gig_pending",
       targetId: created.id,
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
     });
+  } else if (mode === "ai") {
+    await createNotification({
+      type: status === "approved" ? "gig_approved" : "gig_rejected",
+      targetId: created.id,
+      targetTitle: parsed.data.title,
+      authorHandle: session.user.username ?? session.user.name,
+      reason: rejectionReason,
+    });
+  }
+
+  if (status === "rejected") {
+    return { success: false, error: `Your gig was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
   return { success: true, data: { id: created.id } };

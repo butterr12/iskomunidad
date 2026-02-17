@@ -19,6 +19,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { createEvent, updateEvent } from "@/actions/events";
+import { toast } from "sonner";
 import { getApprovedLandmarks } from "@/actions/landmarks";
 import type { CampusEvent, EventCategory } from "@/lib/events";
 import type { Landmark } from "@/lib/landmarks";
@@ -143,8 +144,10 @@ export function EventFormWizard({ mode, initialData, autoApprove = true }: Event
           : await updateEvent(initialData!.id, payload);
 
       if (res.success) {
+        toast.success(mode === "create" ? "Event created!" : "Event updated!");
         router.push("/events");
       } else {
+        toast.error(res.error);
         setError(res.error);
       }
     } catch {

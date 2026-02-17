@@ -28,6 +28,7 @@ import {
   createPost,
   createComment,
 } from "@/actions/posts";
+import { toast } from "sonner";
 
 type PostWithComments = {
   comments?: PostComment[];
@@ -148,12 +149,20 @@ export function CommunityTab() {
     const res = await createPost(data);
     if (res.success) {
       await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
+      toast.success("Post published!");
+    } else {
+      toast.error(res.error);
     }
+    return { success: res.success };
   };
 
   const handleComment = async (body: string) => {
     if (!selectedPost) return;
     const res = await createComment({ postId: selectedPost.id, body });
+    if (!res.success) {
+      toast.error(res.error);
+      return;
+    }
     if (res.success) {
       // Re-fetch post to get updated comments
       const postRes = await getPostById(selectedPost.id);
@@ -180,6 +189,10 @@ export function CommunityTab() {
   const handleReply = async (parentId: string, body: string) => {
     if (!selectedPost) return;
     const res = await createComment({ postId: selectedPost.id, parentId, body });
+    if (!res.success) {
+      toast.error(res.error);
+      return;
+    }
     if (res.success) {
       // Re-fetch post to get updated comments
       const postRes = await getPostById(selectedPost.id);

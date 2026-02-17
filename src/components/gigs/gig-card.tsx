@@ -23,16 +23,7 @@ export function GigCard({ gig, onSelect }: GigCardProps) {
       {/* Compensation box */}
       <div className="flex shrink-0 flex-col items-center justify-center rounded-lg bg-muted px-3 py-2 text-center">
         {gig.isPaid ? (
-          <>
-            <span className="text-sm font-bold leading-tight">
-              {gig.compensation.replace("PHP ", "₱").split("/")[0]}
-            </span>
-            {gig.compensation.includes("/") && (
-              <span className="text-[10px] text-muted-foreground">
-                /{gig.compensation.split("/")[1]}
-              </span>
-            )}
-          </>
+          <span className="text-sm font-bold leading-tight">{gig.compensation}</span>
         ) : (
           <span className="text-xs font-semibold text-muted-foreground">Vol</span>
         )}
