@@ -1,8 +1,9 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { ThemeColorMeta } from "@/components/theme-color-meta";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,10 +30,6 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = {
-  themeColor: "#1a1a1a",
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -40,10 +37,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <meta name="theme-color" content="#ffffff" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeColorMeta />
           {children}
           <PwaInstallPrompt />
         </ThemeProvider>
