@@ -16,11 +16,7 @@ import {
 } from "@/lib/posts";
 import { getApprovedPosts, getPostById, voteOnPost, voteOnComment, createComment } from "@/actions/posts";
 
-interface CommunityTabProps {
-  onViewOnMap: (post: CommunityPost) => void;
-}
-
-export function CommunityTab({ onViewOnMap }: CommunityTabProps) {
+export function CommunityTab() {
   const [sortMode, setSortMode] = useState<SortMode>("hot");
   const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
@@ -79,12 +75,6 @@ export function CommunityTab({ onViewOnMap }: CommunityTabProps) {
     }
   };
 
-  const handleViewOnMap = () => {
-    if (selectedPost) {
-      onViewOnMap(selectedPost);
-    }
-  };
-
   return (
     <div className="flex flex-1 flex-col pt-12 pb-14 sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
@@ -107,7 +97,6 @@ export function CommunityTab({ onViewOnMap }: CommunityTabProps) {
             onBack={() => setSelectedPost(null)}
             onVotePost={(dir) => handleVotePost(selectedPost.id, dir)}
             onVoteComment={handleVoteComment}
-            onViewOnMap={selectedPost.locationId ? handleViewOnMap : undefined}
           />
         ) : (
           <PostFeed

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,14 +26,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type NavTab = "map" | "community" | "events" | "gigs";
-
-const tabs: { label: string; value: NavTab; icon: React.ComponentType<{ className?: string }> }[] = [
-  { label: "Map", value: "map", icon: MapPin },
-  { label: "Community", value: "community", icon: Users },
-  { label: "Events", value: "events", icon: CalendarDays },
-  { label: "Gigs", value: "gigs", icon: Hammer },
-];
+const tabs = [
+  { label: "Map", href: "/map", icon: MapPin },
+  { label: "Community", href: "/community", icon: Users },
+  { label: "Events", href: "/events", icon: CalendarDays },
+  { label: "Gigs", href: "/gigs", icon: Hammer },
+] as const;
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -45,14 +44,10 @@ function getInitials(name?: string | null): string {
     .toUpperCase();
 }
 
-interface NavBarProps {
-  activeTab: NavTab;
-  onTabChange: (tab: NavTab) => void;
-}
-
-export function NavBar({ activeTab, onTabChange }: NavBarProps) {
+export function NavBar() {
   const { data: session } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const user = session?.user;
@@ -77,14 +72,16 @@ export function NavBar({ activeTab, onTabChange }: NavBarProps) {
           <nav className="flex items-center gap-1">
             {tabs.map((t) => (
               <Button
-                key={t.value}
-                variant={activeTab === t.value ? "default" : "ghost"}
+                key={t.href}
+                variant={pathname === t.href ? "default" : "ghost"}
                 size="sm"
-                onClick={() => onTabChange(t.value)}
                 className="gap-1.5"
+                asChild
               >
-                <t.icon className="h-4 w-4" />
-                {t.label}
+                <Link href={t.href}>
+                  <t.icon className="h-4 w-4" />
+                  {t.label}
+                </Link>
               </Button>
             ))}
           </nav>
@@ -119,19 +116,19 @@ export function NavBar({ activeTab, onTabChange }: NavBarProps) {
       <nav className="fixed bottom-0 left-0 right-0 z-[1000] sm:hidden border-t bg-background/95 backdrop-blur-sm">
         <div className="flex h-14 items-center justify-around">
           {tabs.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => onTabChange(t.value)}
+            <Link
+              key={t.href}
+              href={t.href}
               className={cn(
                 "flex flex-1 flex-col items-center gap-0.5 py-1 text-[11px] font-medium transition-colors",
-                activeTab === t.value
+                pathname === t.href
                   ? "text-primary"
                   : "text-muted-foreground"
               )}
             >
-              <t.icon className={cn("h-5 w-5", activeTab === t.value && "text-primary")} />
+              <t.icon className={cn("h-5 w-5", pathname === t.href && "text-primary")} />
               {t.label}
-            </button>
+            </Link>
           ))}
         </div>
       </nav>
