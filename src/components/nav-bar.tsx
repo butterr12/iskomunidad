@@ -21,6 +21,7 @@ import {
   Hammer,
   Settings,
   LogOut,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -165,6 +166,18 @@ export function NavBar({ activeTab, onTabChange }: NavBarProps) {
             <Separator />
 
             {/* Menu items */}
+            {user?.role === "admin" && (
+              <SheetClose asChild>
+                <button
+                  onClick={() => router.push("/admin")}
+                  className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted transition-colors"
+                >
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  Admin Panel
+                </button>
+              </SheetClose>
+            )}
+
             <SheetClose asChild>
               <button
                 onClick={() => router.push("/settings")}

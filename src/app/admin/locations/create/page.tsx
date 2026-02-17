@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,11 @@ import {
 import { adminCreateLandmark } from "@/actions/admin";
 import type { LandmarkCategory } from "@/lib/landmarks";
 
+const LocationPickerMap = dynamic(
+  () => import("@/components/admin/location-picker-map").then((m) => m.LocationPickerMap),
+  { ssr: false },
+);
+
 const LANDMARK_CATEGORIES: { value: LandmarkCategory; label: string }[] = [
   { value: "attraction", label: "Attraction" },
   { value: "community", label: "Community" },
@@ -34,26 +40,45 @@ export default function CreateLocationPage() {
   const [tags, setTags] = useState("");
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const parsedLat = lat === "" ? null : parseFloat(lat);
+  const parsedLng = lng === "" ? null : parseFloat(lng);
+  const validLat = parsedLat !== null && !isNaN(parsedLat) ? parsedLat : null;
+  const validLng = parsedLng !== null && !isNaN(parsedLng) ? parsedLng : null;
+
+  const handleMapLocationChange = useCallback((newLat: number, newLng: number) => {
+    setLat(newLat.toFixed(6));
+    setLng(newLng.toFixed(6));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !lat || !lng) return;
     setSubmitting(true);
+    setError(null);
 
-    const res = await adminCreateLandmark({
-      name: name.trim(),
-      description: description.trim(),
-      category,
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
-      address: address.trim() || undefined,
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      photos: [],
-    });
+    try {
+      const res = await adminCreateLandmark({
+        name: name.trim(),
+        description: description.trim(),
+        category,
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+        address: address.trim() || undefined,
+        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        photos: [],
+      });
 
-    setSubmitting(false);
-    if (res.success) {
-      setCreated({ id: res.data.id, name: name.trim() });
+      if (res.success) {
+        setCreated({ id: res.data.id, name: name.trim() });
+      } else {
+        setError(res.error);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -120,6 +145,12 @@ export default function CreateLocationPage() {
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label>Pin Location *</Label>
+            <p className="text-sm text-muted-foreground">Click on the map to place a pin, or drag the pin to adjust.</p>
+            <LocationPickerMap lat={validLat} lng={validLng} onLocationChange={handleMapLocationChange} />
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="lat">Latitude *</Label>
@@ -140,6 +171,10 @@ export default function CreateLocationPage() {
             <Label htmlFor="tags">Tags (comma-separated)</Label>
             <Input id="tags" placeholder="e.g. park, nature, scenic" value={tags} onChange={(e) => setTags(e.target.value)} />
           </div>
+
+          {error && (
+            <p className="text-sm text-destructive">{error}</p>
+          )}
 
           <Button type="submit" disabled={submitting}>
             {submitting ? "Creating..." : "Create Location"}

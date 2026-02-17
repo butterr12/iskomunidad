@@ -1,28 +1,30 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { AdminAuthProvider, useAdminAuth } from "@/contexts/admin-auth-context";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminHeader } from "@/components/admin/admin-header";
 
 function AdminShell({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAdminAuth();
-  const pathname = usePathname();
+  const { isAdmin, isLoading } = useAdminAuth();
   const router = useRouter();
-  const isLoginPage = pathname === "/admin/login";
 
   useEffect(() => {
-    if (!isAuthenticated && !isLoginPage) {
-      router.replace("/admin/login");
+    if (!isLoading && !isAdmin) {
+      router.replace("/");
     }
-  }, [isAuthenticated, isLoginPage, router]);
+  }, [isAdmin, isLoading, router]);
 
-  if (isLoginPage) {
-    return <>{children}</>;
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
   }
 
-  if (!isAuthenticated) {
+  if (!isAdmin) {
     return null;
   }
 
