@@ -21,41 +21,55 @@ const categoryColors: Record<LandmarkCategory, string> = {
   event: "#16a34a",
 };
 
-function MarkerPin({ color, selected }: { color: string; selected?: boolean }) {
+function MarkerPin({
+  color,
+  selected,
+  label,
+}: {
+  color: string;
+  selected?: boolean;
+  label: string;
+}) {
   return (
-    <svg
-      width="28"
-      height="40"
-      viewBox="0 0 28 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{
-        transform: selected ? "scale(1.3)" : "scale(1)",
-        transformOrigin: "bottom center",
-        transition: "transform 200ms ease-out",
-        willChange: "transform",
-        backfaceVisibility: "hidden",
-      }}
-    >
-      <path
-        d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z"
-        fill={color}
-      />
-      <circle cx="14" cy="14" r="6" fill="white" />
-    </svg>
+    <div className="group relative flex flex-col items-center">
+      {/* Hover label */}
+      <div className="pointer-events-none absolute -top-8 whitespace-nowrap rounded-md bg-card px-2 py-1 text-[10px] font-medium text-card-foreground shadow-lg border opacity-0 transition-opacity group-hover:opacity-100 z-20">
+        {label}
+      </div>
+      <svg
+        width="28"
+        height="40"
+        viewBox="0 0 28 40"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{
+          transform: selected ? "scale(1.3)" : "scale(1)",
+          transformOrigin: "bottom center",
+          transition: "transform 200ms ease-out",
+          willChange: "transform",
+          backfaceVisibility: "hidden",
+        }}
+      >
+        <path
+          d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z"
+          fill={color}
+        />
+        <circle cx="14" cy="14" r="6" fill="white" />
+      </svg>
+    </div>
   );
 }
 
-function ClusterBubble({ count, onClick }: { count: number; onClick: () => void }) {
-  const size = Math.min(24 + count * 1.5, 56);
+function ClusterHint({ count, onClick }: { count: number; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{ width: size, height: size }}
-      className="flex cursor-pointer items-center justify-center rounded-full bg-primary/90 text-xs font-bold text-primary-foreground shadow-md ring-2 ring-primary-foreground/50 transition-transform hover:scale-110 will-change-transform [backface-visibility:hidden]"
+      className="relative flex h-3 w-3 cursor-pointer items-center justify-center transition-transform hover:scale-[2] will-change-transform [backface-visibility:hidden]"
+      title=""
     >
-      {count}
+      <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />
+      <span className="relative h-2.5 w-2.5 rounded-full bg-primary/50 ring-1 ring-primary/20" />
     </button>
   );
 }
@@ -72,6 +86,14 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
   const [viewport, setViewport] = useState({ zoom: 15, bounds: null as mapboxgl.LngLatBounds | null });
   const mapMode: MapThemeMode = resolvedTheme === "dark" ? "dark" : "light";
 
+  const pinNameMap = useMemo(() => {
+    const nameMap: Record<string, string> = {};
+    for (const pin of pins) {
+      nameMap[pin.id] = pin.name;
+    }
+    return nameMap;
+  }, [pins]);
+
   const updateViewport = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -84,7 +106,6 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     applyMapTheme(map, mapMode);
   }, [mapMode]);
 
-  // Convert pins to GeoJSON features for supercluster
   const points = useMemo(
     () =>
       pins.map((pin) => ({
@@ -111,12 +132,50 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
       ]
     : undefined;
 
-  const { clusters, supercluster } = useSupercluster({
+  const { clusters: rawClusters, supercluster } = useSupercluster({
     points,
     bounds: mapBounds,
     zoom: viewport.zoom,
-    options: { radius: 60, maxZoom: 18 },
+    options: { radius: 80, maxZoom: 18 },
   });
+
+  const MIN_VISIBLE_PINS = 12;
+
+  const clusters = useMemo(() => {
+    if (!supercluster) return rawClusters;
+
+    const individualPins = rawClusters.filter(
+      (f) => !(f.properties as Record<string, unknown>).cluster
+    );
+    const clusterFeatures = rawClusters.filter(
+      (f) => (f.properties as Record<string, unknown>).cluster === true
+    );
+
+    if (individualPins.length >= MIN_VISIBLE_PINS) return rawClusters;
+
+    const sortedClusters = [...clusterFeatures].sort(
+      (a, b) =>
+        Number((a.properties as Record<string, unknown>).point_count) -
+        Number((b.properties as Record<string, unknown>).point_count)
+    );
+
+    const result = [...individualPins];
+    let visibleCount = individualPins.length;
+
+    for (const cluster of sortedClusters) {
+      if (visibleCount >= MIN_VISIBLE_PINS) {
+        result.push(cluster);
+        continue;
+      }
+      const clusterId = Number((cluster.properties as Record<string, unknown>).cluster_id);
+      const count = Number((cluster.properties as Record<string, unknown>).point_count);
+      const leaves = supercluster.getLeaves(clusterId, count);
+      result.push(...leaves);
+      visibleCount += count;
+    }
+
+    return result;
+  }, [rawClusters, supercluster]);
 
   const handleClusterClick = useCallback(
     (clusterId: number, lat: number, lng: number) => {
@@ -163,7 +222,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
           const count = Number(props.point_count);
           return (
             <Marker key={`cluster-${clusterId}`} latitude={lat} longitude={lng} anchor="center">
-              <ClusterBubble
+              <ClusterHint
                 count={count}
                 onClick={() => handleClusterClick(clusterId, lat, lng)}
               />
@@ -189,6 +248,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
             <MarkerPin
               color={categoryColors[category]}
               selected={selectedId === pinId}
+              label={pinNameMap[pinId] ?? ""}
             />
           </Marker>
         );
