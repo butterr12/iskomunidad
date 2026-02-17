@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Plus, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -37,12 +37,10 @@ export function PwaInstallPrompt() {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
-  const [isIOSDevice, setIsIOSDevice] = useState(false);
+  const isIOSDevice = useMemo(() => isIOS(), []);
 
   useEffect(() => {
     if (!isMobile || isStandalone() || shouldHidePrompt()) return;
-
-    setIsIOSDevice(isIOS());
 
     const handler = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
@@ -85,11 +83,17 @@ export function PwaInstallPrompt() {
   return (
     <div className="fixed inset-0 z-[9999]">
       {/* Overlay */}
-      <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={handleDismiss} />
+      <button
+        type="button"
+        aria-label="Dismiss install prompt"
+        className="absolute inset-0 bg-black/50 animate-in fade-in duration-200"
+        onClick={handleDismiss}
+      />
 
       {/* Bottom sheet */}
       <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-background p-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
         <button
+          type="button"
           onClick={handleDismiss}
           className="absolute top-4 right-4 rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
@@ -122,6 +126,7 @@ export function PwaInstallPrompt() {
 
           <div className="flex items-center justify-center gap-4">
             <button
+              type="button"
               onClick={handleDismiss}
               className="text-muted-foreground hover:text-foreground py-2 text-xs transition-colors"
             >
@@ -129,10 +134,11 @@ export function PwaInstallPrompt() {
             </button>
             <span className="text-muted-foreground/40 text-xs">|</span>
             <button
+              type="button"
               onClick={handleDismissPermanently}
               className="text-muted-foreground hover:text-foreground py-2 text-xs transition-colors"
             >
-              Don't show again
+              Don&apos;t show again
             </button>
           </div>
         </div>

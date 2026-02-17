@@ -19,7 +19,6 @@ export const {
   signUp,
   signOut,
   useSession,
-  getSession,
   updateUser,
   changePassword,
   listAccounts,

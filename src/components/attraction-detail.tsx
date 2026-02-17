@@ -7,6 +7,9 @@ import type { Landmark } from "@/lib/landmarks";
 import type { CampusEvent } from "@/lib/events";
 import type { CommunityPost } from "@/lib/posts";
 
+const EMPTY_EVENTS: CampusEvent[] = [];
+const EMPTY_POSTS: CommunityPost[] = [];
+
 interface AttractionDetailProps {
   landmark: Landmark;
   events?: CampusEvent[];
@@ -23,7 +26,12 @@ function formatEventTime(startDate: string, endDate: string) {
   return `${dayStr} · ${startTime} - ${endTime}`;
 }
 
-export function AttractionDetail({ landmark, events = [], posts = [], onClose }: AttractionDetailProps) {
+export function AttractionDetail({
+  landmark,
+  events = EMPTY_EVENTS,
+  posts = EMPTY_POSTS,
+  onClose,
+}: AttractionDetailProps) {
   return (
     <div className="flex flex-col gap-4 p-5">
       {landmark.photos && landmark.photos.length > 0 && (

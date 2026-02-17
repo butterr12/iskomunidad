@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import { NotificationList } from "@/components/notifications/notification-list";
+
+export const metadata: Metadata = {
+  title: "Notifications | iskomunidad",
+  description: "View updates about your posts, events, gigs, and activity.",
+};
 
 export default function NotificationsPage() {
   return (

@@ -1,33 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Inbox, Loader2 } from "lucide-react";
 import { ModerationRow } from "@/components/admin/moderation-row";
-import { adminGetAllPosts, adminApprovePost, adminRejectPost } from "@/actions/admin";
+import {
+  adminGetAllPosts,
+  adminApprovePost,
+  adminRejectPost,
+} from "@/actions/admin";
+
+type ModerationPost = Parameters<typeof ModerationRow>[0]["post"];
+
+const DRAFT_POSTS_QUERY_KEY = ["admin-posts", "draft"] as const;
 
 export default function ModerationQueuePage() {
-  const [draftPosts, setDraftPosts] = useState<unknown[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchDrafts = async () => {
-    const res = await adminGetAllPosts("draft");
-    if (res.success) setDraftPosts(res.data);
-    setLoading(false);
+  const { data: draftPosts = [], isLoading } = useQuery({
+    queryKey: DRAFT_POSTS_QUERY_KEY,
+    queryFn: async () => {
+      const res = await adminGetAllPosts("draft");
+      return res.success ? (res.data as ModerationPost[]) : [];
+    },
+  });
+
+  const refreshDrafts = async () => {
+    await queryClient.invalidateQueries({ queryKey: DRAFT_POSTS_QUERY_KEY });
   };
-
-  useEffect(() => { fetchDrafts(); }, []);
 
   const handleApprove = async (id: string) => {
     await adminApprovePost(id);
-    fetchDrafts();
+    await refreshDrafts();
   };
 
   const handleReject = async (id: string, reason: string) => {
     await adminRejectPost(id, reason);
-    fetchDrafts();
+    await refreshDrafts();
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -39,11 +50,11 @@ export default function ModerationQueuePage() {
     <div className="space-y-4">
       {draftPosts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <Inbox className="h-10 w-10 mb-2" />
+          <Inbox className="mb-2 h-10 w-10" />
           <p>No posts pending review.</p>
         </div>
       ) : (
-        draftPosts.map((post: any) => (
+        draftPosts.map((post) => (
           <ModerationRow
             key={post.id}
             post={post}

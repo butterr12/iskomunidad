@@ -1,5 +1,3 @@
-import type { Landmark } from "./landmarks";
-
 export type GigCategory =
   | "tutoring"
   | "research"
@@ -87,15 +85,6 @@ export const URGENCY_COLORS: Record<GigUrgency, string> = {
   soon: "#f59e0b",
   flexible: "#10b981",
 };
-
-export function gigToLandmark(gig: GigListing, landmarks: Landmark[]): Landmark | null {
-  if (!gig.locationId) return null;
-  return landmarks.find((l) => l.id === gig.locationId) ?? null;
-}
-
-export function getGigsAtLandmark(landmarkId: string, gigs: GigListing[]): GigListing[] {
-  return gigs.filter((g) => g.locationId === landmarkId);
-}
 
 export function formatRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();

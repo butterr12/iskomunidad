@@ -1,28 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { NotificationTable } from "@/components/admin/notification-table";
-import { adminGetNotifications, adminMarkAllNotificationsRead } from "@/actions/admin";
+import {
+  adminGetNotifications,
+  adminMarkAllNotificationsRead,
+} from "@/actions/admin";
+
+type AdminNotification = Parameters<
+  typeof NotificationTable
+>[0]["notifications"][number];
+
+const NOTIFICATIONS_QUERY_KEY = ["admin-notifications"] as const;
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<unknown[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchNotifications = async () => {
-    const res = await adminGetNotifications();
-    if (res.success) setNotifications(res.data);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchNotifications(); }, []);
+  const { data: notifications = [], isLoading } = useQuery({
+    queryKey: NOTIFICATIONS_QUERY_KEY,
+    queryFn: async () => {
+      const res = await adminGetNotifications();
+      return res.success ? (res.data as AdminNotification[]) : [];
+    },
+  });
 
   const handleMarkAllRead = async () => {
     await adminMarkAllNotificationsRead();
-    fetchNotifications();
+    await queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -32,7 +40,7 @@ export default function NotificationsPage() {
 
   return (
     <NotificationTable
-      notifications={notifications as never[]}
+      notifications={notifications}
       onMarkAllRead={handleMarkAllRead}
     />
   );

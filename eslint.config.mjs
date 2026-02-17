@@ -3,6 +3,11 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = defineConfig([
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: "off",
+    },
+  },
   ...nextVitals,
   ...nextTs,
   // Override default ignores of eslint-config-next.

@@ -47,13 +47,14 @@ function MarkerPin({ color, selected }: { color: string; selected?: boolean }) {
 function ClusterBubble({ count, onClick }: { count: number; onClick: () => void }) {
   const size = Math.min(24 + count * 1.5, 56);
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
       style={{ width: size, height: size }}
       className="flex cursor-pointer items-center justify-center rounded-full bg-primary/90 text-xs font-bold text-primary-foreground shadow-md ring-2 ring-primary-foreground/50 transition-transform hover:scale-110"
     >
       {count}
-    </div>
+    </button>
   );
 }
 

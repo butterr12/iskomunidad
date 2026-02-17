@@ -129,7 +129,6 @@ export function PostDetail({
 
         {/* Comments */}
         <CommentSection
-          postId={post.id}
           comments={postComments}
           onVoteComment={onVoteComment}
           onComment={onComment}

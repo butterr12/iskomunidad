@@ -54,10 +54,12 @@ export function EventsTab() {
     queryFn: async () => {
       const res = await getApprovedEvents();
       if (!res.success) return [];
-      return (res.data as any[]).map((e) => ({
-        ...e,
-        rsvpStatus: e.userRsvp ?? null,
-      })) as CampusEvent[];
+      return (res.data as (CampusEvent & { userRsvp?: RsvpStatus })[]).map(
+        (event) => ({
+          ...event,
+          rsvpStatus: event.userRsvp ?? null,
+        }),
+      );
     },
   });
 

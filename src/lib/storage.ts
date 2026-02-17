@@ -2,7 +2,6 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
-  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -45,14 +44,15 @@ export async function getPresignedUrl(
   );
 }
 
-export async function deleteFile(key: string): Promise<void> {
-  await s3.send(
-    new DeleteObjectCommand({ Bucket: BUCKET, Key: key }),
-  );
-}
+const EXT_BY_CONTENT_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
 
-export function generatePhotoKey(filename: string): string {
-  const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+export function generatePhotoKey(contentType: string): string {
+  const ext = EXT_BY_CONTENT_TYPE[contentType] ?? "jpg";
   const id = crypto.randomUUID();
   return `photos/${id}.${ext}`;
 }

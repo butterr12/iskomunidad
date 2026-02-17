@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import Image from "next/image";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { X, ImagePlus, Loader2 } from "lucide-react";
 
@@ -24,6 +25,30 @@ export function PhotoUpload({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const previousPreviewUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    const currentUrls = photos.map((photo) => photo.previewUrl);
+    for (const previousUrl of previousPreviewUrlsRef.current) {
+      if (
+        previousUrl.startsWith("blob:") &&
+        !currentUrls.includes(previousUrl)
+      ) {
+        URL.revokeObjectURL(previousUrl);
+      }
+    }
+    previousPreviewUrlsRef.current = currentUrls;
+  }, [photos]);
+
+  useEffect(() => {
+    return () => {
+      for (const previewUrl of previousPreviewUrlsRef.current) {
+        if (previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(previewUrl);
+        }
+      }
+    };
+  }, []);
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,10 +108,13 @@ export function PhotoUpload({
         <div className="grid grid-cols-3 gap-2">
           {photos.map((photo, i) => (
             <div key={photo.key} className="relative aspect-square">
-              <img
+              <Image
                 src={photo.previewUrl}
                 alt={`Photo ${i + 1}`}
-                className="h-full w-full rounded-md object-cover"
+                fill
+                unoptimized
+                sizes="(max-width: 640px) 33vw, 128px"
+                className="rounded-md object-cover"
               />
               <button
                 type="button"

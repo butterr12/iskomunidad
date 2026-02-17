@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import Image from "next/image";
+import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LandmarkPhoto } from "@/lib/landmarks";
@@ -10,20 +11,15 @@ interface PhotoGalleryProps {
 }
 
 export function PhotoGallery({ photos }: PhotoGalleryProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
+  const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null);
 
-  // Reset index and show loading when photos change (switching landmarks)
-  useEffect(() => {
-    setCurrentIndex(0);
-    setLoading(true);
-  }, [photos]);
-
-  // Show loading when switching between photos within the same landmark
-  const handleIndexChange = (newIndex: number) => {
-    setLoading(true);
-    setCurrentIndex(newIndex);
-  };
+  const currentIndex = useMemo(() => {
+    if (photos.length === 0) return 0;
+    if (!selectedPhotoId) return 0;
+    const index = photos.findIndex((photo) => photo.id === selectedPhotoId);
+    return index >= 0 ? index : 0;
+  }, [photos, selectedPhotoId]);
 
   if (photos.length === 0) {
     return (
@@ -37,21 +33,35 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
   }
 
   const current = photos[currentIndex];
+  const isLoading = loadedPhotoUrl !== current.resolvedUrl;
+  const attributionText =
+    current.source === "google_places" && current.attribution
+      ? current.attribution.replace(/<[^>]+>/g, "").trim()
+      : null;
+
+  const handleIndexChange = (newIndex: number) => {
+    const next = photos[newIndex];
+    if (!next) return;
+    setSelectedPhotoId(next.id);
+  };
 
   return (
     <div>
       <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-muted">
-        {loading && (
+        {isLoading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
-        <img
+        <Image
           src={current.resolvedUrl}
           alt={current.caption || "Photo"}
-          className={`h-full w-full object-cover transition-opacity duration-200 ${loading ? "opacity-0" : "opacity-100"}`}
-          onLoad={() => setLoading(false)}
-          onError={() => setLoading(false)}
+          fill
+          unoptimized
+          sizes="(max-width: 640px) 100vw, 640px"
+          className={`object-cover transition-opacity duration-200 ${isLoading ? "opacity-0" : "opacity-100"}`}
+          onLoad={() => setLoadedPhotoUrl(current.resolvedUrl)}
+          onError={() => setLoadedPhotoUrl(current.resolvedUrl)}
         />
 
         {photos.length > 1 && (
@@ -96,18 +106,15 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
         </p>
       )}
 
-      {current.source === "google_places" && current.attribution && (
-        <p
-          className="mt-1 text-[10px] text-muted-foreground/70"
-          dangerouslySetInnerHTML={{ __html: current.attribution }}
-        />
+      {attributionText && (
+        <p className="mt-1 text-[10px] text-muted-foreground/70">{attributionText}</p>
       )}
 
       {photos.length > 1 && (
         <div className="mt-2 flex justify-center gap-1">
-          {photos.map((_, i) => (
+          {photos.map((photo, i) => (
             <button
-              key={i}
+              key={photo.id}
               type="button"
               className={`h-1.5 w-1.5 rounded-full transition-colors ${
                 i === currentIndex

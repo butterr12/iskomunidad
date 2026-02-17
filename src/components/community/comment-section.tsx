@@ -8,14 +8,18 @@ import { CommentThread } from "./comment-thread";
 import { buildCommentTree, type PostComment, type VoteDirection } from "@/lib/posts";
 
 interface CommentSectionProps {
-  postId: string;
   comments: PostComment[];
   onVoteComment: (commentId: string, direction: VoteDirection) => void;
   onComment: (body: string) => Promise<void>;
   onReply: (parentId: string, body: string) => Promise<void>;
 }
 
-export function CommentSection({ postId, comments, onVoteComment, onComment, onReply }: CommentSectionProps) {
+export function CommentSection({
+  comments,
+  onVoteComment,
+  onComment,
+  onReply,
+}: CommentSectionProps) {
   const tree = buildCommentTree(comments);
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);

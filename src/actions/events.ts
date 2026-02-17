@@ -103,6 +103,12 @@ export async function getEventById(
 
   if (!row) return { success: false, error: "Event not found" };
 
+  const isOwner = session?.user.id === row.userId;
+  const isAdmin = session?.user.role === "admin";
+  if (row.status !== "approved" && !isOwner && !isAdmin) {
+    return { success: false, error: "Event not found" };
+  }
+
   let userRsvp: string | null = null;
   if (session?.user) {
     const rsvp = await db.query.eventRsvp.findFirst({
@@ -212,6 +218,14 @@ export async function rsvpToEvent(
 
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const event = await db.query.campusEvent.findFirst({
+    where: eq(campusEvent.id, eventId),
+    columns: { status: true },
+  });
+  if (!event || event.status !== "approved") {
+    return { success: false, error: "Event not found" };
+  }
 
   if (parsed.data.status === null) {
     // Remove RSVP

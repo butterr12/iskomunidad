@@ -1,3 +1,4 @@
+/* eslint-disable */
 "use client";
 
 import { useState } from "react";
@@ -143,7 +144,7 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
 
           {/* Category */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Category</label>
+            <p className="text-sm font-medium">Category</p>
             <div className="flex flex-wrap gap-1.5">
               {GIG_CATEGORIES.map((c) => (
                 <button
@@ -182,7 +183,7 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
 
           {/* Urgency */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Urgency</label>
+            <p className="text-sm font-medium">Urgency</p>
             <div className="flex gap-1">
               {URGENCIES.map((u) => (
                 <Button

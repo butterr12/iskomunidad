@@ -1,38 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { PostTable } from "@/components/admin/post-table";
-import { adminGetAllPosts, adminApprovePost, adminRejectPost, adminDeletePost } from "@/actions/admin";
+import {
+  adminGetAllPosts,
+  adminApprovePost,
+  adminRejectPost,
+  adminDeletePost,
+} from "@/actions/admin";
+
+type AdminPost = Parameters<typeof PostTable>[0]["posts"][number];
+
+const POSTS_QUERY_KEY = ["admin-posts"] as const;
 
 export default function AllPostsPage() {
-  const [posts, setPosts] = useState<unknown[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchPosts = async () => {
-    const res = await adminGetAllPosts();
-    if (res.success) setPosts(res.data);
-    setLoading(false);
+  const { data: posts = [], isLoading } = useQuery({
+    queryKey: POSTS_QUERY_KEY,
+    queryFn: async () => {
+      const res = await adminGetAllPosts();
+      return res.success ? (res.data as AdminPost[]) : [];
+    },
+  });
+
+  const refreshPosts = async () => {
+    await queryClient.invalidateQueries({ queryKey: POSTS_QUERY_KEY });
   };
-
-  useEffect(() => { fetchPosts(); }, []);
 
   const handleApprove = async (id: string) => {
     await adminApprovePost(id);
-    fetchPosts();
+    await refreshPosts();
   };
 
   const handleReject = async (id: string, reason: string) => {
     await adminRejectPost(id, reason);
-    fetchPosts();
+    await refreshPosts();
   };
 
   const handleDelete = async (id: string) => {
     await adminDeletePost(id);
-    fetchPosts();
+    await refreshPosts();
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -42,7 +54,7 @@ export default function AllPostsPage() {
 
   return (
     <PostTable
-      posts={posts as never[]}
+      posts={posts}
       onApprove={handleApprove}
       onReject={handleReject}
       onDelete={handleDelete}

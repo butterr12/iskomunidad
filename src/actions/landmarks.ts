@@ -1,47 +1,19 @@
 "use server";
 
-import { z } from "zod";
 import { db } from "@/lib/db";
-import { landmark, landmarkPhoto, landmarkReview } from "@/lib/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { landmark } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 import {
   type ActionResult,
-  getSessionOrThrow,
-  getAutoApproveSetting,
-  createNotification,
+  getOptionalSession,
 } from "./_helpers";
-import { getPresignedUrl } from "@/lib/storage";
 
-// ─── Schemas ──────────────────────────────────────────────────────────────────
-
-const createLandmarkSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().min(1),
-  category: z.enum(["attraction", "community", "event"]),
-  lat: z.number(),
-  lng: z.number(),
-  address: z.string().optional(),
-  phone: z.string().optional(),
-  website: z.string().optional(),
-  operatingHours: z.unknown().optional(),
-  tags: z.array(z.string()).default([]),
-  photos: z
-    .array(
-      z.object({
-        url: z.string(),
-        caption: z.string().optional(),
-        source: z.enum(["upload", "google_places"]).default("upload"),
-        attribution: z.string().optional(),
-      }),
-    )
-    .default([]),
-});
-
-const createReviewSchema = z.object({
-  landmarkId: z.string().uuid(),
-  rating: z.number().int().min(1).max(5),
-  body: z.string().optional(),
-});
+function toPhotoProxyUrl(key: string): string {
+  return `/api/photos/${key
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/")}`;
+}
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
@@ -81,7 +53,7 @@ export async function getApprovedLandmarks(): Promise<ActionResult<unknown[]>> {
             resolvedUrl:
               p.source === "google_places"
                 ? `/api/places-photo?ref=${encodeURIComponent(p.url)}`
-                : await getPresignedUrl(p.url),
+                : toPhotoProxyUrl(p.url),
           })),
       );
       return {
@@ -99,6 +71,8 @@ export async function getApprovedLandmarks(): Promise<ActionResult<unknown[]>> {
 export async function getLandmarkById(
   id: string,
 ): Promise<ActionResult<unknown>> {
+  const session = await getOptionalSession();
+
   const row = await db.query.landmark.findFirst({
     where: eq(landmark.id, id),
     with: {
@@ -114,6 +88,12 @@ export async function getLandmarkById(
 
   if (!row) return { success: false, error: "Landmark not found" };
 
+  const isOwner = row.userId ? session?.user.id === row.userId : false;
+  const isAdmin = session?.user.role === "admin";
+  if (row.status !== "approved" && !isOwner && !isAdmin) {
+    return { success: false, error: "Landmark not found" };
+  }
+
   const photos = await Promise.all(
     row.photos
       .sort((a, b) => {
@@ -126,7 +106,7 @@ export async function getLandmarkById(
         resolvedUrl:
           p.source === "google_places"
             ? `/api/places-photo?ref=${encodeURIComponent(p.url)}`
-            : await getPresignedUrl(p.url),
+            : toPhotoProxyUrl(p.url),
       })),
   );
 
@@ -146,102 +126,4 @@ export async function getLandmarkById(
       })),
     },
   };
-}
-
-export async function createLandmark(
-  input: z.infer<typeof createLandmarkSchema>,
-): Promise<ActionResult<{ id: string }>> {
-  const parsed = createLandmarkSchema.safeParse(input);
-  if (!parsed.success)
-    return { success: false, error: parsed.error.issues[0].message };
-
-  const session = await getSessionOrThrow();
-  if (!session) return { success: false, error: "Not authenticated" };
-
-  const autoApprove = await getAutoApproveSetting();
-  const status = autoApprove ? "approved" : "draft";
-
-  const { photos, ...landmarkData } = parsed.data;
-
-  const [created] = await db
-    .insert(landmark)
-    .values({
-      ...landmarkData,
-      operatingHours: landmarkData.operatingHours ?? null,
-      status,
-      userId: session.user.id,
-    })
-    .returning({ id: landmark.id });
-
-  if (photos.length > 0) {
-    await db.insert(landmarkPhoto).values(
-      photos.map((p, i) => ({
-        landmarkId: created.id,
-        url: p.url,
-        caption: p.caption ?? null,
-        source: p.source ?? "upload",
-        attribution: p.attribution ?? null,
-        order: i,
-      })),
-    );
-  }
-
-  if (!autoApprove) {
-    await createNotification({
-      type: "landmark_pending",
-      targetId: created.id,
-      targetTitle: parsed.data.name,
-      authorHandle: session.user.username ?? session.user.name,
-    });
-  }
-
-  return { success: true, data: { id: created.id } };
-}
-
-export async function createLandmarkReview(
-  input: z.infer<typeof createReviewSchema>,
-): Promise<ActionResult<{ id: string }>> {
-  const parsed = createReviewSchema.safeParse(input);
-  if (!parsed.success)
-    return { success: false, error: parsed.error.issues[0].message };
-
-  const session = await getSessionOrThrow();
-  if (!session) return { success: false, error: "Not authenticated" };
-
-  // Upsert review (one review per user per landmark)
-  const [upserted] = await db
-    .insert(landmarkReview)
-    .values({
-      landmarkId: parsed.data.landmarkId,
-      userId: session.user.id,
-      rating: parsed.data.rating,
-      body: parsed.data.body ?? null,
-    })
-    .onConflictDoUpdate({
-      target: [landmarkReview.userId, landmarkReview.landmarkId],
-      set: {
-        rating: parsed.data.rating,
-        body: parsed.data.body ?? null,
-      },
-    })
-    .returning({ id: landmarkReview.id });
-
-  // Recalculate avgRating and reviewCount
-  const [stats] = await db
-    .select({
-      avg: sql<number>`COALESCE(AVG(${landmarkReview.rating}), 0)`,
-      count: sql<number>`COUNT(*)`,
-    })
-    .from(landmarkReview)
-    .where(eq(landmarkReview.landmarkId, parsed.data.landmarkId));
-
-  await db
-    .update(landmark)
-    .set({
-      avgRating: Number(stats.avg),
-      reviewCount: Number(stats.count),
-    })
-    .where(eq(landmark.id, parsed.data.landmarkId));
-
-  return { success: true, data: { id: upserted.id } };
 }

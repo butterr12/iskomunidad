@@ -1,103 +1,39 @@
-"use client";
+import { Suspense } from "react";
+import { VerifyEmailContent } from "@/components/auth/verify-email-content";
 
-import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+type RouteSearchParams =
+  | Promise<Record<string, string | string[] | undefined>>
+  | Record<string, string | string[] | undefined>
+  | undefined;
 
-function VerifyEmailContent() {
-  const searchParams = useSearchParams();
-  const email = searchParams.get("email");
-
-  const [resendStatus, setResendStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const handleResend = async () => {
-    if (!email) {
-      setResendStatus("error");
-      setErrorMessage("No email address found. Please sign up or sign in again.");
-      return;
-    }
-
-    setResendStatus("loading");
-    setErrorMessage("");
-
-    const { error } = await authClient.sendVerificationEmail({
-      email,
-      callbackURL: "/",
-    });
-
-    if (error) {
-      setResendStatus("error");
-      setErrorMessage(error.message ?? "Failed to resend verification email");
-      return;
-    }
-
-    setResendStatus("success");
-  };
-
-  return (
-    <Card className="w-full max-w-md text-center">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
-        <CardDescription>
-          We&apos;ve sent a verification link to{" "}
-          {email ? (
-            <span className="font-medium">{email}</span>
-          ) : (
-            "your email"
-          )}
-          . Please check your inbox and click the link to verify your email
-          address.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {resendStatus === "success" && (
-          <div className="rounded-md bg-green-500/10 px-4 py-3 text-sm text-green-600">
-            Verification email sent! Check your inbox.
-          </div>
-        )}
-        {resendStatus === "error" && (
-          <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {errorMessage}
-          </div>
-        )}
-        <p className="text-sm text-muted-foreground">
-          Didn&apos;t receive the email? Check your spam folder or click below
-          to resend.
-        </p>
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={handleResend}
-          disabled={resendStatus === "loading"}
-        >
-          {resendStatus === "loading"
-            ? "Sending..."
-            : "Resend verification email"}
-        </Button>
-        <Button asChild variant="ghost" className="w-full">
-          <Link href="/sign-in">Back to sign in</Link>
-        </Button>
-      </CardContent>
-    </Card>
-  );
+async function getSearchParams(
+  searchParams: RouteSearchParams,
+): Promise<Record<string, string | string[] | undefined>> {
+  if (!searchParams) return {};
+  if (typeof (searchParams as Promise<unknown>).then === "function") {
+    return (await searchParams) as Record<string, string | string[] | undefined>;
+  }
+  return searchParams;
 }
 
-export default function VerifyEmailPage() {
+export default async function VerifyEmailPage({
+  searchParams,
+}: {
+  searchParams?: RouteSearchParams;
+}) {
+  const resolvedSearchParams = await getSearchParams(searchParams);
+  const rawEmail = resolvedSearchParams.email;
+  const email = Array.isArray(rawEmail) ? rawEmail[0] : rawEmail;
+
   return (
-    <Suspense>
-      <VerifyEmailContent />
+    <Suspense
+      fallback={
+        <div className="w-full max-w-md rounded-lg border p-6 text-center text-sm text-muted-foreground">
+          Loading verification info...
+        </div>
+      }
+    >
+      <VerifyEmailContent email={email} />
     </Suspense>
   );
 }

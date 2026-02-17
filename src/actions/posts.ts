@@ -8,7 +8,7 @@ import {
   postVote,
   commentVote,
 } from "@/lib/schema";
-import { eq, sql, and, desc } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import {
   type ActionResult,
   getSessionOrThrow,
@@ -108,6 +108,12 @@ export async function getPostById(
   });
 
   if (!row) return { success: false, error: "Post not found" };
+
+  const isOwner = session?.user.id === row.userId;
+  const isAdmin = session?.user.role === "admin";
+  if (row.status !== "approved" && !isOwner && !isAdmin) {
+    return { success: false, error: "Post not found" };
+  }
 
   // Get user's votes on post and comments
   let postUserVote = 0;
@@ -230,6 +236,14 @@ export async function voteOnPost(
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
 
+  const post = await db.query.communityPost.findFirst({
+    where: eq(communityPost.id, postId),
+    columns: { status: true },
+  });
+  if (!post || post.status !== "approved") {
+    return { success: false, error: "Post not found" };
+  }
+
   if (parsed.data.value === 0) {
     // Delete existing vote
     await db
@@ -278,6 +292,14 @@ export async function createComment(
 
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const post = await db.query.communityPost.findFirst({
+    where: eq(communityPost.id, parsed.data.postId),
+    columns: { status: true },
+  });
+  if (!post || post.status !== "approved") {
+    return { success: false, error: "Post not found" };
+  }
 
   // AI moderation for comments (no status column — reject before inserting)
   const mode = await getApprovalMode();

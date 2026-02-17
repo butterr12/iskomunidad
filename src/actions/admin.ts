@@ -12,7 +12,7 @@ import {
   adminSetting,
   user,
 } from "@/lib/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   type ActionResult,
   type ApprovalMode,

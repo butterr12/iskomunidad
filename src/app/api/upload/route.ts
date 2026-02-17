@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const key = generatePhotoKey(file.name);
+    const key = generatePhotoKey(file.type);
     await uploadFile(key, buffer, file.type);
 
     return NextResponse.json({ key });

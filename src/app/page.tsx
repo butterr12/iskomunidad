@@ -1,26 +1,22 @@
-"use client";
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "@/lib/auth-client";
+import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { LandingPage } from "@/components/landing-page";
+import { auth } from "@/lib/auth";
 
-export default function Home() {
-  const { data: session, isPending } = useSession();
-  const router = useRouter();
+export const metadata: Metadata = {
+  title: "iskomunidad",
+  description:
+    "Discover campus landmarks, events, community posts, and gigs in one place.",
+};
 
-  useEffect(() => {
-    if (!isPending && session?.user) {
-      router.replace("/map");
-    }
-  }, [isPending, session, router]);
+export default async function Home() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
-  if (isPending || session?.user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    );
+  if (session?.user) {
+    redirect("/map");
   }
 
   return <LandingPage />;

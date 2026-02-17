@@ -56,7 +56,6 @@ function InlineReplyForm({
   return (
     <form onSubmit={handleSubmit} className="mt-1 flex gap-2">
       <Input
-        autoFocus
         placeholder="Write a reply..."
         value={body}
         onChange={(e) => setBody(e.target.value)}

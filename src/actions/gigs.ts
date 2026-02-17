@@ -82,46 +82,6 @@ export async function getApprovedGigs(
   };
 }
 
-export async function getGigById(
-  id: string,
-): Promise<ActionResult<unknown>> {
-  const session = await getOptionalSession();
-
-  const row = await db.query.gigListing.findFirst({
-    where: eq(gigListing.id, id),
-    with: {
-      user: { columns: { name: true, username: true, image: true } },
-    },
-  });
-
-  if (!row) return { success: false, error: "Gig not found" };
-
-  let userSwipe: string | null = null;
-  if (session?.user) {
-    const swipe = await db.query.gigSwipe.findFirst({
-      where: and(
-        eq(gigSwipe.gigId, id),
-        eq(gigSwipe.userId, session.user.id),
-      ),
-    });
-    userSwipe = swipe?.action ?? null;
-  }
-
-  return {
-    success: true,
-    data: {
-      ...row,
-      deadline: row.deadline?.toISOString() ?? null,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-      author: row.user.name,
-      authorHandle: row.user.username ? `@${row.user.username}` : null,
-      authorImage: row.user.image,
-      userSwipe,
-    },
-  };
-}
-
 export async function createGig(
   input: z.infer<typeof createGigSchema>,
 ): Promise<ActionResult<{ id: string }>> {
@@ -212,6 +172,14 @@ export async function swipeGig(
 
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const gig = await db.query.gigListing.findFirst({
+    where: eq(gigListing.id, gigId),
+    columns: { status: true, isOpen: true },
+  });
+  if (!gig || gig.status !== "approved" || !gig.isOpen) {
+    return { success: false, error: "Gig not found" };
+  }
 
   if (parsed.data.action === null) {
     await db

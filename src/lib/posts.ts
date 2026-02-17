@@ -1,5 +1,3 @@
-import type { Landmark } from "./landmarks";
-
 export type PostType = "text" | "link" | "image";
 export type PostFlair = "Discussion" | "Question" | "Selling" | "Announcement" | "Meme" | "Help" | "Rant";
 export type PostStatus = "draft" | "approved" | "rejected";
@@ -65,11 +63,6 @@ export const FLAIR_COLORS: Record<PostFlair, string> = {
   Rant: "#ef4444",
 };
 
-export function postToLandmark(post: CommunityPost, landmarks: Landmark[]): Landmark | null {
-  if (!post.locationId) return null;
-  return landmarks.find((l) => l.id === post.locationId) ?? null;
-}
-
 export function getPostsAtLandmark(landmarkId: string, posts: CommunityPost[]): CommunityPost[] {
   return posts.filter((p) => p.locationId === landmarkId);
 }
@@ -99,7 +92,7 @@ export function buildCommentTree(comments: PostComment[]): CommentNode[] {
   return roots;
 }
 
-export function hotScore(post: CommunityPost): number {
+function hotScore(post: CommunityPost): number {
   const hoursAge = (Date.now() - new Date(post.createdAt).getTime()) / 3600000;
   return post.score / Math.pow(hoursAge + 2, 1.5);
 }
