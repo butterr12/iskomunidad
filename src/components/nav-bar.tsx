@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { signOut, useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,6 +24,8 @@ import {
   Settings,
   LogOut,
   Shield,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -48,11 +51,16 @@ export function NavBar() {
   const { data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const { resolvedTheme, setTheme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
     ?.displayUsername as string | undefined;
+
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  };
 
   return (
     <>
@@ -86,9 +94,16 @@ export function NavBar() {
             ))}
           </nav>
 
-          <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
-            iskomunidad
-          </span>
+          <div className="flex items-center gap-1" dir="ltr">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
+              <Sun className="hidden h-4 w-4 dark:block" />
+              <Moon className="h-4 w-4 dark:hidden" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+            <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
+              iskomunidad
+            </span>
+          </div>
         </div>
       </header>
 
@@ -104,9 +119,16 @@ export function NavBar() {
               <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
             </Avatar>
           </button>
-          <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
-            iskomunidad
-          </span>
+          <div className="flex items-center gap-1" dir="ltr">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
+              <Sun className="hidden h-4 w-4 dark:block" />
+              <Moon className="h-4 w-4 dark:hidden" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+            <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
+              iskomunidad
+            </span>
+          </div>
         </div>
       </header>
 

@@ -1,14 +1,37 @@
-import { MessageCircle } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { MessageCircle, Send, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { CommentThread } from "./comment-thread";
 import { buildCommentTree, type PostComment, type VoteDirection } from "@/lib/posts";
 
 interface CommentSectionProps {
+  postId: string;
   comments: PostComment[];
   onVoteComment: (commentId: string, direction: VoteDirection) => void;
+  onComment: (body: string) => Promise<void>;
+  onReply: (parentId: string, body: string) => Promise<void>;
 }
 
-export function CommentSection({ comments, onVoteComment }: CommentSectionProps) {
+export function CommentSection({ postId, comments, onVoteComment, onComment, onReply }: CommentSectionProps) {
   const tree = buildCommentTree(comments);
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = body.trim();
+    if (!trimmed || submitting) return;
+    setSubmitting(true);
+    try {
+      await onComment(trimmed);
+      setBody("");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3 border-t pt-4">
@@ -19,13 +42,26 @@ export function CommentSection({ comments, onVoteComment }: CommentSectionProps)
         </h3>
       </div>
 
-      {/* Mock composer */}
-      <div className="rounded-lg border bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
-        Add a comment...
-      </div>
+      {/* Comment composer */}
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <Input
+          placeholder="Add a comment..."
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          disabled={submitting}
+          className="flex-1"
+        />
+        <Button type="submit" size="icon" disabled={!body.trim() || submitting}>
+          {submitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </Button>
+      </form>
 
       {tree.length > 0 && (
-        <CommentThread nodes={tree} onVoteComment={onVoteComment} />
+        <CommentThread nodes={tree} onVoteComment={onVoteComment} onReply={onReply} />
       )}
     </div>
   );

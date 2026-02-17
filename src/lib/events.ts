@@ -5,6 +5,7 @@ export type RsvpStatus = "going" | "interested" | null;
 
 export interface CampusEvent {
   id: string;
+  userId: string;
   title: string;
   description: string;
   category: EventCategory;

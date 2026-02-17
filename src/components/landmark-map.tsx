@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useMemo } from "react";
+import { useRef, useState, useCallback, useMemo, useEffect } from "react";
 import Map, {
   Marker,
   NavigationControl,
@@ -9,8 +9,9 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import useSupercluster from "use-supercluster";
 import type { BBox } from "geojson";
+import { useTheme } from "next-themes";
 import type { LandmarkPin, LandmarkCategory } from "@/lib/landmarks";
-import { applyMapTheme } from "@/lib/map-theme";
+import { applyMapTheme, type MapThemeMode } from "@/lib/map-theme";
 
 const UP_DILIMAN = { latitude: 14.6538, longitude: 121.0685 };
 
@@ -64,13 +65,21 @@ interface LandmarkMapProps {
 
 export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const { resolvedTheme } = useTheme();
   const [viewport, setViewport] = useState({ zoom: 15, bounds: null as mapboxgl.LngLatBounds | null });
+  const mapMode: MapThemeMode = resolvedTheme === "dark" ? "dark" : "light";
 
   const updateViewport = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
     setViewport({ zoom: map.getZoom(), bounds: map.getBounds() ?? null });
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    applyMapTheme(map, mapMode);
+  }, [mapMode]);
 
   // Convert pins to GeoJSON features for supercluster
   const points = useMemo(
@@ -125,11 +134,16 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
         ...UP_DILIMAN,
         zoom: 15,
       }}
-      style={{ width: "100%", height: "100%" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        filter: mapMode === "dark" ? "saturate(0.92) brightness(0.95)" : "none",
+        transition: "filter 450ms ease",
+      }}
       mapStyle="mapbox://styles/mapbox/streets-v11"
       mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
       onLoad={(e) => {
-        applyMapTheme(e.target);
+        applyMapTheme(e.target, mapMode);
         updateViewport();
       }}
       onMoveEnd={updateViewport}
@@ -139,20 +153,22 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
 
       {clusters.map((feature) => {
         const [lng, lat] = feature.geometry.coordinates;
-        const props = feature.properties as Record<string, any>;
+        const props = feature.properties as Record<string, unknown>;
 
-        if (props.cluster) {
+        if (props.cluster === true) {
+          const clusterId = Number(props.cluster_id);
+          const count = Number(props.point_count);
           return (
-            <Marker key={`cluster-${props.cluster_id}`} latitude={lat} longitude={lng} anchor="center">
+            <Marker key={`cluster-${clusterId}`} latitude={lat} longitude={lng} anchor="center">
               <ClusterBubble
-                count={props.point_count}
-                onClick={() => handleClusterClick(props.cluster_id, lat, lng)}
+                count={count}
+                onClick={() => handleClusterClick(clusterId, lat, lng)}
               />
             </Marker>
           );
         }
 
-        const pinId = props.pinId as string;
+        const pinId = String(props.pinId);
         const category = props.category as LandmarkCategory;
 
         return (

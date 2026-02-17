@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import Map, { Marker, NavigationControl } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { applyMapTheme } from "@/lib/map-theme";
+import { useTheme } from "next-themes";
+import { applyMapTheme, type MapThemeMode } from "@/lib/map-theme";
 
 const UP_DILIMAN = { latitude: 14.6537, longitude: 121.0691 };
 
@@ -45,7 +46,10 @@ interface LocationPickerMapProps {
 }
 
 export function LocationPickerMap({ lat, lng, onLocationChange }: LocationPickerMapProps) {
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const { resolvedTheme } = useTheme();
   const [center, setCenter] = useState(UP_DILIMAN);
+  const mapMode: MapThemeMode = resolvedTheme === "dark" ? "dark" : "light";
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
@@ -73,17 +77,31 @@ export function LocationPickerMap({ lat, lng, onLocationChange }: LocationPicker
     [onLocationChange],
   );
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    applyMapTheme(map, mapMode);
+  }, [mapMode]);
+
   return (
-    <div className="h-[300px] w-full rounded-md border overflow-hidden">
+    <div className="h-[300px] w-full overflow-hidden rounded-md border transition-colors duration-500">
       <Map
+        ref={(ref) => {
+          mapRef.current = ref?.getMap() ?? null;
+        }}
         initialViewState={{
           ...center,
           zoom: 15,
         }}
-        style={{ width: "100%", height: "100%" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          filter: mapMode === "dark" ? "saturate(0.92) brightness(0.95)" : "none",
+          transition: "filter 450ms ease",
+        }}
         mapStyle="mapbox://styles/mapbox/streets-v11"
         mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-        onLoad={(e) => applyMapTheme(e.target)}
+        onLoad={(e) => applyMapTheme(e.target, mapMode)}
         onClick={handleClick}
         cursor="crosshair"
       >

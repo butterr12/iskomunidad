@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageCircle, MapPin, ExternalLink } from "lucide-react";
 import { VoteControls } from "./vote-controls";
 import {
@@ -50,6 +50,7 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
               {post.flair}
             </Badge>
             <Avatar className="h-5 w-5">
+              {post.authorImage && <AvatarImage src={post.authorImage} alt={post.author} />}
               <AvatarFallback className="text-[9px] font-medium">{getInitials(post.author)}</AvatarFallback>
             </Avatar>
             <span>{post.authorHandle}</span>

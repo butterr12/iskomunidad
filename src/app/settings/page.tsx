@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
-import { signOut, useSession, updateUser } from "@/lib/auth-client";
+import { signOut, useSession, updateUser, changePassword, listAccounts } from "@/lib/auth-client";
+import { setPassword } from "@/actions/password";
 import { checkUsernameAvailable } from "@/actions/user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -18,15 +18,13 @@ import {
   Mail,
   CheckCircle2,
   LogOut,
-  Sun,
-  Moon,
-  Monitor,
   Bell,
   CalendarCheck,
   Bookmark,
   Camera,
   Loader2,
   XCircle,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,16 +45,9 @@ function formatMemberSince(dateStr?: string | null): string {
   return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-const themeOptions = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-] as const;
-
 export default function SettingsPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
@@ -78,6 +69,14 @@ export default function SettingsPage() {
   const [notifEvents, setNotifEvents] = useState(true);
   const [notifGigs, setNotifGigs] = useState(false);
 
+  // Security / password state
+  const [hasCredential, setHasCredential] = useState<boolean | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   // Sync state when session loads, but only if user hasn't started editing
   useEffect(() => {
     if (user && !dirty) {
@@ -86,6 +85,17 @@ export default function SettingsPage() {
       setAvatarUrl(user.image ?? undefined);
     }
   }, [user, displayUsername, dirty]);
+
+  // Check if user has a credential (password) account
+  const checkAccounts = useCallback(async () => {
+    const { data } = await listAccounts();
+    const hasCred = data?.some((a) => a.providerId === "credential") ?? false;
+    setHasCredential(hasCred);
+  }, []);
+
+  useEffect(() => {
+    if (user) checkAccounts();
+  }, [user, checkAccounts]);
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -181,6 +191,55 @@ export default function SettingsPage() {
       });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePasswordSubmit() {
+    setPasswordMessage(null);
+
+    if (newPassword.length < 8) {
+      setPasswordMessage({ type: "error", text: "Password must be at least 8 characters" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: "error", text: "Passwords do not match" });
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      if (hasCredential) {
+        // Change existing password
+        const { error } = await changePassword({
+          currentPassword,
+          newPassword,
+          revokeOtherSessions: true,
+        });
+        if (error) {
+          setPasswordMessage({ type: "error", text: error.message ?? "Failed to update password" });
+          return;
+        }
+        setPasswordMessage({ type: "success", text: "Password updated!" });
+      } else {
+        // Set password for the first time (magic-link user)
+        const result = await setPassword(newPassword);
+        if (!result.success) {
+          setPasswordMessage({ type: "error", text: result.error });
+          return;
+        }
+        setPasswordMessage({ type: "success", text: "Password set!" });
+        await checkAccounts();
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setPasswordMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Something went wrong",
+      });
+    } finally {
+      setPasswordSaving(false);
     }
   }
 
@@ -325,41 +384,79 @@ export default function SettingsPage() {
           </Card>
         </section>
 
-        {/* Appearance */}
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
-            Appearance
-          </h2>
-          <Card>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-3 gap-2">
-                {themeOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setTheme(opt.value)}
+        {/* Security */}
+        {hasCredential !== null && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Security
+            </h2>
+            <Card>
+              <CardContent className="space-y-4 p-4">
+                {!hasCredential && (
+                  <div className="flex items-start gap-3 rounded-md border px-3 py-2 bg-muted/50">
+                    <KeyRound className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                      You signed in with a magic link. Set up a password to sign in with email and password.
+                    </p>
+                  </div>
+                )}
+                {hasCredential && (
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      placeholder="••••••••"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    minLength={8}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    minLength={8}
+                  />
+                </div>
+                {passwordMessage && (
+                  <p
                     className={cn(
-                      "flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors",
-                      theme === opt.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted"
+                      "text-sm",
+                      passwordMessage.type === "success" ? "text-green-600" : "text-red-500",
                     )}
                   >
-                    <opt.icon className={cn(
-                      "h-5 w-5",
-                      theme === opt.value ? "text-primary" : "text-muted-foreground"
-                    )} />
-                    <span className={cn(
-                      "text-xs font-medium",
-                      theme === opt.value ? "text-primary" : "text-muted-foreground"
-                    )}>
-                      {opt.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+                    {passwordMessage.text}
+                  </p>
+                )}
+                <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={handlePasswordSubmit}
+                  disabled={passwordSaving}
+                >
+                  {passwordSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {hasCredential ? "Update password" : "Set password"}
+                </Button>
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
         {/* Notifications */}
         <section className="space-y-3">

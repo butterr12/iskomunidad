@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { campusEvent, eventRsvp } from "@/lib/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, desc } from "drizzle-orm";
 import {
   type ActionResult,
   getSessionOrThrow,
@@ -24,6 +24,18 @@ const createEventSchema = z.object({
   locationId: z.string().uuid().optional(),
   tags: z.array(z.string()).default([]),
   coverColor: z.string().default("#3b82f6"),
+});
+
+const updateEventSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  category: z.enum(["academic", "cultural", "social", "sports", "org"]).optional(),
+  organizer: z.string().min(1).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  locationId: z.string().uuid().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  coverColor: z.string().optional(),
 });
 
 const rsvpSchema = z.object({
@@ -220,4 +232,94 @@ export async function rsvpToEvent(
     .where(eq(campusEvent.id, eventId));
 
   return { success: true, data: undefined };
+}
+
+export async function updateEvent(
+  id: string,
+  input: z.infer<typeof updateEventSchema>,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = updateEventSchema.safeParse(input);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0].message };
+
+  const session = await getSessionOrThrow();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const existing = await db.query.campusEvent.findFirst({
+    where: eq(campusEvent.id, id),
+  });
+  if (!existing) return { success: false, error: "Event not found" };
+  if (existing.userId !== session.user.id)
+    return { success: false, error: "Not authorized" };
+
+  const autoApprove = await getAutoApproveSetting();
+
+  const updateData: Record<string, unknown> = {};
+  if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
+  if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
+  if (parsed.data.category !== undefined) updateData.category = parsed.data.category;
+  if (parsed.data.organizer !== undefined) updateData.organizer = parsed.data.organizer;
+  if (parsed.data.startDate !== undefined) updateData.startDate = new Date(parsed.data.startDate);
+  if (parsed.data.endDate !== undefined) updateData.endDate = new Date(parsed.data.endDate);
+  if (parsed.data.locationId !== undefined) updateData.locationId = parsed.data.locationId ?? null;
+  if (parsed.data.tags !== undefined) updateData.tags = parsed.data.tags;
+  if (parsed.data.coverColor !== undefined) updateData.coverColor = parsed.data.coverColor;
+
+  if (!autoApprove) {
+    updateData.status = "draft";
+  }
+
+  await db.update(campusEvent).set(updateData).where(eq(campusEvent.id, id));
+
+  if (!autoApprove) {
+    await createNotification({
+      type: "event_pending",
+      targetId: id,
+      targetTitle: parsed.data.title ?? existing.title,
+      authorHandle: session.user.username ?? session.user.name,
+    });
+  }
+
+  return { success: true, data: { id } };
+}
+
+export async function deleteEvent(
+  id: string,
+): Promise<ActionResult<void>> {
+  const session = await getSessionOrThrow();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const existing = await db.query.campusEvent.findFirst({
+    where: eq(campusEvent.id, id),
+  });
+  if (!existing) return { success: false, error: "Event not found" };
+  if (existing.userId !== session.user.id)
+    return { success: false, error: "Not authorized" };
+
+  await db.delete(campusEvent).where(eq(campusEvent.id, id));
+  return { success: true, data: undefined };
+}
+
+export async function getUserEvents(): Promise<ActionResult<unknown[]>> {
+  const session = await getSessionOrThrow();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const rows = await db.query.campusEvent.findMany({
+    where: eq(campusEvent.userId, session.user.id),
+    orderBy: [desc(campusEvent.createdAt)],
+  });
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      startDate: r.startDate.toISOString(),
+      endDate: r.endDate.toISOString(),
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      rsvpStatus: null,
+      attendeeCount: r.attendeeCount,
+      interestedCount: r.interestedCount,
+    })),
+  };
 }

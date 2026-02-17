@@ -1,9 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, MapPin, Globe, Users, User, Share2, Star, Check } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, Clock, MapPin, Globe, Users, User, Share2, Star, Check, Pencil, Trash2 } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
+import { deleteEvent } from "@/actions/events";
 import type { CampusEvent, RsvpStatus } from "@/lib/events";
 
 interface EventDetailProps {
@@ -36,9 +48,27 @@ const categoryLabels: Record<string, string> = {
 
 export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const isOwner = session?.user?.id === event.userId;
 
   const toggleRsvp = (status: RsvpStatus) => {
     onRsvpChange(event.id, event.rsvpStatus === status ? null : status);
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    const res = await deleteEvent(event.id);
+    if (res.success) {
+      await queryClient.invalidateQueries({ queryKey: ["approved-events"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-events"] });
+      onBack();
+    }
+    setDeleting(false);
+    setShowDeleteDialog(false);
   };
 
   return (
@@ -52,9 +82,6 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
         Back to Events
       </button>
 
-      {/* Cover color block */}
-      <div className="h-32" style={{ backgroundColor: event.coverColor }} />
-
       <div className="flex flex-col gap-4 p-5">
         {/* Title & category */}
         <div>
@@ -63,6 +90,30 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
             {categoryLabels[event.category] ?? event.category}
           </Badge>
         </div>
+
+        {/* Owner controls */}
+        {isOwner && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => router.push(`/events/${event.id}/edit`)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-destructive hover:text-destructive"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </Button>
+          </div>
+        )}
 
         {/* Tags */}
         {event.tags.length > 0 && (
@@ -150,6 +201,26 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
           )}
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Event</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{event.title}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

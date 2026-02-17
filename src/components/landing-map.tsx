@@ -1,9 +1,11 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import Map, { Marker } from "react-map-gl/mapbox";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { useTheme } from "next-themes";
+import { applyMapTheme, type MapThemeMode } from "@/lib/map-theme";
 
 const UP_DILIMAN = { latitude: 14.6538, longitude: 121.0685 };
 
@@ -19,6 +21,36 @@ const landmarks = [
   { id: "church", name: "Parish of the Holy Sacrifice", lat: 14.6558, lng: 121.0635, color: "#7a1213" },
   { id: "amphitheater", name: "UP Amphitheater", lat: 14.6540, lng: 121.0720, color: "#ec4899" },
 ];
+
+function sync3dBuildings(map: mapboxgl.Map, mode: MapThemeMode) {
+  const extrusionLayerId = "3d-buildings";
+  const extrusionColor = mode === "dark" ? "#2f394d" : "#dedad3";
+  const extrusionOpacity = mode === "dark" ? 0.55 : 0.7;
+
+  if (!map.getLayer(extrusionLayerId)) {
+    const buildingLayer = map.getStyle().layers?.find((l) => l.id === "building" && l.type === "fill");
+    if (!buildingLayer) return;
+
+    map.addLayer({
+      id: extrusionLayerId,
+      source: "composite",
+      "source-layer": "building",
+      filter: ["==", "extrude", "true"],
+      type: "fill-extrusion",
+      minzoom: 14,
+      paint: {
+        "fill-extrusion-color": extrusionColor,
+        "fill-extrusion-height": ["get", "height"],
+        "fill-extrusion-base": ["get", "min_height"],
+        "fill-extrusion-opacity": extrusionOpacity,
+      },
+    });
+    return;
+  }
+
+  map.setPaintProperty(extrusionLayerId, "fill-extrusion-color", extrusionColor);
+  map.setPaintProperty(extrusionLayerId, "fill-extrusion-opacity", extrusionOpacity);
+}
 
 function MarkerPin({ color, label }: { color: string; label: string }) {
   return (
@@ -44,83 +76,35 @@ function MarkerPin({ color, label }: { color: string; label: string }) {
   );
 }
 
-function applyLandingTheme(map: mapboxgl.Map) {
-  const layers = map.getStyle().layers;
-  if (!layers) return;
-
-  for (const layer of layers) {
-    const id = layer.id;
-    const t = layer.type;
-
-    if (t === "background") {
-      map.setPaintProperty(id, "background-color", "#f2efe9");
-      continue;
-    }
-    if (id === "water" && t === "fill") {
-      map.setPaintProperty(id, "fill-color", "#aad3df");
-      continue;
-    }
-    if ((id.startsWith("landuse") || id.startsWith("landcover")) && t === "fill") {
-      map.setPaintProperty(id, "fill-color", "#c8e6a0");
-      map.setPaintProperty(id, "fill-opacity", 0.5);
-      continue;
-    }
-    if (id.startsWith("building") && t === "fill") {
-      map.setPaintProperty(id, "fill-color", "#dedad3");
-      map.setPaintProperty(id, "fill-opacity", 0.9);
-      continue;
-    }
-    if (t === "line" && (id.startsWith("road-motorway") || id.startsWith("road-trunk"))) {
-      map.setPaintProperty(id, "line-color", id.endsWith("-case") ? "#d4891a" : "#f5a623");
-      continue;
-    }
-    if (t === "line" && (id.startsWith("road-primary") || id.startsWith("road-secondary"))) {
-      map.setPaintProperty(id, "line-color", id.endsWith("-case") ? "#e0b040" : "#fcd462");
-      continue;
-    }
-    if (t === "line" && id.startsWith("road-")) {
-      map.setPaintProperty(id, "line-color", id.endsWith("-case") ? "#e0dcd6" : "#ffffff");
-      continue;
-    }
-  }
-}
-
 export function LandingMap() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const { resolvedTheme } = useTheme();
   const pausedRef = useRef(false);
   const bearingRef = useRef(-20);
   const lastTimestampRef = useRef<number | null>(null);
+  const mapMode: MapThemeMode = resolvedTheme === "dark" ? "dark" : "light";
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    applyMapTheme(map, mapMode);
+    sync3dBuildings(map, mapMode);
+  }, [mapMode]);
+
   const onLoad = useCallback((e: { target: mapboxgl.Map }) => {
     const map = e.target;
-    applyLandingTheme(map);
+    applyMapTheme(map, mapMode);
 
-    map.addSource("mapbox-dem", {
-      type: "raster-dem",
-      url: "mapbox://mapbox.mapbox-terrain-dem-v1",
-      tileSize: 512,
-      maxzoom: 14,
-    });
-    map.setTerrain({ source: "mapbox-dem", exaggeration: 1.5 });
-
-    const buildingLayer = map.getStyle().layers?.find(
-      (l) => l.id === "building" && l.type === "fill"
-    );
-    if (buildingLayer) {
-      map.addLayer({
-        id: "3d-buildings",
-        source: "composite",
-        "source-layer": "building",
-        filter: ["==", "extrude", "true"],
-        type: "fill-extrusion",
-        minzoom: 14,
-        paint: {
-          "fill-extrusion-color": "#dedad3",
-          "fill-extrusion-height": ["get", "height"],
-          "fill-extrusion-base": ["get", "min_height"],
-          "fill-extrusion-opacity": 0.7,
-        },
+    if (!map.getSource("mapbox-dem")) {
+      map.addSource("mapbox-dem", {
+        type: "raster-dem",
+        url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+        tileSize: 512,
+        maxzoom: 14,
       });
     }
+    map.setTerrain({ source: "mapbox-dem", exaggeration: 1.5 });
+    sync3dBuildings(map, mapMode);
 
     const duration = 60000;
     const rotateSpeed = 0.5;
@@ -143,7 +127,7 @@ export function LandingMap() {
     }
 
     requestAnimationFrame(rotate);
-  }, []);
+  }, [mapMode]);
 
   const handleMouseEnter = useCallback(() => {
     pausedRef.current = true;
@@ -158,7 +142,7 @@ export function LandingMap() {
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-2xl border shadow-lg"
+      className="relative h-full w-full overflow-hidden rounded-2xl border shadow-lg transition-[border-color,box-shadow] duration-500"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -172,7 +156,12 @@ export function LandingMap() {
           pitch: 60,
           bearing: -20,
         }}
-        style={{ width: "100%", height: "100%" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          filter: mapMode === "dark" ? "saturate(0.92) brightness(0.95)" : "none",
+          transition: "filter 450ms ease",
+        }}
         mapStyle="mapbox://styles/mapbox/streets-v11"
         mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
         onLoad={onLoad}
@@ -194,7 +183,7 @@ export function LandingMap() {
           </Marker>
         ))}
       </Map>
-      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5" />
+      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5 transition-colors duration-500 dark:ring-white/10" />
     </div>
   );
 }

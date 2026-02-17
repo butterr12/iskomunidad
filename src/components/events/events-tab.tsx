@@ -1,19 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { ViewToggle } from "./view-toggle";
 import { EventList } from "./event-list";
 import { EventCalendar } from "./event-calendar";
 import { EventDetail } from "./event-detail";
+import { MyEventsList } from "./my-events-list";
 import { type CampusEvent, type RsvpStatus } from "@/lib/events";
-import { getApprovedEvents, rsvpToEvent } from "@/actions/events";
+import { getApprovedEvents, getUserEvents, rsvpToEvent } from "@/actions/events";
 
 function EventCardSkeleton() {
   return (
     <div className="rounded-2xl border bg-card shadow-sm">
-      <div className="h-[3px] rounded-t-2xl bg-muted" />
       <div className="flex gap-4 p-4">
         <div className="flex w-10 shrink-0 flex-col items-center pt-0.5 gap-1">
           <Skeleton className="h-3 w-8 rounded" />
@@ -42,9 +45,11 @@ function EventListSkeleton() {
 }
 
 export function EventsTab() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedEvent, setSelectedEvent] = useState<CampusEvent | null>(null);
+  const [tab, setTab] = useState<"all" | "mine">("all");
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["approved-events"],
@@ -56,6 +61,16 @@ export function EventsTab() {
         rsvpStatus: e.userRsvp ?? null,
       })) as CampusEvent[];
     },
+  });
+
+  const { data: myEvents = [], isLoading: myEventsLoading } = useQuery({
+    queryKey: ["my-events"],
+    queryFn: async () => {
+      const res = await getUserEvents();
+      if (!res.success) return [];
+      return res.data as CampusEvent[];
+    },
+    enabled: tab === "mine",
   });
 
   const handleRsvpChange = async (eventId: string, status: RsvpStatus) => {
@@ -77,9 +92,28 @@ export function EventsTab() {
     <div className="flex flex-1 flex-col pt-12 pb-14 sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
       {!selectedEvent && (
-        <div className="sticky top-12 sm:top-14 z-10 flex items-center justify-between border-b bg-background/80 px-4 py-2 backdrop-blur-sm">
-          <h2 className="text-lg font-semibold">Events</h2>
-          <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+        <div className="sticky top-12 sm:top-14 z-10 border-b bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center justify-between px-4 py-2">
+            <div className="flex gap-1">
+              <Button
+                variant={tab === "all" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setTab("all")}
+              >
+                All Events
+              </Button>
+              <Button
+                variant={tab === "mine" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setTab("mine")}
+              >
+                My Events
+              </Button>
+            </div>
+            {tab === "all" && (
+              <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+            )}
+          </div>
         </div>
       )}
 
@@ -91,6 +125,12 @@ export function EventsTab() {
             onBack={() => setSelectedEvent(null)}
             onRsvpChange={handleRsvpChange}
           />
+        ) : tab === "mine" ? (
+          myEventsLoading ? (
+            <EventListSkeleton />
+          ) : (
+            <MyEventsList events={myEvents} />
+          )
         ) : isLoading ? (
           <EventListSkeleton />
         ) : viewMode === "list" ? (
@@ -99,6 +139,17 @@ export function EventsTab() {
           <EventCalendar events={events} onSelectEvent={handleSelectEvent} />
         )}
       </div>
+
+      {/* FAB — only on feed view */}
+      {!selectedEvent && (
+        <Button
+          size="icon-lg"
+          className="fixed bottom-20 right-4 z-20 rounded-full shadow-lg sm:bottom-6"
+          onClick={() => router.push("/events/create")}
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
+      )}
     </div>
   );
 }

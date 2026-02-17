@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, MapPin, Share2, Bookmark, ExternalLink } from "lucide-react";
 import { VoteControls } from "./vote-controls";
 import { CommentSection } from "./comment-section";
@@ -20,6 +21,8 @@ interface PostDetailProps {
   onBack: () => void;
   onVotePost: (direction: VoteDirection) => void;
   onVoteComment: (commentId: string, direction: VoteDirection) => void;
+  onComment: (body: string) => Promise<void>;
+  onReply: (parentId: string, body: string) => Promise<void>;
 }
 
 export function PostDetail({
@@ -28,6 +31,8 @@ export function PostDetail({
   onBack,
   onVotePost,
   onVoteComment,
+  onComment,
+  onReply,
 }: PostDetailProps) {
   const router = useRouter();
   const postComments = comments.filter((c) => c.postId === post.id);
@@ -55,6 +60,12 @@ export function PostDetail({
               >
                 {post.flair}
               </Badge>
+              <Avatar className="h-5 w-5">
+                {post.authorImage && <AvatarImage src={post.authorImage} alt={post.author} />}
+                <AvatarFallback className="text-[9px] font-medium">
+                  {post.author?.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() ?? "?"}
+                </AvatarFallback>
+              </Avatar>
               <span>{post.authorHandle}</span>
               <span>·</span>
               <span>{formatRelativeTime(post.createdAt)}</span>
@@ -117,7 +128,13 @@ export function PostDetail({
         </div>
 
         {/* Comments */}
-        <CommentSection comments={postComments} onVoteComment={onVoteComment} />
+        <CommentSection
+          postId={post.id}
+          comments={postComments}
+          onVoteComment={onVoteComment}
+          onComment={onComment}
+          onReply={onReply}
+        />
       </div>
     </div>
   );

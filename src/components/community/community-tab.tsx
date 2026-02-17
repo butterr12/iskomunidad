@@ -2,21 +2,36 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, MessageCircle } from "lucide-react";
+import { Plus } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { SortToggle } from "./sort-toggle";
 import { FlairFilter } from "./flair-filter";
 import { PostFeed } from "./post-feed";
 import { PostDetail } from "./post-detail";
+import { CreatePostForm } from "./create-post-form";
 import {
   sortPosts,
   type CommunityPost,
   type PostComment,
   type PostFlair,
+  type PostType,
   type SortMode,
   type VoteDirection,
 } from "@/lib/posts";
-import { getApprovedPosts, getPostById, voteOnPost, voteOnComment } from "@/actions/posts";
+import {
+  getApprovedPosts,
+  getPostById,
+  voteOnPost,
+  voteOnComment,
+  createPost,
+  createComment,
+} from "@/actions/posts";
+
+type PostWithComments = {
+  comments?: PostComment[];
+};
 
 function PostCardSkeleton() {
   return (
@@ -55,11 +70,18 @@ function PostFeedSkeleton() {
 }
 
 export function CommunityTab() {
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [sortMode, setSortMode] = useState<SortMode>("hot");
   const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<PostComment[]>([]);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+
+  const user = session?.user;
+  const displayUsername = (user as Record<string, unknown> | undefined)
+    ?.displayUsername as string | undefined;
+  const promptName = displayUsername?.trim() || user?.name?.trim() || undefined;
 
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ["approved-posts", sortMode],
@@ -109,8 +131,74 @@ export function CommunityTab() {
     setSelectedPost(latest);
     const res = await getPostById(post.id);
     if (res.success) {
-      const data = res.data as any;
+      const data = res.data as PostWithComments;
       setComments(data.comments ?? []);
+    }
+  };
+
+  const handleCreatePost = async (data: {
+    title: string;
+    flair: string;
+    type: PostType;
+    body?: string;
+    linkUrl?: string;
+    imageEmoji?: string;
+    imageColor?: string;
+  }) => {
+    const res = await createPost(data);
+    if (res.success) {
+      await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
+    }
+  };
+
+  const handleComment = async (body: string) => {
+    if (!selectedPost) return;
+    const res = await createComment({ postId: selectedPost.id, body });
+    if (res.success) {
+      // Re-fetch post to get updated comments
+      const postRes = await getPostById(selectedPost.id);
+      if (postRes.success) {
+        const data = postRes.data as PostWithComments;
+        setComments(data.comments ?? []);
+        // Update comment count in the posts list
+        queryClient.setQueryData<CommunityPost[]>(
+          ["approved-posts", sortMode],
+          (old) =>
+            old?.map((p) =>
+              p.id === selectedPost.id
+                ? { ...p, commentCount: (data.comments ?? []).length }
+                : p
+            ),
+        );
+        setSelectedPost((prev) =>
+          prev ? { ...prev, commentCount: (data.comments ?? []).length } : prev
+        );
+      }
+    }
+  };
+
+  const handleReply = async (parentId: string, body: string) => {
+    if (!selectedPost) return;
+    const res = await createComment({ postId: selectedPost.id, parentId, body });
+    if (res.success) {
+      // Re-fetch post to get updated comments
+      const postRes = await getPostById(selectedPost.id);
+      if (postRes.success) {
+        const data = postRes.data as PostWithComments;
+        setComments(data.comments ?? []);
+        queryClient.setQueryData<CommunityPost[]>(
+          ["approved-posts", sortMode],
+          (old) =>
+            old?.map((p) =>
+              p.id === selectedPost.id
+                ? { ...p, commentCount: (data.comments ?? []).length }
+                : p
+            ),
+        );
+        setSelectedPost((prev) =>
+          prev ? { ...prev, commentCount: (data.comments ?? []).length } : prev
+        );
+      }
     }
   };
 
@@ -127,21 +215,24 @@ export function CommunityTab() {
         </div>
       )}
 
-      {/* Welcome banner */}
+      {/* Welcome banner — tappable to open create post */}
       {!selectedPost && (
-        <div className="mx-4 mt-3 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/10 px-5 py-4">
-          <p className="text-base font-semibold">What&apos;s on your mind, isko?</p>
-          <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <MessageCircle className="h-3.5 w-3.5" />
-              {posts.length} {posts.length === 1 ? "post" : "posts"}
-            </span>
-            <span className="flex items-center gap-1">
-              <Users className="h-3.5 w-3.5" />
-              Community
-            </span>
+        <button
+          onClick={() => setShowCreatePost(true)}
+          className="mx-4 mt-3 flex items-center gap-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 px-5 py-5 text-left transition-all hover:from-primary/20 hover:via-primary/10 hover:border-primary/30 active:scale-[0.98]"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
+            <Plus className="h-5 w-5 text-primary" />
           </div>
-        </div>
+          <div className="flex-1">
+            <p className="text-lg font-semibold">
+              {`What's on your mind${promptName ? `, ${promptName}` : ""}?`}
+            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Tap to share with the community
+            </p>
+          </div>
+        </button>
       )}
 
       {/* Content */}
@@ -153,6 +244,8 @@ export function CommunityTab() {
             onBack={() => setSelectedPost(null)}
             onVotePost={(dir) => handleVotePost(selectedPost.id, dir)}
             onVoteComment={handleVoteComment}
+            onComment={handleComment}
+            onReply={handleReply}
           />
         ) : isLoading ? (
           <PostFeedSkeleton />
@@ -164,6 +257,25 @@ export function CommunityTab() {
           />
         )}
       </div>
+
+      {/* FAB — only on feed view */}
+      {!selectedPost && (
+        <Button
+          size="icon-lg"
+          className="fixed bottom-20 right-4 z-20 rounded-full shadow-lg sm:bottom-6"
+          onClick={() => setShowCreatePost(true)}
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
+      )}
+
+      {/* Create post sheet */}
+      <CreatePostForm
+        open={showCreatePost}
+        onOpenChange={setShowCreatePost}
+        promptName={promptName}
+        onSubmit={handleCreatePost}
+      />
     </div>
   );
 }

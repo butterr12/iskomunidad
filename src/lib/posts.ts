@@ -13,6 +13,7 @@ export interface CommunityPost {
   type: PostType;
   author: string;
   authorHandle: string;
+  authorImage?: string | null;
   flair: PostFlair;
   locationId?: string;
   createdAt: string;
@@ -32,6 +33,7 @@ export interface PostComment {
   parentId: string | null;
   author: string;
   authorHandle: string;
+  authorImage?: string | null;
   body: string;
   createdAt: string;
   score: number;
