@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { EventFormWizard } from "@/components/events/event-form-wizard";
+import { CreateEventPageClient } from "./client";
 
 export const metadata: Metadata = {
   title: "Create Event | iskomunidad",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function CreateEventPage() {
-  return <EventFormWizard mode="create" />;
+  return <CreateEventPageClient />;
 }

@@ -18,18 +18,44 @@ function toPhotoProxyUrl(key: string): string {
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function getLandmarkPins() {
-  const rows = await db
-    .select({
-      id: landmark.id,
-      name: landmark.name,
-      lat: landmark.lat,
-      lng: landmark.lng,
-      category: landmark.category,
-    })
-    .from(landmark)
-    .where(eq(landmark.status, "approved"));
+  const rows = await db.query.landmark.findMany({
+    where: eq(landmark.status, "approved"),
+    columns: {
+      id: true,
+      name: true,
+      lat: true,
+      lng: true,
+      category: true,
+    },
+    with: {
+      photos: {
+        columns: { url: true, source: true, order: true },
+        orderBy: (p, { asc }) => [asc(p.order)],
+        limit: 1,
+      },
+    },
+  });
 
-  return { success: true as const, data: rows };
+  const data = rows.map((r) => {
+    const firstPhoto = r.photos[0];
+    let photoUrl: string | null = null;
+    if (firstPhoto) {
+      photoUrl =
+        firstPhoto.source === "google_places"
+          ? `/api/places-photo?ref=${encodeURIComponent(firstPhoto.url)}&maxwidth=200`
+          : toPhotoProxyUrl(firstPhoto.url);
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      lat: r.lat,
+      lng: r.lng,
+      category: r.category,
+      photoUrl,
+    };
+  });
+
+  return { success: true as const, data };
 }
 
 export async function getApprovedLandmarks(): Promise<ActionResult<unknown[]>> {

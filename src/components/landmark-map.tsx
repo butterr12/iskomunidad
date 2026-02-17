@@ -25,49 +25,168 @@ function MarkerPin({
   color,
   selected,
   label,
+  photoUrl,
 }: {
   color: string;
   selected?: boolean;
   label: string;
+  photoUrl?: string | null;
 }) {
+  const size = selected ? 52 : 44;
+  const lineH = selected ? 28 : 22;
+
   return (
-    <div className="group relative flex flex-col items-center">
+    <div
+      className="group relative flex flex-col items-center"
+      style={{
+        transition: "transform 200ms ease-out",
+      }}
+    >
       {/* Hover label */}
-      <div className="pointer-events-none absolute -top-8 whitespace-nowrap rounded-md bg-card px-2 py-1 text-[10px] font-medium text-card-foreground shadow-lg border opacity-0 transition-opacity group-hover:opacity-100 z-20">
+      <div
+        className="pointer-events-none absolute whitespace-nowrap rounded-md bg-card px-2 py-1 text-[10px] font-medium text-card-foreground shadow-lg border opacity-0 transition-opacity group-hover:opacity-100 z-20"
+        style={{ bottom: size + lineH + 6 }}
+      >
         {label}
       </div>
-      <svg
-        width="28"
-        height="40"
-        viewBox="0 0 28 40"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
+
+      {/* Circle image */}
+      <div
+        className="relative flex items-center justify-center rounded-full border-2 shadow-md"
         style={{
-          transform: selected ? "scale(1.3)" : "scale(1)",
-          transformOrigin: "bottom center",
-          transition: "transform 200ms ease-out",
+          width: size,
+          height: size,
+          borderColor: color,
+          backgroundColor: color,
+          transition: "width 200ms ease-out, height 200ms ease-out",
         }}
       >
-        <path
-          d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z"
-          fill={color}
-        />
-        <circle cx="14" cy="14" r="6" fill="white" />
-      </svg>
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt={label}
+            className="rounded-full object-cover"
+            style={{ width: size - 4, height: size - 4 }}
+            draggable={false}
+          />
+        ) : (
+          <div
+            className="flex items-center justify-center rounded-full bg-white/90"
+            style={{ width: size - 4, height: size - 4 }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={color}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+          </div>
+        )}
+      </div>
+
+      {/* Vertical line */}
+      <div
+        style={{
+          width: 2.5,
+          height: lineH,
+          backgroundColor: color,
+          transition: "height 200ms ease-out",
+        }}
+      />
+
+      {/* Bottom dot */}
+      <div
+        className="rounded-full"
+        style={{
+          width: 7,
+          height: 7,
+          backgroundColor: color,
+          marginTop: -1,
+        }}
+      />
     </div>
   );
 }
 
-function ClusterHint({ count, onClick }: { count: number; onClick: () => void }) {
+const STACK_OFFSETS = [
+  { x: -8, y: -8, rotate: -6 },
+  { x: 8, y: -5, rotate: 4 },
+  { x: -5, y: 8, rotate: 3 },
+  { x: 8, y: 8, rotate: -3 },
+];
+
+const FAN_OFFSETS = [
+  { x: -28, y: -28, rotate: 0 },
+  { x: 28, y: -28, rotate: 0 },
+  { x: -28, y: 28, rotate: 0 },
+  { x: 28, y: 28, rotate: 0 },
+];
+
+function ClusterCollage({
+  photos,
+  count,
+  onClick,
+}: {
+  photos: string[];
+  count: number;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const images = photos.slice(0, 4);
+  const thumbSize = 44;
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className="relative flex h-3 w-3 cursor-pointer items-center justify-center transition-transform hover:scale-[2]"
-      title=""
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="relative flex cursor-pointer items-center justify-center"
+      style={{ width: 80, height: 80 }}
+      title={`${count} landmarks`}
     >
-      <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />
-      <span className="relative h-2.5 w-2.5 rounded-full bg-primary/50 ring-1 ring-primary/20" />
+      {images.map((url, i) => {
+        const off = hovered ? FAN_OFFSETS[i] : STACK_OFFSETS[i];
+        return (
+          <img
+            key={i}
+            src={url}
+            alt=""
+            draggable={false}
+            className="absolute rounded-full border-2 border-white object-cover dark:border-neutral-800"
+            style={{
+              width: thumbSize,
+              height: thumbSize,
+              transform: `translate(${off.x}px, ${off.y}px) rotate(${off.rotate}deg) scale(${hovered ? 1.05 : 1})`,
+              transition: "transform 300ms cubic-bezier(.4,0,.2,1), box-shadow 300ms ease",
+              zIndex: hovered ? 4 - i : i,
+              boxShadow: hovered
+                ? "0 4px 14px rgba(0,0,0,0.25)"
+                : "0 1px 4px rgba(0,0,0,0.15)",
+            }}
+          />
+        );
+      })}
+
+      {/* Count badge */}
+      <span
+        className="absolute rounded-full bg-foreground px-1.5 py-0.5 text-[9px] font-bold text-background shadow-md"
+        style={{
+          bottom: hovered ? -2 : 4,
+          right: hovered ? -2 : 4,
+          transition: "bottom 300ms ease, right 300ms ease",
+          zIndex: 10,
+        }}
+      >
+        {count}
+      </span>
     </button>
   );
 }
@@ -90,6 +209,14 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
       nameMap[pin.id] = pin.name;
     }
     return nameMap;
+  }, [pins]);
+
+  const pinPhotoMap = useMemo(() => {
+    const photoMap: Record<string, string | null> = {};
+    for (const pin of pins) {
+      photoMap[pin.id] = pin.photoUrl ?? null;
+    }
+    return photoMap;
   }, [pins]);
 
   const updateViewport = useCallback(() => {
@@ -218,9 +345,18 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
         if (props.cluster === true) {
           const clusterId = Number(props.cluster_id);
           const count = Number(props.point_count);
+          const leaves = supercluster ? supercluster.getLeaves(clusterId, count) : [];
+          const clusterPhotos: string[] = [];
+          for (const leaf of leaves) {
+            if (clusterPhotos.length >= 4) break;
+            const leafId = String((leaf.properties as Record<string, unknown>).pinId ?? "");
+            const url = pinPhotoMap[leafId];
+            if (url) clusterPhotos.push(url);
+          }
           return (
             <Marker key={`cluster-${clusterId}`} latitude={lat} longitude={lng} anchor="center">
-              <ClusterHint
+              <ClusterCollage
+                photos={clusterPhotos}
                 count={count}
                 onClick={() => handleClusterClick(clusterId, lat, lng)}
               />
@@ -247,6 +383,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
               color={categoryColors[category]}
               selected={selectedId === pinId}
               label={pinNameMap[pinId] ?? ""}
+              photoUrl={pinPhotoMap[pinId]}
             />
           </Marker>
         );

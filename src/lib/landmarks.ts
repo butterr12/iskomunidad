@@ -6,6 +6,7 @@ export interface LandmarkPin {
   lat: number;
   lng: number;
   category: LandmarkCategory;
+  photoUrl?: string | null;
 }
 
 export type PhotoSource = "upload" | "google_places";

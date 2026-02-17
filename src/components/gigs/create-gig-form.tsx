@@ -4,12 +4,12 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -106,14 +106,14 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85vh] flex flex-col rounded-t-2xl">
-        <SheetHeader>
-          <SheetTitle>Post a Gig</SheetTitle>
-          <SheetDescription>Find help from the campus community</SheetDescription>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Post a Gig</DialogTitle>
+          <DialogDescription>Find help from the campus community</DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
+        <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 overflow-y-auto pr-1">
           {/* Title */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="gig-title" className="text-sm font-medium">
@@ -257,14 +257,14 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
           </div>
         </form>
 
-        {/* Sticky submit button outside scrollable area */}
-        <div className="border-t px-4 py-3">
+        {/* Submit button */}
+        <div className="border-t pt-3">
           <Button
             type="button"
             disabled={!canSubmit}
             className="w-full"
             onClick={(e) => {
-              const form = (e.target as HTMLElement).closest("[data-slot='sheet-content']")?.querySelector("form");
+              const form = (e.target as HTMLElement).closest("[data-slot='dialog-content']")?.querySelector("form");
               form?.requestSubmit();
             }}
           >
@@ -278,7 +278,7 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
             )}
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
