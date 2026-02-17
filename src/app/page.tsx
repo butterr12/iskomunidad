@@ -1,12 +1,25 @@
 "use client";
 
-import { useSession, signOut } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { useState, useMemo } from "react";
+import dynamic from "next/dynamic";
+import { useSession } from "@/lib/auth-client";
+import { NavBar } from "@/components/nav-bar";
+import { landmarks } from "@/lib/landmarks";
+import type { LandmarkCategory } from "@/lib/landmarks";
+
+const LandmarkMap = dynamic(
+  () => import("@/components/landmark-map").then((mod) => mod.LandmarkMap),
+  { ssr: false, loading: () => <div className="h-full w-full bg-muted animate-pulse" /> }
+);
 
 export default function Home() {
-  const { data: session, isPending } = useSession();
-  const router = useRouter();
+  const { isPending } = useSession();
+  const [filter, setFilter] = useState<LandmarkCategory | "all">("all");
+
+  const filtered = useMemo(
+    () => (filter === "all" ? landmarks : landmarks.filter((l) => l.category === filter)),
+    [filter]
+  );
 
   if (isPending) {
     return (
@@ -17,29 +30,10 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
-      <main className="flex w-full max-w-lg flex-col items-center gap-8 text-center">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Welcome{session?.user?.name ? `, ${session.user.name}` : ""}
-          </h1>
-          <p className="text-muted-foreground">
-            You are signed in as{" "}
-            <span className="font-medium text-foreground">
-              {session?.user?.email}
-            </span>
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={async () => {
-            await signOut();
-            router.push("/sign-in");
-            router.refresh();
-          }}
-        >
-          Sign out
-        </Button>
+    <div className="flex h-screen flex-col">
+      <NavBar activeFilter={filter} onFilterChange={setFilter} />
+      <main className="flex-1 pt-14">
+        <LandmarkMap landmarks={filtered} />
       </main>
     </div>
   );
