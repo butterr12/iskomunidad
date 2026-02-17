@@ -9,15 +9,11 @@ import {
   LayoutDashboard,
   ClipboardList,
   FileText,
-  PlusCircle,
   Bell,
   Settings,
   LogOut,
   Calendar,
-  CalendarPlus,
   MapPin,
-  MapPinPlus,
-  Hammer,
   Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,7 +44,6 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/queue", label: "Post Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/posts", label: "All Posts", shortLabel: "Posts", icon: FileText },
-      { href: "/admin/posts/create", label: "Create Post", shortLabel: "New", icon: PlusCircle },
     ],
   },
   {
@@ -56,7 +51,6 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/events/queue", label: "Events Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/events", label: "All Events", shortLabel: "Events", icon: Calendar },
-      { href: "/admin/events/create", label: "Create Event", shortLabel: "New", icon: CalendarPlus },
     ],
   },
   {
@@ -64,7 +58,6 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/locations/queue", label: "Locations Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/locations", label: "All Locations", shortLabel: "Locations", icon: MapPin },
-      { href: "/admin/locations/create", label: "Create Location", shortLabel: "New", icon: MapPinPlus },
     ],
   },
   {
@@ -72,7 +65,6 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/gigs/queue", label: "Gigs Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/gigs", label: "All Gigs", shortLabel: "Gigs", icon: Briefcase },
-      { href: "/admin/gigs/create", label: "Create Gig", shortLabel: "New", icon: Hammer },
     ],
   },
   {
