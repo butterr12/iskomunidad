@@ -75,10 +75,14 @@ export function applyMapTheme(map: mapboxgl.Map, mode: MapThemeMode = "light") {
       continue;
     }
 
-    if (id.startsWith("building") && t === "fill") {
-      map.setPaintProperty(id, "fill-color", colors.building);
-      map.setPaintProperty(id, "fill-outline-color", colors.building);
-      map.setPaintProperty(id, "fill-opacity", 0.9);
+    if (id.startsWith("building")) {
+      if (t === "fill") {
+        map.setPaintProperty(id, "fill-color", colors.building);
+        map.setPaintProperty(id, "fill-outline-color", colors.building);
+        map.setPaintProperty(id, "fill-opacity", 0.9);
+      } else if (t === "line") {
+        map.setPaintProperty(id, "line-color", colors.building);
+      }
       continue;
     }
 
@@ -113,6 +117,17 @@ export function applyMapTheme(map: mapboxgl.Map, mode: MapThemeMode = "light") {
       map.setPaintProperty(id, "text-color", colors.label);
       map.setPaintProperty(id, "text-halo-color", colors.labelHalo);
       continue;
+    }
+
+    // Catch-all: theme any remaining line/fill layers (bridges, tunnels,
+    // structure casings, boundaries, etc.) so nothing leaks light-mode colors.
+    if (mode === "dark") {
+      if (t === "line") {
+        map.setPaintProperty(id, "line-color", colors.roadCase);
+      } else if (t === "fill") {
+        map.setPaintProperty(id, "fill-color", colors.background);
+        map.setPaintProperty(id, "fill-outline-color", colors.background);
+      }
     }
   }
 }
