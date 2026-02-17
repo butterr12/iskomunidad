@@ -6,8 +6,6 @@ import { CommentSection } from "./comment-section";
 import {
   FLAIR_COLORS,
   formatRelativeTime,
-  postToLandmark,
-  getCommentsForPost,
   type CommunityPost,
   type PostComment,
   type VoteDirection,
@@ -30,7 +28,6 @@ export function PostDetail({
   onVoteComment,
   onViewOnMap,
 }: PostDetailProps) {
-  const landmark = postToLandmark(post);
   const postComments = comments.filter((c) => c.postId === post.id);
 
   return (
@@ -60,10 +57,10 @@ export function PostDetail({
               <span>·</span>
               <span>{formatRelativeTime(post.createdAt)}</span>
             </div>
-            {landmark && (
+            {post.locationId && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
-                <span>{landmark.name}</span>
+                <span>Location pinned</span>
               </div>
             )}
           </div>
@@ -104,7 +101,7 @@ export function PostDetail({
             <Bookmark className="h-3.5 w-3.5" />
             Bookmark
           </Button>
-          {landmark && onViewOnMap && (
+          {onViewOnMap && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={onViewOnMap}>
               <MapPin className="h-3.5 w-3.5" />
               View on Map

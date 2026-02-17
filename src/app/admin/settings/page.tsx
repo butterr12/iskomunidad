@@ -1,18 +1,31 @@
 "use client";
 
-import { useReducer } from "react";
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import { SettingsPanel } from "@/components/admin/settings-panel";
-import { getSettings, setSettings } from "@/lib/admin-store";
+import { adminGetSettings, adminUpdateSettings } from "@/actions/admin";
 
 export default function SettingsPage() {
-  const [, rerender] = useReducer((x: number) => x + 1, 0);
+  const [settings, setSettings] = useState<{ autoApprove: boolean } | null>(null);
 
-  const settings = getSettings();
+  useEffect(() => {
+    adminGetSettings().then((res) => {
+      if (res.success) setSettings(res.data);
+    });
+  }, []);
 
-  const handleToggleAutoApprove = (value: boolean) => {
+  const handleToggleAutoApprove = async (value: boolean) => {
+    await adminUpdateSettings({ autoApprove: value });
     setSettings({ autoApprove: value });
-    rerender();
   };
+
+  if (!settings) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <SettingsPanel

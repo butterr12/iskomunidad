@@ -15,8 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createLandmark, getSettings } from "@/lib/admin-store";
-import type { Landmark, LandmarkCategory } from "@/lib/landmarks";
+import { adminCreateLandmark } from "@/actions/admin";
+import type { LandmarkCategory } from "@/lib/landmarks";
 
 const LANDMARK_CATEGORIES: { value: LandmarkCategory; label: string }[] = [
   { value: "attraction", label: "Attraction" },
@@ -32,13 +32,15 @@ export default function CreateLocationPage() {
   const [lng, setLng] = useState("");
   const [address, setAddress] = useState("");
   const [tags, setTags] = useState("");
-  const [created, setCreated] = useState<Landmark | null>(null);
+  const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !lat || !lng) return;
+    setSubmitting(true);
 
-    const landmark = createLandmark({
+    const res = await adminCreateLandmark({
       name: name.trim(),
       description: description.trim(),
       category,
@@ -46,13 +48,16 @@ export default function CreateLocationPage() {
       lng: parseFloat(lng),
       address: address.trim() || undefined,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      photos: [],
     });
 
-    setCreated(landmark);
+    setSubmitting(false);
+    if (res.success) {
+      setCreated({ id: res.data.id, name: name.trim() });
+    }
   };
 
   if (created) {
-    const settings = getSettings();
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-8">
@@ -61,17 +66,9 @@ export default function CreateLocationPage() {
             <p className="text-sm text-muted-foreground mt-1">
               &quot;{created.name}&quot; has been created.
             </p>
-            <Badge
-              variant={created.status === "approved" ? "default" : "secondary"}
-              className="mt-2"
-            >
-              {created.status === "approved" ? "Approved (auto)" : "Draft (pending review)"}
+            <Badge variant="default" className="mt-2">
+              Created
             </Badge>
-            {!settings.autoApprove && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Auto-approve is OFF. This location requires manual approval.
-              </p>
-            )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" asChild>
@@ -144,7 +141,9 @@ export default function CreateLocationPage() {
             <Input id="tags" placeholder="e.g. park, nature, scenic" value={tags} onChange={(e) => setTags(e.target.value)} />
           </div>
 
-          <Button type="submit">Create Location</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Creating..." : "Create Location"}
+          </Button>
         </form>
       </CardContent>
     </Card>

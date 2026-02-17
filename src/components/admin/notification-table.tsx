@@ -12,39 +12,52 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatRelativeTime } from "@/lib/posts";
-import type { AdminNotification } from "@/lib/admin-store";
+
+interface AdminNotification {
+  id: string;
+  type: string;
+  targetId: string;
+  targetTitle: string;
+  authorHandle: string;
+  reason?: string | null;
+  createdAt: string;
+  readByAdmin: boolean;
+}
 
 interface NotificationTableProps {
   notifications: AdminNotification[];
   onMarkAllRead: () => void;
 }
 
-function getNotificationBadge(type: AdminNotification["type"]): { variant: "default" | "destructive" | "secondary"; label: string } {
+function getNotificationBadge(type: string): { variant: "default" | "destructive" | "secondary"; label: string } {
   switch (type) {
-    case "approved":
+    case "post_approved":
       return { variant: "default", label: "Post Approved" };
-    case "rejected":
+    case "post_rejected":
       return { variant: "destructive", label: "Post Rejected" };
+    case "post_pending":
+      return { variant: "secondary", label: "Post Pending" };
     case "event_approved":
       return { variant: "default", label: "Event Approved" };
     case "event_rejected":
       return { variant: "destructive", label: "Event Rejected" };
-    case "location_approved":
+    case "event_pending":
+      return { variant: "secondary", label: "Event Pending" };
+    case "landmark_approved":
       return { variant: "default", label: "Location Approved" };
-    case "location_rejected":
+    case "landmark_rejected":
       return { variant: "destructive", label: "Location Rejected" };
+    case "landmark_pending":
+      return { variant: "secondary", label: "Location Pending" };
     case "gig_approved":
       return { variant: "default", label: "Gig Approved" };
     case "gig_rejected":
       return { variant: "destructive", label: "Gig Rejected" };
+    case "gig_pending":
+      return { variant: "secondary", label: "Gig Pending" };
+    default:
+      return { variant: "secondary", label: type };
   }
-}
-
-function getEntityLabel(type: AdminNotification["type"]): string {
-  if (type.startsWith("event")) return "Event";
-  if (type.startsWith("location")) return "Location";
-  if (type.startsWith("gig")) return "Gig";
-  return "Post";
 }
 
 export function NotificationTable({ notifications, onMarkAllRead }: NotificationTableProps) {
@@ -96,7 +109,7 @@ export function NotificationTable({ notifications, onMarkAllRead }: Notification
                       {badge.label}
                     </Badge>
                   </TableCell>
-                  <TableCell className="max-w-[200px] truncate font-medium">{n.postTitle}</TableCell>
+                  <TableCell className="max-w-[200px] truncate font-medium">{n.targetTitle}</TableCell>
                   <TableCell className="text-muted-foreground">{n.authorHandle}</TableCell>
                   <TableCell className="max-w-[200px] truncate text-muted-foreground">
                     {n.reason ?? "\u2014"}

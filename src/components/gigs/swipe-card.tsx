@@ -5,7 +5,6 @@ import {
   URGENCY_LABELS,
   URGENCY_COLORS,
   formatRelativeTime,
-  gigToLandmark,
   type GigListing,
 } from "@/lib/gigs";
 
@@ -14,8 +13,6 @@ interface SwipeCardProps {
 }
 
 export function SwipeCard({ gig }: SwipeCardProps) {
-  const location = gigToLandmark(gig);
-
   return (
     <div className="flex h-full flex-col rounded-2xl border bg-card shadow-lg overflow-hidden">
       {/* Category color header */}
@@ -60,7 +57,7 @@ export function SwipeCard({ gig }: SwipeCardProps) {
           <div className="flex justify-between">
             <span className="text-muted-foreground">Where</span>
             <span className="truncate ml-4 font-medium">
-              {location?.name ?? gig.locationNote ?? "Flexible"}
+              {gig.locationNote ?? "Flexible"}
             </span>
           </div>
           <div className="flex justify-between">

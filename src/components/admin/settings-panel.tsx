@@ -5,7 +5,10 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import type { AdminSettings } from "@/lib/admin-store";
+
+interface AdminSettings {
+  autoApprove: boolean;
+}
 
 interface SettingsPanelProps {
   settings: AdminSettings;

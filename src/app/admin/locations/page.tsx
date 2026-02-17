@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useReducer } from "react";
-import { Check, X, Trash2 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Check, X, Trash2, Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RejectDialog } from "@/components/admin/reject-dialog";
-import { getLandmarks, approveLandmark, rejectLandmark, deleteLandmark } from "@/lib/admin-store";
+import { adminGetAllLandmarks, adminApproveLandmark, adminRejectLandmark, adminDeleteLandmark } from "@/actions/admin";
 import type { Landmark } from "@/lib/landmarks";
 
 const STATUS_BADGE: Record<string, { variant: "default" | "secondary" | "destructive"; label: string }> = {
@@ -24,11 +24,18 @@ const STATUS_BADGE: Record<string, { variant: "default" | "secondary" | "destruc
 };
 
 export default function AllLocationsPage() {
-  const [, rerender] = useReducer((x: number) => x + 1, 0);
+  const [landmarks, setLandmarks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("all");
   const [rejectTarget, setRejectTarget] = useState<Landmark | null>(null);
 
-  const landmarks = getLandmarks();
+  const fetchLandmarks = async () => {
+    const res = await adminGetAllLandmarks();
+    if (res.success) setLandmarks(res.data as any[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchLandmarks(); }, []);
 
   const counts = useMemo(() => {
     const c = { all: landmarks.length, draft: 0, approved: 0, rejected: 0 };
@@ -41,23 +48,31 @@ export default function AllLocationsPage() {
 
   const filtered = useMemo(() => {
     if (tab === "all") return landmarks;
-    return landmarks.filter((l) => (l.status ?? "approved") === tab);
+    return landmarks.filter((l: any) => (l.status ?? "approved") === tab);
   }, [landmarks, tab]);
 
-  const handleApprove = (id: string) => {
-    approveLandmark(id);
-    rerender();
+  const handleApprove = async (id: string) => {
+    await adminApproveLandmark(id);
+    fetchLandmarks();
   };
 
-  const handleReject = (id: string, reason: string) => {
-    rejectLandmark(id, reason);
-    rerender();
+  const handleReject = async (id: string, reason: string) => {
+    await adminRejectLandmark(id, reason);
+    fetchLandmarks();
   };
 
-  const handleDelete = (id: string) => {
-    deleteLandmark(id);
-    rerender();
+  const handleDelete = async (id: string) => {
+    await adminDeleteLandmark(id);
+    fetchLandmarks();
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -90,7 +105,7 @@ export default function AllLocationsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((landmark) => {
+              filtered.map((landmark: any) => {
                 const status = landmark.status ?? "approved";
                 const badge = STATUS_BADGE[status];
                 return (
@@ -101,7 +116,7 @@ export default function AllLocationsPage() {
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate text-muted-foreground">{landmark.address ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {landmark.lat.toFixed(4)}, {landmark.lng.toFixed(4)}
+                      {Number(landmark.lat).toFixed(4)}, {Number(landmark.lng).toFixed(4)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={badge.variant}>{badge.label}</Badge>

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ViewToggle } from "./view-toggle";
 import { EventList } from "./event-list";
 import { EventCalendar } from "./event-calendar";
 import { EventDetail } from "./event-detail";
-import { resolveLocation, type CampusEvent, type RsvpStatus } from "@/lib/events";
-import { getEvents } from "@/lib/admin-store";
+import { type CampusEvent, type RsvpStatus } from "@/lib/events";
+import { getApprovedEvents, rsvpToEvent } from "@/actions/events";
 
 interface EventsTabProps {
   onViewOnMap: (event: CampusEvent) => void;
@@ -15,11 +15,21 @@ interface EventsTabProps {
 export function EventsTab({ onViewOnMap }: EventsTabProps) {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedEvent, setSelectedEvent] = useState<CampusEvent | null>(null);
-  const [events, setEvents] = useState<CampusEvent[]>(() =>
-    getEvents().filter((e) => !e.status || e.status === "approved")
-  );
+  const [events, setEvents] = useState<CampusEvent[]>([]);
 
-  const handleRsvpChange = (eventId: string, status: RsvpStatus) => {
+  useEffect(() => {
+    getApprovedEvents().then((res) => {
+      if (res.success) {
+        setEvents((res.data as any[]).map((e) => ({
+          ...e,
+          rsvpStatus: e.userRsvp ?? null,
+        })));
+      }
+    });
+  }, []);
+
+  const handleRsvpChange = async (eventId: string, status: RsvpStatus) => {
+    await rsvpToEvent(eventId, status);
     setEvents((prev) =>
       prev.map((e) => (e.id === eventId ? { ...e, rsvpStatus: status } : e))
     );
@@ -56,7 +66,7 @@ export function EventsTab({ onViewOnMap }: EventsTabProps) {
             event={selectedEvent}
             onBack={() => setSelectedEvent(null)}
             onRsvpChange={handleRsvpChange}
-            onViewOnMap={resolveLocation(selectedEvent) ? handleViewOnMap : undefined}
+            onViewOnMap={selectedEvent.locationId ? handleViewOnMap : undefined}
           />
         ) : viewMode === "list" ? (
           <EventList events={events} onSelectEvent={handleSelectEvent} />

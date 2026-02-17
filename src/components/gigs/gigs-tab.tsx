@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bookmark } from "lucide-react";
@@ -12,12 +12,11 @@ import { GigDetail } from "./gig-detail";
 import { SwipeDeck } from "./swipe-deck";
 import {
   sortGigs,
-  gigToLandmark,
   type GigListing,
   type GigCategory,
   type GigSortMode,
 } from "@/lib/gigs";
-import { getGigs } from "@/lib/admin-store";
+import { getApprovedGigs, swipeGig } from "@/actions/gigs";
 
 interface GigsTabProps {
   onViewOnMap: (gig: GigListing) => void;
@@ -26,12 +25,23 @@ interface GigsTabProps {
 export function GigsTab({ onViewOnMap }: GigsTabProps) {
   const [viewMode, setViewMode] = useState<"list" | "swipe">("list");
   const [selectedGig, setSelectedGig] = useState<GigListing | null>(null);
-  const [gigs, setGigs] = useState<GigListing[]>(() =>
-    getGigs().filter((g) => !g.status || g.status === "approved")
-  );
+  const [gigs, setGigs] = useState<GigListing[]>([]);
   const [activeCategory, setActiveCategory] = useState<GigCategory | null>(null);
   const [sortMode, setSortMode] = useState<GigSortMode>("newest");
   const [showSaved, setShowSaved] = useState(false);
+
+  useEffect(() => {
+    getApprovedGigs().then((res) => {
+      if (res.success) {
+        setGigs((res.data as any[]).map((g) => ({
+          ...g,
+          posterName: g.author ?? g.posterName,
+          posterHandle: g.authorHandle ?? g.posterHandle,
+          swipeAction: g.userSwipe ?? g.swipeAction ?? null,
+        })));
+      }
+    });
+  }, []);
 
   const savedCount = useMemo(
     () => gigs.filter((g) => g.swipeAction === "saved").length,
@@ -62,13 +72,18 @@ export function GigsTab({ onViewOnMap }: GigsTabProps) {
     setSelectedGig(latest);
   };
 
-  const handleSwipe = (gigId: string, action: "saved" | "skipped") => {
+  const handleSwipe = async (gigId: string, action: "saved" | "skipped") => {
+    await swipeGig(gigId, action);
     setGigs((prev) =>
       prev.map((g) => (g.id === gigId ? { ...g, swipeAction: action } : g))
     );
   };
 
-  const handleResetSwipes = () => {
+  const handleResetSwipes = async () => {
+    // Reset all swipes locally and on server
+    for (const g of gigs.filter((g) => g.swipeAction !== null)) {
+      await swipeGig(g.id, null);
+    }
     setGigs((prev) => prev.map((g) => ({ ...g, swipeAction: null })));
   };
 
@@ -120,7 +135,7 @@ export function GigsTab({ onViewOnMap }: GigsTabProps) {
           <GigDetail
             gig={selectedGig}
             onBack={() => setSelectedGig(null)}
-            onViewOnMap={gigToLandmark(selectedGig) ? handleViewOnMap : undefined}
+            onViewOnMap={selectedGig.locationId ? handleViewOnMap : undefined}
           />
         ) : viewMode === "list" ? (
           <GigList gigs={filteredAndSorted} onSelectGig={handleSelectGig} />

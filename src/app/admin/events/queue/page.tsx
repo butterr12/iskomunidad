@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useReducer } from "react";
-import { Inbox, Check, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Inbox, Check, X, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RejectDialog } from "@/components/admin/reject-dialog";
-import { getEvents, approveEvent, rejectEvent } from "@/lib/admin-store";
-import { formatRelativeTime } from "@/lib/posts";
+import { adminGetAllEvents, adminApproveEvent, adminRejectEvent } from "@/actions/admin";
 
 const CATEGORY_COLORS: Record<string, string> = {
   academic: "#2563eb",
@@ -18,20 +17,35 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function EventsQueuePage() {
-  const [, rerender] = useReducer((x: number) => x + 1, 0);
+  const [draftEvents, setDraftEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [rejectTarget, setRejectTarget] = useState<{ id: string; title: string } | null>(null);
 
-  const draftEvents = getEvents().filter((e) => e.status === "draft");
-
-  const handleApprove = (id: string) => {
-    approveEvent(id);
-    rerender();
+  const fetchDrafts = async () => {
+    const res = await adminGetAllEvents("draft");
+    if (res.success) setDraftEvents(res.data as any[]);
+    setLoading(false);
   };
 
-  const handleReject = (id: string, reason: string) => {
-    rejectEvent(id, reason);
-    rerender();
+  useEffect(() => { fetchDrafts(); }, []);
+
+  const handleApprove = async (id: string) => {
+    await adminApproveEvent(id);
+    fetchDrafts();
   };
+
+  const handleReject = async (id: string, reason: string) => {
+    await adminRejectEvent(id, reason);
+    fetchDrafts();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -41,7 +55,7 @@ export default function EventsQueuePage() {
           <p>No events pending review.</p>
         </div>
       ) : (
-        draftEvents.map((event) => (
+        draftEvents.map((event: any) => (
           <Card key={event.id}>
             <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1 space-y-1">

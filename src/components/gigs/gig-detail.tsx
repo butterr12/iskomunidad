@@ -19,7 +19,6 @@ import {
   URGENCY_LABELS,
   URGENCY_COLORS,
   formatRelativeTime,
-  gigToLandmark,
   type GigListing,
 } from "@/lib/gigs";
 
@@ -30,8 +29,6 @@ interface GigDetailProps {
 }
 
 export function GigDetail({ gig, onBack, onViewOnMap }: GigDetailProps) {
-  const location = gigToLandmark(gig);
-
   return (
     <div className="flex flex-col">
       {/* Back button */}
@@ -86,10 +83,10 @@ export function GigDetail({ gig, onBack, onViewOnMap }: GigDetailProps) {
             <DollarSign className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{gig.compensation}</span>
           </div>
-          {(location || gig.locationNote) && (
+          {(gig.locationId || gig.locationNote) && (
             <div className="flex items-start gap-2">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{location?.name ?? gig.locationNote}</span>
+              <span>{gig.locationNote ?? "On Campus"}</span>
             </div>
           )}
           {gig.deadline && (
@@ -154,7 +151,7 @@ export function GigDetail({ gig, onBack, onViewOnMap }: GigDetailProps) {
               Share
             </Button>
           </div>
-          {location && onViewOnMap && (
+          {onViewOnMap && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={onViewOnMap}>
               <MapPin className="h-3.5 w-3.5" />
               View on Map

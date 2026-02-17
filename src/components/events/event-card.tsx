@@ -1,5 +1,5 @@
 import { Clock, MapPin, Globe } from "lucide-react";
-import { resolveLocation, type CampusEvent } from "@/lib/events";
+import type { CampusEvent } from "@/lib/events";
 
 interface EventCardProps {
   event: CampusEvent;
@@ -23,8 +23,6 @@ export function EventCard({ event, onClick }: EventCardProps) {
   const start = new Date(event.startDate);
   const month = start.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
   const day = start.getDate();
-  const location = resolveLocation(event);
-
   return (
     <button
       onClick={onClick}
@@ -49,10 +47,10 @@ export function EventCard({ event, onClick }: EventCardProps) {
           </div>
 
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {location ? (
+            {event.locationId ? (
               <>
                 <MapPin className="h-3 w-3 shrink-0" />
-                <span className="truncate">{location.name}</span>
+                <span className="truncate">On Campus</span>
               </>
             ) : (
               <>

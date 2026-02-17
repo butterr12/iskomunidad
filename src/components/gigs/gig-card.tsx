@@ -6,7 +6,6 @@ import {
   URGENCY_LABELS,
   URGENCY_COLORS,
   formatRelativeTime,
-  gigToLandmark,
   type GigListing,
 } from "@/lib/gigs";
 
@@ -16,8 +15,6 @@ interface GigCardProps {
 }
 
 export function GigCard({ gig, onSelect }: GigCardProps) {
-  const location = gigToLandmark(gig);
-
   return (
     <button
       onClick={() => onSelect(gig)}
@@ -70,10 +67,10 @@ export function GigCard({ gig, onSelect }: GigCardProps) {
         {/* Footer */}
         <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
           <span>{gig.posterName}</span>
-          {(location || gig.locationNote) && (
+          {(gig.locationId || gig.locationNote) && (
             <span className="flex items-center gap-0.5">
               <MapPin className="h-3 w-3" />
-              {location?.name ?? gig.locationNote}
+              {gig.locationNote ?? "On Campus"}
             </span>
           )}
           <span className="flex items-center gap-0.5">

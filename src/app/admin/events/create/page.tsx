@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createEvent, getSettings, getLandmarks } from "@/lib/admin-store";
-import type { CampusEvent, EventCategory } from "@/lib/events";
+import { adminCreateEvent } from "@/actions/admin";
+import { getApprovedLandmarks } from "@/actions/landmarks";
+import type { EventCategory } from "@/lib/events";
+import type { Landmark } from "@/lib/landmarks";
 
 const EVENT_CATEGORIES: { value: EventCategory; label: string }[] = [
   { value: "academic", label: "Academic" },
@@ -40,15 +42,22 @@ export default function CreateEventPage() {
   const [locationId, setLocationId] = useState("");
   const [tags, setTags] = useState("");
   const [coverColor, setCoverColor] = useState(COVER_COLORS[0]);
-  const [created, setCreated] = useState<CampusEvent | null>(null);
+  const [created, setCreated] = useState<{ id: string; title: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [landmarks, setLandmarks] = useState<Landmark[]>([]);
 
-  const approvedLandmarks = getLandmarks().filter((l) => l.status === "approved");
+  useEffect(() => {
+    getApprovedLandmarks().then((res) => {
+      if (res.success) setLandmarks(res.data as Landmark[]);
+    });
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !organizer.trim() || !startDate || !endDate) return;
+    setSubmitting(true);
 
-    const event = createEvent({
+    const res = await adminCreateEvent({
       title: title.trim(),
       description: description.trim(),
       category,
@@ -60,11 +69,13 @@ export default function CreateEventPage() {
       coverColor,
     });
 
-    setCreated(event);
+    setSubmitting(false);
+    if (res.success) {
+      setCreated({ id: res.data.id, title: title.trim() });
+    }
   };
 
   if (created) {
-    const settings = getSettings();
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-8">
@@ -73,17 +84,9 @@ export default function CreateEventPage() {
             <p className="text-sm text-muted-foreground mt-1">
               &quot;{created.title}&quot; has been created.
             </p>
-            <Badge
-              variant={created.status === "approved" ? "default" : "secondary"}
-              className="mt-2"
-            >
-              {created.status === "approved" ? "Approved (auto)" : "Draft (pending review)"}
+            <Badge variant="default" className="mt-2">
+              Created
             </Badge>
-            {!settings.autoApprove && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Auto-approve is OFF. This event requires manual approval.
-              </p>
-            )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" asChild>
@@ -160,7 +163,7 @@ export default function CreateEventPage() {
               <SelectTrigger><SelectValue placeholder="Online (no location)" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Online (no location)</SelectItem>
-                {approvedLandmarks.map((l) => (
+                {landmarks.map((l) => (
                   <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -178,7 +181,9 @@ export default function CreateEventPage() {
             </div>
           </div>
 
-          <Button type="submit">Create Event</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Creating..." : "Create Event"}
+          </Button>
         </form>
       </CardContent>
     </Card>

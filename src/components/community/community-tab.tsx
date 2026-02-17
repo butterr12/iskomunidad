@@ -1,21 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SortToggle } from "./sort-toggle";
 import { FlairFilter } from "./flair-filter";
 import { PostFeed } from "./post-feed";
 import { PostDetail } from "./post-detail";
 import {
-  mockComments,
   sortPosts,
-  postToLandmark,
+  buildCommentTree,
   type CommunityPost,
   type PostComment,
   type PostFlair,
   type SortMode,
   type VoteDirection,
 } from "@/lib/posts";
-import { getPosts } from "@/lib/admin-store";
+import { getApprovedPosts, getPostById, voteOnPost, voteOnComment, createComment } from "@/actions/posts";
 
 interface CommunityTabProps {
   onViewOnMap: (post: CommunityPost) => void;
@@ -25,10 +24,14 @@ export function CommunityTab({ onViewOnMap }: CommunityTabProps) {
   const [sortMode, setSortMode] = useState<SortMode>("hot");
   const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
-  const [posts, setPosts] = useState<CommunityPost[]>(() =>
-    getPosts().filter((p) => !p.status || p.status === "approved")
-  );
-  const [comments, setComments] = useState<PostComment[]>(mockComments);
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [comments, setComments] = useState<PostComment[]>([]);
+
+  useEffect(() => {
+    getApprovedPosts({ sort: sortMode }).then((res) => {
+      if (res.success) setPosts(res.data as CommunityPost[]);
+    });
+  }, [sortMode]);
 
   const filteredAndSorted = useMemo(() => {
     const filtered = activeFlair
@@ -37,33 +40,43 @@ export function CommunityTab({ onViewOnMap }: CommunityTabProps) {
     return sortPosts(filtered, sortMode);
   }, [posts, activeFlair, sortMode]);
 
-  const handleVotePost = (postId: string, direction: VoteDirection) => {
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id !== postId) return p;
-        const scoreDelta = direction - p.userVote;
-        const updated = { ...p, score: p.score + scoreDelta, userVote: direction };
-        if (selectedPost?.id === postId) {
-          setSelectedPost(updated);
-        }
-        return updated;
-      })
-    );
+  const handleVotePost = async (postId: string, direction: VoteDirection) => {
+    const res = await voteOnPost(postId, direction);
+    if (res.success) {
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          const updated = { ...p, score: res.data.newScore, userVote: direction };
+          if (selectedPost?.id === postId) {
+            setSelectedPost(updated);
+          }
+          return updated;
+        })
+      );
+    }
   };
 
-  const handleVoteComment = (commentId: string, direction: VoteDirection) => {
-    setComments((prev) =>
-      prev.map((c) => {
-        if (c.id !== commentId) return c;
-        const scoreDelta = direction - c.userVote;
-        return { ...c, score: c.score + scoreDelta, userVote: direction };
-      })
-    );
+  const handleVoteComment = async (commentId: string, direction: VoteDirection) => {
+    const res = await voteOnComment(commentId, direction);
+    if (res.success) {
+      setComments((prev) =>
+        prev.map((c) => {
+          if (c.id !== commentId) return c;
+          return { ...c, score: res.data.newScore, userVote: direction };
+        })
+      );
+    }
   };
 
-  const handleSelectPost = (post: CommunityPost) => {
+  const handleSelectPost = async (post: CommunityPost) => {
     const latest = posts.find((p) => p.id === post.id) ?? post;
     setSelectedPost(latest);
+    // Fetch comments for this post
+    const res = await getPostById(post.id);
+    if (res.success) {
+      const data = res.data as any;
+      setComments(data.comments ?? []);
+    }
   };
 
   const handleViewOnMap = () => {
@@ -94,7 +107,7 @@ export function CommunityTab({ onViewOnMap }: CommunityTabProps) {
             onBack={() => setSelectedPost(null)}
             onVotePost={(dir) => handleVotePost(selectedPost.id, dir)}
             onVoteComment={handleVoteComment}
-            onViewOnMap={postToLandmark(selectedPost) ? handleViewOnMap : undefined}
+            onViewOnMap={selectedPost.locationId ? handleViewOnMap : undefined}
           />
         ) : (
           <PostFeed

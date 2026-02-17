@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, MapPin, Globe, Users, User, Share2, Star, Check } from "lucide-react";
-import { resolveLocation, type CampusEvent, type RsvpStatus } from "@/lib/events";
+import type { CampusEvent, RsvpStatus } from "@/lib/events";
 
 interface EventDetailProps {
   event: CampusEvent;
@@ -33,8 +33,6 @@ const categoryLabels: Record<string, string> = {
 };
 
 export function EventDetail({ event, onBack, onRsvpChange, onViewOnMap }: EventDetailProps) {
-  const location = resolveLocation(event);
-
   const toggleRsvp = (status: RsvpStatus) => {
     onRsvpChange(event.id, event.rsvpStatus === status ? null : status);
   };
@@ -80,10 +78,10 @@ export function EventDetail({ event, onBack, onRsvpChange, onViewOnMap }: EventD
             <span>{formatDateRange(event.startDate, event.endDate)}</span>
           </div>
           <div className="flex items-start gap-2">
-            {location ? (
+            {event.locationId ? (
               <>
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{location.name}</span>
+                <span>On Campus</span>
               </>
             ) : (
               <>
@@ -135,7 +133,7 @@ export function EventDetail({ event, onBack, onRsvpChange, onViewOnMap }: EventD
               Share
             </Button>
           </div>
-          {location && onViewOnMap && (
+          {onViewOnMap && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={onViewOnMap}>
               <MapPin className="h-3.5 w-3.5" />
               View on Map

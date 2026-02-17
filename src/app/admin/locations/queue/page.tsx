@@ -1,28 +1,43 @@
 "use client";
 
-import { useState, useReducer } from "react";
-import { Inbox, Check, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Inbox, Check, X, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RejectDialog } from "@/components/admin/reject-dialog";
-import { getLandmarks, approveLandmark, rejectLandmark } from "@/lib/admin-store";
+import { adminGetAllLandmarks, adminApproveLandmark, adminRejectLandmark } from "@/actions/admin";
 
 export default function LocationsQueuePage() {
-  const [, rerender] = useReducer((x: number) => x + 1, 0);
+  const [draftLandmarks, setDraftLandmarks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [rejectTarget, setRejectTarget] = useState<{ id: string; title: string } | null>(null);
 
-  const draftLandmarks = getLandmarks().filter((l) => l.status === "draft");
-
-  const handleApprove = (id: string) => {
-    approveLandmark(id);
-    rerender();
+  const fetchDrafts = async () => {
+    const res = await adminGetAllLandmarks("draft");
+    if (res.success) setDraftLandmarks(res.data as any[]);
+    setLoading(false);
   };
 
-  const handleReject = (id: string, reason: string) => {
-    rejectLandmark(id, reason);
-    rerender();
+  useEffect(() => { fetchDrafts(); }, []);
+
+  const handleApprove = async (id: string) => {
+    await adminApproveLandmark(id);
+    fetchDrafts();
   };
+
+  const handleReject = async (id: string, reason: string) => {
+    await adminRejectLandmark(id, reason);
+    fetchDrafts();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -32,7 +47,7 @@ export default function LocationsQueuePage() {
           <p>No locations pending review.</p>
         </div>
       ) : (
-        draftLandmarks.map((landmark) => (
+        draftLandmarks.map((landmark: any) => (
           <Card key={landmark.id}>
             <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1 space-y-1">
@@ -40,7 +55,7 @@ export default function LocationsQueuePage() {
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant="outline">{landmark.category}</Badge>
                   {landmark.address && <span>{landmark.address}</span>}
-                  <span>({landmark.lat.toFixed(4)}, {landmark.lng.toFixed(4)})</span>
+                  <span>({Number(landmark.lat).toFixed(4)}, {Number(landmark.lng).toFixed(4)})</span>
                 </div>
                 {landmark.description && (
                   <p className="text-sm text-muted-foreground line-clamp-2">{landmark.description}</p>

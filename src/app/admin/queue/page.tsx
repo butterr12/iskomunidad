@@ -1,24 +1,39 @@
 "use client";
 
-import { useState, useReducer } from "react";
-import { Inbox } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Inbox, Loader2 } from "lucide-react";
 import { ModerationRow } from "@/components/admin/moderation-row";
-import { getPosts, approvePost, rejectPost } from "@/lib/admin-store";
+import { adminGetAllPosts, adminApprovePost, adminRejectPost } from "@/actions/admin";
 
 export default function ModerationQueuePage() {
-  const [, rerender] = useReducer((x: number) => x + 1, 0);
+  const [draftPosts, setDraftPosts] = useState<unknown[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const draftPosts = getPosts().filter((p) => p.status === "draft");
-
-  const handleApprove = (id: string) => {
-    approvePost(id);
-    rerender();
+  const fetchDrafts = async () => {
+    const res = await adminGetAllPosts("draft");
+    if (res.success) setDraftPosts(res.data);
+    setLoading(false);
   };
 
-  const handleReject = (id: string, reason: string) => {
-    rejectPost(id, reason);
-    rerender();
+  useEffect(() => { fetchDrafts(); }, []);
+
+  const handleApprove = async (id: string) => {
+    await adminApprovePost(id);
+    fetchDrafts();
   };
+
+  const handleReject = async (id: string, reason: string) => {
+    await adminRejectPost(id, reason);
+    fetchDrafts();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -28,7 +43,7 @@ export default function ModerationQueuePage() {
           <p>No posts pending review.</p>
         </div>
       ) : (
-        draftPosts.map((post) => (
+        draftPosts.map((post: any) => (
           <ModerationRow
             key={post.id}
             post={post}

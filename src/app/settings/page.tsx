@@ -21,13 +21,10 @@ import {
   Moon,
   Monitor,
   Bell,
-  MessageSquare,
   CalendarCheck,
-  MapPinCheck,
   Bookmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getPosts, getEvents, getLandmarks, getGigs } from "@/lib/admin-store";
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -67,22 +64,6 @@ export default function SettingsPage() {
   const [notifPosts, setNotifPosts] = useState(true);
   const [notifEvents, setNotifEvents] = useState(true);
   const [notifGigs, setNotifGigs] = useState(false);
-
-  const postCount = getPosts().filter(
-    (p) => !p.status || p.status === "approved"
-  ).length;
-  const eventsGoing = getEvents().filter((e) => e.rsvpStatus === "going").length;
-  const landmarksExplored = getLandmarks().filter(
-    (l) => !l.status || l.status === "approved"
-  ).length;
-  const gigsSaved = getGigs().filter((g) => g.swipeAction === "saved").length;
-
-  const stats = [
-    { label: "Posts", value: postCount, icon: MessageSquare, color: "text-blue-500" },
-    { label: "Attending", value: eventsGoing, icon: CalendarCheck, color: "text-green-500" },
-    { label: "Explored", value: landmarksExplored, icon: MapPinCheck, color: "text-amber-500" },
-    { label: "Saved Gigs", value: gigsSaved, icon: Bookmark, color: "text-purple-500" },
-  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -251,26 +232,6 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-        </section>
-
-        {/* Campus Stats */}
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
-            Campus Stats
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            {stats.map((s) => (
-              <Card key={s.label}>
-                <CardContent className="flex items-center gap-3 p-4">
-                  <s.icon className={cn("h-5 w-5 shrink-0", s.color)} />
-                  <div>
-                    <p className="text-2xl font-bold leading-none">{s.value}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </section>
 
         {/* Sign Out */}

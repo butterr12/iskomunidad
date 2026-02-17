@@ -4,7 +4,6 @@ import { VoteControls } from "./vote-controls";
 import {
   FLAIR_COLORS,
   formatRelativeTime,
-  postToLandmark,
   type CommunityPost,
   type VoteDirection,
 } from "@/lib/posts";
@@ -16,8 +15,6 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, onSelect, onVote }: PostCardProps) {
-  const landmark = postToLandmark(post);
-
   return (
     <div
       role="button"
@@ -43,12 +40,12 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
             <span>{post.authorHandle}</span>
             <span>·</span>
             <span>{formatRelativeTime(post.createdAt)}</span>
-            {landmark && (
+            {post.locationId && (
               <>
                 <span>·</span>
                 <span className="flex items-center gap-0.5">
                   <MapPin className="h-3 w-3" />
-                  {landmark.name}
+                  Location
                 </span>
               </>
             )}

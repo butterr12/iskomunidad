@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useReducer } from "react";
-import { Check, X, Trash2 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Check, X, Trash2, Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RejectDialog } from "@/components/admin/reject-dialog";
-import { getEvents, approveEvent, rejectEvent, deleteEvent } from "@/lib/admin-store";
+import { adminGetAllEvents, adminApproveEvent, adminRejectEvent, adminDeleteEvent } from "@/actions/admin";
 import { formatRelativeTime } from "@/lib/posts";
 import type { CampusEvent } from "@/lib/events";
 
@@ -33,11 +33,18 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function AllEventsPage() {
-  const [, rerender] = useReducer((x: number) => x + 1, 0);
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("all");
   const [rejectTarget, setRejectTarget] = useState<CampusEvent | null>(null);
 
-  const events = getEvents();
+  const fetchEvents = async () => {
+    const res = await adminGetAllEvents();
+    if (res.success) setEvents(res.data as any[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchEvents(); }, []);
 
   const counts = useMemo(() => {
     const c = { all: events.length, draft: 0, approved: 0, rejected: 0 };
@@ -53,20 +60,28 @@ export default function AllEventsPage() {
     return events.filter((e) => (e.status ?? "approved") === tab);
   }, [events, tab]);
 
-  const handleApprove = (id: string) => {
-    approveEvent(id);
-    rerender();
+  const handleApprove = async (id: string) => {
+    await adminApproveEvent(id);
+    fetchEvents();
   };
 
-  const handleReject = (id: string, reason: string) => {
-    rejectEvent(id, reason);
-    rerender();
+  const handleReject = async (id: string, reason: string) => {
+    await adminRejectEvent(id, reason);
+    fetchEvents();
   };
 
-  const handleDelete = (id: string) => {
-    deleteEvent(id);
-    rerender();
+  const handleDelete = async (id: string) => {
+    await adminDeleteEvent(id);
+    fetchEvents();
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -101,7 +116,7 @@ export default function AllEventsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((event) => {
+              filtered.map((event: any) => {
                 const status = event.status ?? "approved";
                 const badge = STATUS_BADGE[status];
                 return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,33 +15,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createPost, getSettings } from "@/lib/admin-store";
-import { POST_FLAIRS, FLAIR_COLORS, type PostType, type PostFlair, type CommunityPost } from "@/lib/posts";
-import { landmarks } from "@/lib/landmarks";
+import { adminCreatePost } from "@/actions/admin";
+import { getApprovedLandmarks } from "@/actions/landmarks";
+import { POST_FLAIRS, FLAIR_COLORS, type PostType, type PostFlair } from "@/lib/posts";
+import type { Landmark } from "@/lib/landmarks";
 
 export function PostForm() {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<PostType>("text");
   const [flair, setFlair] = useState<PostFlair>("Discussion");
-  const [author, setAuthor] = useState("");
-  const [authorHandle, setAuthorHandle] = useState("");
   const [body, setBody] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [imageEmoji, setImageEmoji] = useState("");
   const [imageColor, setImageColor] = useState("#3b82f6");
   const [locationId, setLocationId] = useState("");
-  const [created, setCreated] = useState<CommunityPost | null>(null);
+  const [created, setCreated] = useState<{ id: string; title: string; status: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [landmarks, setLandmarks] = useState<Landmark[]>([]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    getApprovedLandmarks().then((res) => {
+      if (res.success) setLandmarks(res.data as Landmark[]);
+    });
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !author.trim() || !authorHandle.trim()) return;
+    if (!title.trim()) return;
+    setSubmitting(true);
 
-    const post = createPost({
+    const res = await adminCreatePost({
       title: title.trim(),
       type,
       flair,
-      author: author.trim(),
-      authorHandle: authorHandle.trim().startsWith("@") ? authorHandle.trim() : `@${authorHandle.trim()}`,
       body: type === "text" ? body.trim() || undefined : undefined,
       linkUrl: type === "link" ? linkUrl.trim() || undefined : undefined,
       imageEmoji: type === "image" ? imageEmoji.trim() || undefined : undefined,
@@ -49,11 +55,13 @@ export function PostForm() {
       locationId: locationId && locationId !== "none" ? locationId : undefined,
     });
 
-    setCreated(post);
+    setSubmitting(false);
+    if (res.success) {
+      setCreated({ id: res.data.id, title: title.trim(), status: "approved" });
+    }
   };
 
   if (created) {
-    const settings = getSettings();
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-8">
@@ -62,17 +70,9 @@ export function PostForm() {
             <p className="text-sm text-muted-foreground mt-1">
               &quot;{created.title}&quot; has been created.
             </p>
-            <Badge
-              variant={created.status === "approved" ? "default" : "secondary"}
-              className="mt-2"
-            >
-              {created.status === "approved" ? "Approved (auto)" : "Draft (pending review)"}
+            <Badge variant="default" className="mt-2">
+              Created
             </Badge>
-            {!settings.autoApprove && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Auto-approve is OFF. This post requires manual approval.
-              </p>
-            )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" asChild>
@@ -84,8 +84,6 @@ export function PostForm() {
               setBody("");
               setLinkUrl("");
               setImageEmoji("");
-              setAuthor("");
-              setAuthorHandle("");
             }}>
               Create Another
             </Button>
@@ -135,17 +133,6 @@ export function PostForm() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="author">Author Name *</Label>
-              <Input id="author" value={author} onChange={(e) => setAuthor(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="handle">Author Handle *</Label>
-              <Input id="handle" placeholder="@handle" value={authorHandle} onChange={(e) => setAuthorHandle(e.target.value)} required />
-            </div>
-          </div>
-
           {type === "text" && (
             <div className="space-y-2">
               <Label htmlFor="body">Body</Label>
@@ -186,7 +173,9 @@ export function PostForm() {
             </Select>
           </div>
 
-          <Button type="submit">Create Post</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Creating..." : "Create Post"}
+          </Button>
         </form>
       </CardContent>
     </Card>

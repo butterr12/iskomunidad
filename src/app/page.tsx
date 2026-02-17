@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useSession } from "@/lib/auth-client";
 import { NavBar } from "@/components/nav-bar";
@@ -12,7 +12,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { eventToLandmark, getEventsAtLandmark } from "@/lib/events";
 import { postToLandmark, getPostsAtLandmark } from "@/lib/posts";
 import { gigToLandmark } from "@/lib/gigs";
-import { getPosts, getEvents, getLandmarks } from "@/lib/admin-store";
+import { getApprovedLandmarks } from "@/actions/landmarks";
+import { getApprovedEvents } from "@/actions/events";
+import { getApprovedPosts } from "@/actions/posts";
 import type { NavTab } from "@/components/nav-bar";
 import type { Landmark } from "@/lib/landmarks";
 import type { CampusEvent } from "@/lib/events";
@@ -30,8 +32,26 @@ export default function Home() {
   const [selectedLandmark, setSelectedLandmark] = useState<Landmark | null>(null);
   const isMobile = useIsMobile();
 
-  const approvedLandmarks = getLandmarks().filter((l) => !l.status || l.status === "approved");
-  const approvedEvents = getEvents().filter((e) => !e.status || e.status === "approved");
+  const [approvedLandmarks, setApprovedLandmarks] = useState<Landmark[]>([]);
+  const [approvedEvents, setApprovedEvents] = useState<CampusEvent[]>([]);
+  const [approvedPosts, setApprovedPosts] = useState<CommunityPost[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      getApprovedLandmarks(),
+      getApprovedEvents(),
+      getApprovedPosts(),
+    ]).then(([landmarksRes, eventsRes, postsRes]) => {
+      if (landmarksRes.success) setApprovedLandmarks(landmarksRes.data as Landmark[]);
+      if (eventsRes.success) {
+        setApprovedEvents((eventsRes.data as any[]).map((e) => ({
+          ...e,
+          rsvpStatus: e.userRsvp ?? null,
+        })));
+      }
+      if (postsRes.success) setApprovedPosts(postsRes.data as CommunityPost[]);
+    });
+  }, []);
 
   const handleTabChange = (tab: NavTab) => {
     setActiveTab(tab);
@@ -39,7 +59,7 @@ export default function Home() {
   };
 
   const handleViewOnMap = (event: CampusEvent) => {
-    const landmark = eventToLandmark(event);
+    const landmark = eventToLandmark(event, approvedLandmarks);
     if (landmark) {
       setActiveTab("map");
       setSelectedLandmark(landmark);
@@ -47,7 +67,7 @@ export default function Home() {
   };
 
   const handleViewOnMapFromPost = (post: CommunityPost) => {
-    const landmark = postToLandmark(post);
+    const landmark = postToLandmark(post, approvedLandmarks);
     if (landmark) {
       setActiveTab("map");
       setSelectedLandmark(landmark);
@@ -55,7 +75,7 @@ export default function Home() {
   };
 
   const handleViewOnMapFromGig = (gig: GigListing) => {
-    const landmark = gigToLandmark(gig);
+    const landmark = gigToLandmark(gig, approvedLandmarks);
     if (landmark) {
       setActiveTab("map");
       setSelectedLandmark(landmark);
@@ -82,7 +102,7 @@ export default function Home() {
               <AttractionDetail
                 landmark={selectedLandmark}
                 events={getEventsAtLandmark(selectedLandmark.id, approvedEvents)}
-                posts={getPostsAtLandmark(selectedLandmark.id, getPosts().filter((p) => !p.status || p.status === "approved"))}
+                posts={getPostsAtLandmark(selectedLandmark.id, approvedPosts)}
                 onClose={() => setSelectedLandmark(null)}
               />
             </aside>
@@ -106,7 +126,7 @@ export default function Home() {
               <AttractionDetail
                 landmark={selectedLandmark}
                 events={getEventsAtLandmark(selectedLandmark.id, approvedEvents)}
-                posts={getPostsAtLandmark(selectedLandmark.id, getPosts().filter((p) => !p.status || p.status === "approved"))}
+                posts={getPostsAtLandmark(selectedLandmark.id, approvedPosts)}
                 onClose={() => setSelectedLandmark(null)}
               />
             </div>
