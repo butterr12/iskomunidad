@@ -18,11 +18,7 @@ import {
 } from "@/lib/gigs";
 import { getApprovedGigs, swipeGig } from "@/actions/gigs";
 
-interface GigsTabProps {
-  onViewOnMap: (gig: GigListing) => void;
-}
-
-export function GigsTab({ onViewOnMap }: GigsTabProps) {
+export function GigsTab() {
   const [viewMode, setViewMode] = useState<"list" | "swipe">("list");
   const [selectedGig, setSelectedGig] = useState<GigListing | null>(null);
   const [gigs, setGigs] = useState<GigListing[]>([]);
@@ -87,12 +83,6 @@ export function GigsTab({ onViewOnMap }: GigsTabProps) {
     setGigs((prev) => prev.map((g) => ({ ...g, swipeAction: null })));
   };
 
-  const handleViewOnMap = () => {
-    if (selectedGig) {
-      onViewOnMap(selectedGig);
-    }
-  };
-
   return (
     <div className="flex flex-1 flex-col pt-12 pb-14 sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
@@ -135,7 +125,6 @@ export function GigsTab({ onViewOnMap }: GigsTabProps) {
           <GigDetail
             gig={selectedGig}
             onBack={() => setSelectedGig(null)}
-            onViewOnMap={selectedGig.locationId ? handleViewOnMap : undefined}
           />
         ) : viewMode === "list" ? (
           <GigList gigs={filteredAndSorted} onSelectGig={handleSelectGig} />

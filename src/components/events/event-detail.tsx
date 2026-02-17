@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, MapPin, Globe, Users, User, Share2, Star, Check } from "lucide-react";
@@ -7,7 +10,6 @@ interface EventDetailProps {
   event: CampusEvent;
   onBack: () => void;
   onRsvpChange: (eventId: string, status: RsvpStatus) => void;
-  onViewOnMap?: () => void;
 }
 
 function formatDateRange(startDate: string, endDate: string) {
@@ -32,7 +34,9 @@ const categoryLabels: Record<string, string> = {
   org: "Organization",
 };
 
-export function EventDetail({ event, onBack, onRsvpChange, onViewOnMap }: EventDetailProps) {
+export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
+  const router = useRouter();
+
   const toggleRsvp = (status: RsvpStatus) => {
     onRsvpChange(event.id, event.rsvpStatus === status ? null : status);
   };
@@ -133,8 +137,13 @@ export function EventDetail({ event, onBack, onRsvpChange, onViewOnMap }: EventD
               Share
             </Button>
           </div>
-          {onViewOnMap && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={onViewOnMap}>
+          {event.locationId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => router.push(`/map?landmark=${event.locationId}`)}
+            >
               <MapPin className="h-3.5 w-3.5" />
               View on Map
             </Button>

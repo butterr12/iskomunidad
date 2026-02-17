@@ -8,11 +8,7 @@ import { EventDetail } from "./event-detail";
 import { type CampusEvent, type RsvpStatus } from "@/lib/events";
 import { getApprovedEvents, rsvpToEvent } from "@/actions/events";
 
-interface EventsTabProps {
-  onViewOnMap: (event: CampusEvent) => void;
-}
-
-export function EventsTab({ onViewOnMap }: EventsTabProps) {
+export function EventsTab() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedEvent, setSelectedEvent] = useState<CampusEvent | null>(null);
   const [events, setEvents] = useState<CampusEvent[]>([]);
@@ -43,12 +39,6 @@ export function EventsTab({ onViewOnMap }: EventsTabProps) {
     setSelectedEvent(latest);
   };
 
-  const handleViewOnMap = () => {
-    if (selectedEvent) {
-      onViewOnMap(selectedEvent);
-    }
-  };
-
   return (
     <div className="flex flex-1 flex-col pt-12 pb-14 sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
@@ -66,7 +56,6 @@ export function EventsTab({ onViewOnMap }: EventsTabProps) {
             event={selectedEvent}
             onBack={() => setSelectedEvent(null)}
             onRsvpChange={handleRsvpChange}
-            onViewOnMap={selectedEvent.locationId ? handleViewOnMap : undefined}
           />
         ) : viewMode === "list" ? (
           <EventList events={events} onSelectEvent={handleSelectEvent} />

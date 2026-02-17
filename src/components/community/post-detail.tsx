@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, MapPin, Share2, Bookmark, ExternalLink } from "lucide-react";
@@ -17,7 +20,6 @@ interface PostDetailProps {
   onBack: () => void;
   onVotePost: (direction: VoteDirection) => void;
   onVoteComment: (commentId: string, direction: VoteDirection) => void;
-  onViewOnMap?: () => void;
 }
 
 export function PostDetail({
@@ -26,8 +28,8 @@ export function PostDetail({
   onBack,
   onVotePost,
   onVoteComment,
-  onViewOnMap,
 }: PostDetailProps) {
+  const router = useRouter();
   const postComments = comments.filter((c) => c.postId === post.id);
 
   return (
@@ -101,8 +103,13 @@ export function PostDetail({
             <Bookmark className="h-3.5 w-3.5" />
             Bookmark
           </Button>
-          {onViewOnMap && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={onViewOnMap}>
+          {post.locationId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => router.push(`/map?landmark=${post.locationId}`)}
+            >
               <MapPin className="h-3.5 w-3.5" />
               View on Map
             </Button>

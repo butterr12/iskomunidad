@@ -35,7 +35,7 @@ export async function getOptionalSession() {
 export async function requireAdmin() {
   const session = await getSessionOrThrow();
   if (!session) return null;
-  if ((session.user as Record<string, unknown>).role !== "admin") return null;
+  if (session.user.role !== "admin") return null;
   return session;
 }
 

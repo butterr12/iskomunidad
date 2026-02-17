@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAdminAuth } from "@/contexts/admin-auth-context";
+import { useRouter } from "next/navigation";
 import {
   Shield,
   LayoutDashboard,
@@ -16,6 +17,8 @@ import {
   CalendarPlus,
   MapPin,
   MapPinPlus,
+  Hammer,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,6 +68,14 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Gigs",
+    items: [
+      { href: "/admin/gigs/queue", label: "Gigs Queue", shortLabel: "Queue", icon: ClipboardList },
+      { href: "/admin/gigs", label: "All Gigs", shortLabel: "Gigs", icon: Briefcase },
+      { href: "/admin/gigs/create", label: "Create Gig", shortLabel: "New", icon: Hammer },
+    ],
+  },
+  {
     label: "System",
     items: [
       { href: "/admin/notifications", label: "Notifications", shortLabel: "Notifs", icon: Bell },
@@ -78,6 +89,12 @@ const allItems = navGroups.flatMap((g) => g.items);
 export function AdminSidebar() {
   const pathname = usePathname();
   const { logout } = useAdminAuth();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    logout();
+    router.push("/");
+  };
 
   const isActive = (href: string) => pathname === href;
 
@@ -124,7 +141,7 @@ export function AdminSidebar() {
           <Button
             variant="ghost"
             className="w-full justify-start gap-2 text-muted-foreground"
-            onClick={logout}
+            onClick={handleLogout}
           >
             <LogOut className="h-4 w-4" />
             Sign out
@@ -151,7 +168,7 @@ export function AdminSidebar() {
             </Link>
           ))}
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className="flex min-w-[4.5rem] flex-col items-center gap-0.5 px-2 py-2 text-[10px] font-medium text-muted-foreground transition-colors"
           >
             <LogOut className="h-5 w-5" />

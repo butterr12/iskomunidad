@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,10 +28,10 @@ import {
 interface GigDetailProps {
   gig: GigListing;
   onBack: () => void;
-  onViewOnMap?: () => void;
 }
 
-export function GigDetail({ gig, onBack, onViewOnMap }: GigDetailProps) {
+export function GigDetail({ gig, onBack }: GigDetailProps) {
+  const router = useRouter();
   return (
     <div className="flex flex-col">
       {/* Back button */}
@@ -151,8 +154,13 @@ export function GigDetail({ gig, onBack, onViewOnMap }: GigDetailProps) {
               Share
             </Button>
           </div>
-          {onViewOnMap && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={onViewOnMap}>
+          {gig.locationId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => router.push(`/map?landmark=${gig.locationId}`)}
+            >
               <MapPin className="h-3.5 w-3.5" />
               View on Map
             </Button>

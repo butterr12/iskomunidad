@@ -10,6 +10,7 @@ import {
   getAutoApproveSetting,
   createNotification,
 } from "./_helpers";
+import { getPresignedUrl } from "@/lib/storage";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,14 @@ const createLandmarkSchema = z.object({
   operatingHours: z.unknown().optional(),
   tags: z.array(z.string()).default([]),
   photos: z
-    .array(z.object({ url: z.string(), caption: z.string().optional() }))
+    .array(
+      z.object({
+        url: z.string(),
+        caption: z.string().optional(),
+        source: z.enum(["upload", "google_places"]).default("upload"),
+        attribution: z.string().optional(),
+      }),
+    )
     .default([]),
 });
 
@@ -37,6 +45,21 @@ const createReviewSchema = z.object({
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
+export async function getLandmarkPins() {
+  const rows = await db
+    .select({
+      id: landmark.id,
+      name: landmark.name,
+      lat: landmark.lat,
+      lng: landmark.lng,
+      category: landmark.category,
+    })
+    .from(landmark)
+    .where(eq(landmark.status, "approved"));
+
+  return { success: true as const, data: rows };
+}
+
 export async function getApprovedLandmarks(): Promise<ActionResult<unknown[]>> {
   const rows = await db.query.landmark.findMany({
     where: eq(landmark.status, "approved"),
@@ -44,18 +67,33 @@ export async function getApprovedLandmarks(): Promise<ActionResult<unknown[]>> {
     orderBy: (l, { desc }) => [desc(l.createdAt)],
   });
 
-  return {
-    success: true,
-    data: rows.map((r) => ({
-      ...r,
-      createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
-      photos: r.photos.map((p) => ({
-        ...p,
-        createdAt: p.createdAt.toISOString(),
-      })),
-    })),
-  };
+  const data = await Promise.all(
+    rows.map(async (r) => {
+      const photos = await Promise.all(
+        r.photos
+          .sort((a, b) => {
+            if (a.source === b.source) return a.order - b.order;
+            return a.source === "upload" ? -1 : 1;
+          })
+          .map(async (p) => ({
+            ...p,
+            createdAt: p.createdAt.toISOString(),
+            resolvedUrl:
+              p.source === "google_places"
+                ? `/api/places-photo?ref=${encodeURIComponent(p.url)}`
+                : await getPresignedUrl(p.url),
+          })),
+      );
+      return {
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+        photos,
+      };
+    }),
+  );
+
+  return { success: true, data };
 }
 
 export async function getLandmarkById(
@@ -76,16 +114,29 @@ export async function getLandmarkById(
 
   if (!row) return { success: false, error: "Landmark not found" };
 
+  const photos = await Promise.all(
+    row.photos
+      .sort((a, b) => {
+        if (a.source === b.source) return a.order - b.order;
+        return a.source === "upload" ? -1 : 1;
+      })
+      .map(async (p) => ({
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        resolvedUrl:
+          p.source === "google_places"
+            ? `/api/places-photo?ref=${encodeURIComponent(p.url)}`
+            : await getPresignedUrl(p.url),
+      })),
+  );
+
   return {
     success: true,
     data: {
       ...row,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
-      photos: row.photos.map((p) => ({
-        ...p,
-        createdAt: p.createdAt.toISOString(),
-      })),
+      photos,
       reviews: row.reviews.map((r) => ({
         ...r,
         createdAt: r.createdAt.toISOString(),
@@ -128,6 +179,8 @@ export async function createLandmark(
         landmarkId: created.id,
         url: p.url,
         caption: p.caption ?? null,
+        source: p.source ?? "upload",
+        attribution: p.attribution ?? null,
         order: i,
       })),
     );

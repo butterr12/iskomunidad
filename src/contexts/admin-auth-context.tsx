@@ -1,53 +1,29 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
+import { useSession, signOut } from "@/lib/auth-client";
 
 interface AdminAuthContextValue {
-  isAuthenticated: boolean;
-  adminEmail: string | null;
-  login: (email: string, password: string) => boolean;
+  isAdmin: boolean;
+  isLoading: boolean;
+  user: { name: string; email: string; image?: string | null } | null;
   logout: () => void;
 }
-
-const MOCK_EMAIL = "admin@iskomunidad.ph";
-const MOCK_PASSWORD = "admin1234";
-const SESSION_KEY = "admin-session";
 
 const AdminAuthContext = createContext<AdminAuthContextValue | null>(null);
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  const [adminEmail, setAdminEmail] = useState<string | null>(null);
+  const { data: session, isPending } = useSession();
 
-  useEffect(() => {
-    const stored = sessionStorage.getItem(SESSION_KEY);
-    if (stored) {
-      setAdminEmail(stored);
-    }
-  }, []);
+  const user = session?.user ?? null;
+  const isAdmin = user?.role === "admin";
 
-  const login = useCallback((email: string, password: string): boolean => {
-    if (email === MOCK_EMAIL && password === MOCK_PASSWORD) {
-      sessionStorage.setItem(SESSION_KEY, email);
-      setAdminEmail(email);
-      return true;
-    }
-    return false;
-  }, []);
-
-  const logout = useCallback(() => {
-    sessionStorage.removeItem(SESSION_KEY);
-    setAdminEmail(null);
-  }, []);
+  const logout = () => {
+    signOut({ fetchOptions: { onSuccess: () => window.location.assign("/") } });
+  };
 
   return (
-    <AdminAuthContext.Provider
-      value={{
-        isAuthenticated: adminEmail !== null,
-        adminEmail,
-        login,
-        logout,
-      }}
-    >
+    <AdminAuthContext.Provider value={{ isAdmin, isLoading: isPending, user, logout }}>
       {children}
     </AdminAuthContext.Provider>
   );
