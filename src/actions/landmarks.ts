@@ -45,6 +45,21 @@ const createReviewSchema = z.object({
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
+export async function getLandmarkPins() {
+  const rows = await db
+    .select({
+      id: landmark.id,
+      name: landmark.name,
+      lat: landmark.lat,
+      lng: landmark.lng,
+      category: landmark.category,
+    })
+    .from(landmark)
+    .where(eq(landmark.status, "approved"));
+
+  return { success: true as const, data: rows };
+}
+
 export async function getApprovedLandmarks(): Promise<ActionResult<unknown[]>> {
   const rows = await db.query.landmark.findMany({
     where: eq(landmark.status, "approved"),

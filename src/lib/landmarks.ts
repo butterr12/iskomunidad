@@ -1,5 +1,13 @@
 export type LandmarkCategory = "attraction" | "community" | "event";
 
+export interface LandmarkPin {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  category: LandmarkCategory;
+}
+
 export type PhotoSource = "upload" | "google_places";
 
 export interface LandmarkPhoto {
