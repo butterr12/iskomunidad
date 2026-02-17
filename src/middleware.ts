@@ -6,9 +6,9 @@ const publicRoutes = ["/sign-in", "/sign-up", "/verify-email", "/forgot-password
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const isPublicRoute = publicRoutes.some((route) =>
-    pathname.startsWith(route)
-  );
+  const isPublicRoute =
+    pathname === "/" ||
+    publicRoutes.some((route) => pathname.startsWith(route));
   const isApiRoute = pathname.startsWith("/api");
 
   if (isPublicRoute || isApiRoute) {
