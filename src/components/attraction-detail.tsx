@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, MapPin, Navigation, Share2, Bookmark, Clock, CalendarDays, MessageCircle, Users } from "lucide-react";
+import { X, MapPin, Navigation, Share2, Bookmark, Clock, CalendarDays, MessageCircle, Users, ExternalLink } from "lucide-react";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { FLAIR_COLORS } from "@/lib/posts";
 import type { Landmark } from "@/lib/landmarks";
@@ -70,10 +70,26 @@ export function AttractionDetail({ landmark, events = [], posts = [], onClose }:
         </div>
       )}
 
+      <a
+        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(landmark.lat + "," + landmark.lng)}&query_place_id=${encodeURIComponent(landmark.name)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+        View on Google Maps
+      </a>
+
       <div className="flex gap-2 border-t pt-4">
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <Navigation className="h-3.5 w-3.5" />
-          Directions
+        <Button variant="outline" size="sm" className="gap-1.5" asChild>
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(landmark.lat + "," + landmark.lng)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Navigation className="h-3.5 w-3.5" />
+            Directions
+          </a>
         </Button>
         <Button variant="outline" size="sm" className="gap-1.5">
           <Share2 className="h-3.5 w-3.5" />

@@ -65,7 +65,7 @@ export async function getApprovedLandmarks(): Promise<ActionResult<unknown[]>> {
             createdAt: p.createdAt.toISOString(),
             resolvedUrl:
               p.source === "google_places"
-                ? p.url
+                ? `/api/places-photo?ref=${encodeURIComponent(p.url)}`
                 : await getPresignedUrl(p.url),
           })),
       );
@@ -110,7 +110,7 @@ export async function getLandmarkById(
         createdAt: p.createdAt.toISOString(),
         resolvedUrl:
           p.source === "google_places"
-            ? p.url
+            ? `/api/places-photo?ref=${encodeURIComponent(p.url)}`
             : await getPresignedUrl(p.url),
       })),
   );
