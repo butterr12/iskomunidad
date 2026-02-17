@@ -5,11 +5,16 @@ import dynamic from "next/dynamic";
 import { useSession } from "@/lib/auth-client";
 import { NavBar } from "@/components/nav-bar";
 import { AttractionDetail } from "@/components/attraction-detail";
+import { EventsTab } from "@/components/events/events-tab";
+import { CommunityTab } from "@/components/community/community-tab";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { landmarks } from "@/lib/landmarks";
+import { eventToLandmark, getEventsAtLandmark } from "@/lib/events";
+import { postToLandmark, getPostsAtLandmark } from "@/lib/posts";
+import { getPosts, getEvents, getLandmarks } from "@/lib/admin-store";
 import type { NavTab } from "@/components/nav-bar";
 import type { Landmark } from "@/lib/landmarks";
-import { MapPin, Users, CalendarDays } from "lucide-react";
+import type { CampusEvent } from "@/lib/events";
+import type { CommunityPost } from "@/lib/posts";
 
 const LandmarkMap = dynamic(
   () => import("@/components/landmark-map").then((mod) => mod.LandmarkMap),
@@ -22,9 +27,28 @@ export default function Home() {
   const [selectedLandmark, setSelectedLandmark] = useState<Landmark | null>(null);
   const isMobile = useIsMobile();
 
+  const approvedLandmarks = getLandmarks().filter((l) => !l.status || l.status === "approved");
+  const approvedEvents = getEvents().filter((e) => !e.status || e.status === "approved");
+
   const handleTabChange = (tab: NavTab) => {
     setActiveTab(tab);
     setSelectedLandmark(null);
+  };
+
+  const handleViewOnMap = (event: CampusEvent) => {
+    const landmark = eventToLandmark(event);
+    if (landmark) {
+      setActiveTab("map");
+      setSelectedLandmark(landmark);
+    }
+  };
+
+  const handleViewOnMapFromPost = (post: CommunityPost) => {
+    const landmark = postToLandmark(post);
+    if (landmark) {
+      setActiveTab("map");
+      setSelectedLandmark(landmark);
+    }
   };
 
   if (isPending) {
@@ -46,6 +70,8 @@ export default function Home() {
             <aside className="w-[400px] shrink-0 overflow-y-auto border-r bg-background animate-in slide-in-from-left duration-200">
               <AttractionDetail
                 landmark={selectedLandmark}
+                events={getEventsAtLandmark(selectedLandmark.id, approvedEvents)}
+                posts={getPostsAtLandmark(selectedLandmark.id, getPosts().filter((p) => !p.status || p.status === "approved"))}
                 onClose={() => setSelectedLandmark(null)}
               />
             </aside>
@@ -54,7 +80,7 @@ export default function Home() {
           {/* Map */}
           <div className="flex-1">
             <LandmarkMap
-              landmarks={landmarks}
+              landmarks={approvedLandmarks}
               onSelectLandmark={setSelectedLandmark}
               selectedId={selectedLandmark?.id}
             />
@@ -68,24 +94,20 @@ export default function Home() {
               </div>
               <AttractionDetail
                 landmark={selectedLandmark}
+                events={getEventsAtLandmark(selectedLandmark.id, approvedEvents)}
+                posts={getPostsAtLandmark(selectedLandmark.id, getPosts().filter((p) => !p.status || p.status === "approved"))}
                 onClose={() => setSelectedLandmark(null)}
               />
             </div>
           )}
         </main>
+      ) : activeTab === "events" ? (
+        <main className="flex flex-1 flex-col">
+          <EventsTab onViewOnMap={handleViewOnMap} />
+        </main>
       ) : (
-        <main className="flex flex-1 items-center justify-center pt-14">
-          <div className="text-center text-muted-foreground">
-            {activeTab === "community" ? (
-              <Users className="mx-auto mb-3 h-10 w-10" />
-            ) : (
-              <CalendarDays className="mx-auto mb-3 h-10 w-10" />
-            )}
-            <p className="text-lg font-medium">
-              {activeTab === "community" ? "Community" : "Events"}
-            </p>
-            <p className="text-sm">Coming soon</p>
-          </div>
+        <main className="flex flex-1 flex-col">
+          <CommunityTab onViewOnMap={handleViewOnMapFromPost} />
         </main>
       )}
     </div>

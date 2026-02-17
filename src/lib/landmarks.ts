@@ -9,6 +9,8 @@ export interface Landmark {
   lng: number;
   address?: string;
   tags: string[];
+  status?: "draft" | "approved" | "rejected";
+  rejectionReason?: string;
 }
 
 export const landmarks: Landmark[] = [
@@ -110,5 +112,44 @@ export const landmarks: Landmark[] = [
     lng: 121.0697,
     address: "Palma Hall, UP Diliman, Quezon City",
     tags: ["landmark", "historical", "student life"],
+  },
+  // Draft landmarks (pending moderation)
+  {
+    id: "acacia-park",
+    name: "Acacia Park",
+    description:
+      "A shaded grove of century-old acacia trees between the College of Engineering and the College of Science. A quiet spot for studying and relaxation.",
+    category: "attraction",
+    lat: 14.6558,
+    lng: 121.0672,
+    address: "Near College of Engineering, UP Diliman, Quezon City",
+    tags: ["nature", "park", "study spot"],
+    status: "draft",
+  },
+  {
+    id: "krus-na-ligas",
+    name: "Krus na Ligas Community Center",
+    description:
+      "A community center in the barangay within the UP campus. Hosts local events, health services, and community programs.",
+    category: "community",
+    lat: 14.6490,
+    lng: 121.0680,
+    address: "Krus na Ligas, UP Diliman, Quezon City",
+    tags: ["community", "services", "local"],
+    status: "draft",
+  },
+  // Rejected landmark
+  {
+    id: "fake-location",
+    name: "Secret Underground Library",
+    description:
+      "An alleged secret underground library beneath the Sunken Garden.",
+    category: "attraction",
+    lat: 14.6544,
+    lng: 121.0688,
+    address: "Beneath Sunken Garden, UP Diliman",
+    tags: ["fictional"],
+    status: "rejected",
+    rejectionReason: "Location does not exist. Submitted information is fictional.",
   },
 ];
