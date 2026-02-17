@@ -9,7 +9,7 @@ import type { LandmarkCategory } from "@/lib/landmarks";
 
 const LandmarkMap = dynamic(
   () => import("@/components/landmark-map").then((mod) => mod.LandmarkMap),
-  { ssr: false, loading: () => <div className="h-full w-full bg-muted animate-pulse" /> }
+  { ssr: false }
 );
 
 export default function Home() {

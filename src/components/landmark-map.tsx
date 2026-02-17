@@ -1,16 +1,62 @@
 "use client";
 
-import { useEffect } from "react";
-import {
-  MapContainer,
-  TileLayer,
+import { useState, useCallback, useRef, useEffect } from "react";
+import Map, {
   Marker,
-  Tooltip,
-  useMap,
-} from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+  Popup,
+  NavigationControl,
+} from "react-map-gl/mapbox";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import type { Landmark, LandmarkCategory } from "@/lib/landmarks";
+
+const UP_DILIMAN = { latitude: 14.6538, longitude: 121.0685 };
+
+/** Apply Google Maps–like colors to Mapbox streets style. */
+function applyMapTheme(map: mapboxgl.Map) {
+  const layers = map.getStyle().layers;
+  if (!layers) return;
+
+  for (const layer of layers) {
+    const id = layer.id;
+    const t = layer.type;
+
+    if (t === "background") {
+      map.setPaintProperty(id, "background-color", "#f2efe9");
+      continue;
+    }
+
+    if (id === "water" && t === "fill") {
+      map.setPaintProperty(id, "fill-color", "#aad3df");
+      continue;
+    }
+
+    if ((id.startsWith("landuse") || id.startsWith("landcover")) && t === "fill") {
+      map.setPaintProperty(id, "fill-color", "#c8e6a0");
+      map.setPaintProperty(id, "fill-opacity", 0.5);
+      continue;
+    }
+
+    if (id.startsWith("building") && t === "fill") {
+      map.setPaintProperty(id, "fill-color", "#dedad3");
+      map.setPaintProperty(id, "fill-opacity", 0.9);
+      continue;
+    }
+
+    if (t === "line" && (id.startsWith("road-motorway") || id.startsWith("road-trunk"))) {
+      map.setPaintProperty(id, "line-color", id.endsWith("-case") ? "#d4891a" : "#f5a623");
+      continue;
+    }
+    if (t === "line" && (id.startsWith("road-primary") || id.startsWith("road-secondary"))) {
+      map.setPaintProperty(id, "line-color", id.endsWith("-case") ? "#e0b040" : "#fcd462");
+      continue;
+    }
+    if (t === "line" && id.startsWith("road-")) {
+      map.setPaintProperty(id, "line-color", id.endsWith("-case") ? "#e0dcd6" : "#ffffff");
+      continue;
+    }
+  }
+}
 
 const categoryColors: Record<LandmarkCategory, string> = {
   attraction: "#e11d48",
@@ -24,34 +70,22 @@ const categoryLabels: Record<LandmarkCategory, string> = {
   event: "Event",
 };
 
-function createIcon(category: LandmarkCategory) {
-  const color = categoryColors[category];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">
-    <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="${color}"/>
-    <circle cx="14" cy="14" r="6" fill="white"/>
-  </svg>`;
-
-  return L.divIcon({
-    html: svg,
-    className: "",
-    iconSize: [28, 40],
-    iconAnchor: [14, 40],
-    tooltipAnchor: [0, -40],
-  });
-}
-
-function FitBounds({ landmarks }: { landmarks: Landmark[] }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (landmarks.length === 0) return;
-    const bounds = L.latLngBounds(
-      landmarks.map((l) => [l.lat, l.lng] as [number, number])
-    );
-    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
-  }, [landmarks, map]);
-
-  return null;
+function MarkerPin({ color }: { color: string }) {
+  return (
+    <svg
+      width="28"
+      height="40"
+      viewBox="0 0 28 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z"
+        fill={color}
+      />
+      <circle cx="14" cy="14" r="6" fill="white" />
+    </svg>
+  );
 }
 
 interface LandmarkMapProps {
@@ -59,54 +93,104 @@ interface LandmarkMapProps {
 }
 
 export function LandmarkMap({ landmarks }: LandmarkMapProps) {
+  const [selected, setSelected] = useState<Landmark | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+
+  useEffect(() => {
+    if (!mapRef.current || landmarks.length === 0) return;
+
+    const bounds = new mapboxgl.LngLatBounds();
+    landmarks.forEach((l) => bounds.extend([l.lng, l.lat]));
+    mapRef.current.fitBounds(bounds, {
+      padding: { top: 50, right: 50, bottom: 50, left: 50 },
+    });
+  }, [landmarks]);
+
+  const handleMarkerClick = useCallback(
+    (landmark: Landmark) => {
+      setSelected((prev) => (prev?.id === landmark.id ? null : landmark));
+    },
+    []
+  );
+
   return (
-    <MapContainer
-      center={[40.7484, -73.9857]}
-      zoom={12}
-      className="h-full w-full"
-      zoomControl={false}
+    <Map
+      ref={(ref) => {
+        mapRef.current = ref?.getMap() ?? null;
+      }}
+      initialViewState={{
+        ...UP_DILIMAN,
+        zoom: 15,
+      }}
+      style={{ width: "100%", height: "100%" }}
+      mapStyle="mapbox://styles/mapbox/streets-v11"
+      mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+      onLoad={(e) => applyMapTheme(e.target)}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <FitBounds landmarks={landmarks} />
+      <NavigationControl position="top-right" />
+
       {landmarks.map((landmark) => (
         <Marker
           key={landmark.id}
-          position={[landmark.lat, landmark.lng]}
-          icon={createIcon(landmark.category)}
+          latitude={landmark.lat}
+          longitude={landmark.lng}
+          anchor="bottom"
+          onClick={(e) => {
+            e.originalEvent.stopPropagation();
+            handleMarkerClick(landmark);
+          }}
+          style={{ cursor: "pointer" }}
         >
-          <Tooltip
-            direction="top"
-            offset={[0, 0]}
-            className="landmark-tooltip"
-          >
-            <div className="min-w-[200px] max-w-[260px]">
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: categoryColors[landmark.category] }}
-                />
-                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  {categoryLabels[landmark.category]}
-                </span>
-              </div>
-              <p className="text-sm font-semibold leading-tight">
-                {landmark.name}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                {landmark.description}
-              </p>
-              {landmark.address && (
-                <p className="mt-1.5 text-xs text-muted-foreground/70">
-                  {landmark.address}
-                </p>
-              )}
-            </div>
-          </Tooltip>
+          <MarkerPin color={categoryColors[landmark.category]} />
         </Marker>
       ))}
-    </MapContainer>
+
+      {selected && (
+        <Popup
+          latitude={selected.lat}
+          longitude={selected.lng}
+          anchor="bottom"
+          offset={40}
+          closeOnClick={false}
+          onClose={() => setSelected(null)}
+        >
+          <div style={{ minWidth: 200, maxWidth: 260 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  height: 10,
+                  width: 10,
+                  borderRadius: "50%",
+                  backgroundColor: categoryColors[selected.category],
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  color: "#6b7280",
+                }}
+              >
+                {categoryLabels[selected.category]}
+              </span>
+            </div>
+            <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.25, color: "#111827" }}>
+              {selected.name}
+            </p>
+            <p style={{ marginTop: 4, fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+              {selected.description}
+            </p>
+            {selected.address && (
+              <p style={{ marginTop: 6, fontSize: 12, color: "#9ca3af" }}>
+                {selected.address}
+              </p>
+            )}
+          </div>
+        </Popup>
+      )}
+    </Map>
   );
 }
