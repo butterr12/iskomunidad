@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { ThemeColorMeta } from "@/components/theme-color-meta";
+import { QueryProvider } from "@/components/query-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,9 +52,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${hoover.variable} antialiased`}
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <ThemeColorMeta />
-          {children}
-          <PwaInstallPrompt />
+          <QueryProvider>
+            <ThemeColorMeta />
+            {children}
+            <PwaInstallPrompt />
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

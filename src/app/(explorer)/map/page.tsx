@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { AttractionDetail } from "@/components/attraction-detail";
@@ -25,62 +26,64 @@ export default function MapPage() {
   const landmarkParam = searchParams.get("landmark");
   const isMobile = useIsMobile();
 
-  const [pins, setPins] = useState<LandmarkPin[]>([]);
-  const [selectedLandmark, setSelectedLandmark] = useState<Landmark | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [approvedEvents, setApprovedEvents] = useState<CampusEvent[]>([]);
-  const [approvedPosts, setApprovedPosts] = useState<CommunityPost[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Load pins + events + posts on mount
-  useEffect(() => {
-    Promise.all([
-      getLandmarkPins(),
-      getApprovedEvents(),
-      getApprovedPosts(),
-    ]).then(([pinsRes, eventsRes, postsRes]) => {
-      if (pinsRes.success) setPins(pinsRes.data as LandmarkPin[]);
-      if (eventsRes.success) {
-        setApprovedEvents(
-          (eventsRes.data as any[]).map((e) => ({
-            ...e,
-            rsvpStatus: e.userRsvp ?? null,
-          }))
-        );
-      }
-      if (postsRes.success) setApprovedPosts(postsRes.data as CommunityPost[]);
-    });
-  }, []);
+  const { data: pins = [] } = useQuery({
+    queryKey: ["landmark-pins"],
+    queryFn: async () => {
+      const res = await getLandmarkPins();
+      return res.success ? (res.data as LandmarkPin[]) : [];
+    },
+  });
+
+  const { data: approvedEvents = [] } = useQuery({
+    queryKey: ["approved-events"],
+    queryFn: async () => {
+      const res = await getApprovedEvents();
+      if (!res.success) return [];
+      return (res.data as any[]).map((e) => ({
+        ...e,
+        rsvpStatus: e.userRsvp ?? null,
+      })) as CampusEvent[];
+    },
+  });
+
+  const { data: approvedPosts = [] } = useQuery({
+    queryKey: ["approved-posts"],
+    queryFn: async () => {
+      const res = await getApprovedPosts();
+      return res.success ? (res.data as CommunityPost[]) : [];
+    },
+  });
+
+  const { data: selectedLandmark, isFetching: loadingDetail } = useQuery({
+    queryKey: ["landmark-detail", selectedId],
+    queryFn: async () => {
+      if (!selectedId) return null;
+      const res = await getLandmarkById(selectedId);
+      return res.success ? (res.data as Landmark) : null;
+    },
+    enabled: !!selectedId,
+  });
 
   // Auto-select landmark from URL param once pins are loaded
   useEffect(() => {
     if (landmarkParam && pins.length > 0) {
       const match = pins.find((p) => p.id === landmarkParam);
-      if (match) {
-        loadLandmarkDetail(match.id);
-      }
+      if (match) setSelectedId(match.id);
     }
-  }, [landmarkParam, pins.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadLandmarkDetail = useCallback(async (id: string) => {
-    setLoadingDetail(true);
-    const res = await getLandmarkById(id);
-    if (res.success) {
-      setSelectedLandmark(res.data as Landmark);
-    }
-    setLoadingDetail(false);
-  }, []);
+  }, [landmarkParam, pins]);
 
   const handleSelectLandmark = useCallback(
     (id: string | null) => {
       if (!id) {
-        setSelectedLandmark(null);
+        setSelectedId(null);
         return;
       }
-      // If already selected, don't re-fetch
-      if (selectedLandmark?.id === id) return;
-      loadLandmarkDetail(id);
+      if (selectedId === id) return;
+      setSelectedId(id);
     },
-    [selectedLandmark?.id, loadLandmarkDetail],
+    [selectedId],
   );
 
   const loadingSpinner = (
@@ -94,11 +97,11 @@ export default function MapPage() {
       landmark={selectedLandmark}
       events={getEventsAtLandmark(selectedLandmark.id, approvedEvents)}
       posts={getPostsAtLandmark(selectedLandmark.id, approvedPosts)}
-      onClose={() => setSelectedLandmark(null)}
+      onClose={() => setSelectedId(null)}
     />
   ) : null;
 
-  const showPanel = selectedLandmark || loadingDetail;
+  const showPanel = selectedId !== null;
 
   return (
     <main className="relative flex-1 pt-12 pb-14 sm:pt-14 sm:pb-0">
@@ -107,7 +110,7 @@ export default function MapPage() {
         <LandmarkMap
           pins={pins}
           onSelectLandmark={handleSelectLandmark}
-          selectedId={selectedLandmark?.id}
+          selectedId={selectedId}
         />
       </div>
 
