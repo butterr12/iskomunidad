@@ -17,6 +17,8 @@ import {
   CalendarPlus,
   MapPin,
   MapPinPlus,
+  Hammer,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -63,6 +65,14 @@ const navGroups: NavGroup[] = [
       { href: "/admin/locations/queue", label: "Locations Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/locations", label: "All Locations", shortLabel: "Locations", icon: MapPin },
       { href: "/admin/locations/create", label: "Create Location", shortLabel: "New", icon: MapPinPlus },
+    ],
+  },
+  {
+    label: "Gigs",
+    items: [
+      { href: "/admin/gigs/queue", label: "Gigs Queue", shortLabel: "Queue", icon: ClipboardList },
+      { href: "/admin/gigs", label: "All Gigs", shortLabel: "Gigs", icon: Briefcase },
+      { href: "/admin/gigs/create", label: "Create Gig", shortLabel: "New", icon: Hammer },
     ],
   },
   {
