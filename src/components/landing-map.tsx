@@ -5,7 +5,7 @@ import Map, { Marker } from "react-map-gl/mapbox";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useTheme } from "next-themes";
-import { applyMapTheme, type MapThemeMode } from "@/lib/map-theme";
+import { applyMapTheme, MAP_THEME_FILTER, type MapThemeMode } from "@/lib/map-theme";
 
 const UP_DILIMAN = { latitude: 14.6538, longitude: 121.0685 };
 
@@ -24,8 +24,8 @@ const landmarks = [
 
 function sync3dBuildings(map: mapboxgl.Map, mode: MapThemeMode) {
   const extrusionLayerId = "3d-buildings";
-  const extrusionColor = mode === "dark" ? "#2f394d" : "#dedad3";
-  const extrusionOpacity = mode === "dark" ? 0.55 : 0.7;
+  const extrusionColor = mode === "dark" ? "#243045" : "#dedad3";
+  const extrusionOpacity = mode === "dark" ? 0.6 : 0.7;
 
   if (!map.getLayer(extrusionLayerId)) {
     const buildingLayer = map.getStyle().layers?.find((l) => l.id === "building" && l.type === "fill");
@@ -142,7 +142,7 @@ export function LandingMap() {
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-2xl border shadow-lg transition-[border-color,box-shadow] duration-500"
+      className="relative h-full w-full overflow-hidden"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -159,7 +159,7 @@ export function LandingMap() {
         style={{
           width: "100%",
           height: "100%",
-          filter: mapMode === "dark" ? "saturate(0.92) brightness(0.95)" : "none",
+          filter: MAP_THEME_FILTER[mapMode],
           transition: "filter 450ms ease",
         }}
         mapStyle="mapbox://styles/mapbox/streets-v11"
@@ -183,7 +183,6 @@ export function LandingMap() {
           </Marker>
         ))}
       </Map>
-      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5 transition-colors duration-500 dark:ring-white/10" />
     </div>
   );
 }

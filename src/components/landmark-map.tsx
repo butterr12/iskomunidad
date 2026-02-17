@@ -11,7 +11,7 @@ import useSupercluster from "use-supercluster";
 import type { BBox } from "geojson";
 import { useTheme } from "next-themes";
 import type { LandmarkPin, LandmarkCategory } from "@/lib/landmarks";
-import { applyMapTheme, type MapThemeMode } from "@/lib/map-theme";
+import { applyMapTheme, MAP_THEME_FILTER, type MapThemeMode } from "@/lib/map-theme";
 
 const UP_DILIMAN = { latitude: 14.6538, longitude: 121.0685 };
 
@@ -33,6 +33,8 @@ function MarkerPin({ color, selected }: { color: string; selected?: boolean }) {
         transform: selected ? "scale(1.3)" : "scale(1)",
         transformOrigin: "bottom center",
         transition: "transform 200ms ease-out",
+        willChange: "transform",
+        backfaceVisibility: "hidden",
       }}
     >
       <path
@@ -51,7 +53,7 @@ function ClusterBubble({ count, onClick }: { count: number; onClick: () => void 
       type="button"
       onClick={onClick}
       style={{ width: size, height: size }}
-      className="flex cursor-pointer items-center justify-center rounded-full bg-primary/90 text-xs font-bold text-primary-foreground shadow-md ring-2 ring-primary-foreground/50 transition-transform hover:scale-110"
+      className="flex cursor-pointer items-center justify-center rounded-full bg-primary/90 text-xs font-bold text-primary-foreground shadow-md ring-2 ring-primary-foreground/50 transition-transform hover:scale-110 will-change-transform [backface-visibility:hidden]"
     >
       {count}
     </button>
@@ -138,7 +140,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
       style={{
         width: "100%",
         height: "100%",
-        filter: mapMode === "dark" ? "saturate(0.92) brightness(0.95)" : "none",
+        filter: MAP_THEME_FILTER[mapMode],
         transition: "filter 450ms ease",
       }}
       mapStyle="mapbox://styles/mapbox/streets-v11"
@@ -182,7 +184,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
               e.originalEvent.stopPropagation();
               onSelectLandmark(pinId);
             }}
-            style={{ cursor: "pointer", zIndex: selectedId === pinId ? 10 : 1 }}
+            style={{ cursor: "pointer", zIndex: selectedId === pinId ? 10 : 1, willChange: "transform" }}
           >
             <MarkerPin
               color={categoryColors[category]}

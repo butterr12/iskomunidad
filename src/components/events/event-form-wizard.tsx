@@ -161,7 +161,7 @@ export function EventFormWizard({ mode, initialData, autoApprove = true }: Event
   const stepLabels = ["Details", "Date & Time", "More Info"];
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-full flex-col overflow-y-auto bg-background">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/80 px-4 py-3 backdrop-blur-sm">
         <button onClick={handleBack} className="text-muted-foreground hover:text-foreground">

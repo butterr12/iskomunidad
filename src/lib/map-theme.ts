@@ -2,6 +2,11 @@ import type mapboxgl from "mapbox-gl";
 
 export type MapThemeMode = "light" | "dark";
 
+export const MAP_THEME_FILTER: Record<MapThemeMode, string> = {
+  light: "none",
+  dark: "saturate(1.05) brightness(0.97)",
+};
+
 const MAP_THEME_COLORS: Record<
   MapThemeMode,
   {
@@ -21,13 +26,13 @@ const MAP_THEME_COLORS: Record<
 > = {
   light: {
     background: "#f2efe9",
-    water: "#aad3df",
-    landuse: "#c8e6a0",
+    water: "#a3cee0",
+    landuse: "#7db860",
     building: "#dedad3",
-    motorwayCase: "#d4891a",
-    motorway: "#f5a623",
-    primaryCase: "#e0b040",
-    primary: "#fcd462",
+    motorwayCase: "#c47a16",
+    motorway: "#e89820",
+    primaryCase: "#c9991a",
+    primary: "#e8b830",
     roadCase: "#e0dcd6",
     road: "#ffffff",
     label: "#2f2a25",
@@ -35,15 +40,15 @@ const MAP_THEME_COLORS: Record<
   },
   dark: {
     background: "#0f172a",
-    water: "#1f3b5c",
-    landuse: "#17392d",
-    building: "#2b3447",
-    motorwayCase: "#734d1b",
-    motorway: "#b6842a",
-    primaryCase: "#605024",
-    primary: "#987f3c",
-    roadCase: "#334155",
-    road: "#475569",
+    water: "#162d4a",
+    landuse: "#1a4432",
+    building: "#1e293b",
+    motorwayCase: "#8b5a10",
+    motorway: "#e09422",
+    primaryCase: "#7a6318",
+    primary: "#c9a030",
+    roadCase: "#283548",
+    road: "#3d4f66",
     label: "#e2e8f0",
     labelHalo: "#0b1220",
   },
@@ -71,7 +76,7 @@ export function applyMapTheme(map: mapboxgl.Map, mode: MapThemeMode = "light") {
 
     if ((id.startsWith("landuse") || id.startsWith("landcover")) && t === "fill") {
       map.setPaintProperty(id, "fill-color", colors.landuse);
-      map.setPaintProperty(id, "fill-opacity", 0.5);
+      map.setPaintProperty(id, "fill-opacity", mode === "dark" ? 0.55 : 0.7);
       continue;
     }
 

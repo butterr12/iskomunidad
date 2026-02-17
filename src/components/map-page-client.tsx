@@ -108,8 +108,8 @@ export function MapPageClient({ landmarkParam }: MapPageClientProps) {
   const showPanel = selectedId !== null;
 
   return (
-    <main className="relative flex-1 pt-12 pb-14 sm:pt-14 sm:pb-0">
-      <div className="absolute inset-0 pt-12 pb-14 sm:pt-14 sm:pb-0">
+    <main className="relative flex-1 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
+      <div className="absolute inset-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
         <LandmarkMap
           pins={pins}
           onSelectLandmark={handleSelectLandmark}
@@ -124,7 +124,7 @@ export function MapPageClient({ landmarkParam }: MapPageClientProps) {
       )}
 
       {showPanel && isMobile && (
-        <div className="absolute bottom-14 sm:bottom-0 left-0 right-0 z-10 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto rounded-t-2xl border-t bg-background shadow-2xl animate-in slide-in-from-bottom duration-200">
+        <div className="absolute bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] sm:bottom-0 left-0 right-0 z-10 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto rounded-t-2xl border-t bg-background shadow-2xl animate-in slide-in-from-bottom duration-200">
           <div className="flex justify-center py-2">
             <div className="h-1.5 w-10 rounded-full bg-muted-foreground/30" />
           </div>

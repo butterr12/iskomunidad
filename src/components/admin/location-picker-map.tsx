@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import Map, { Marker, NavigationControl } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useTheme } from "next-themes";
-import { applyMapTheme, type MapThemeMode } from "@/lib/map-theme";
+import { applyMapTheme, MAP_THEME_FILTER, type MapThemeMode } from "@/lib/map-theme";
 
 const UP_DILIMAN = { latitude: 14.6537, longitude: 121.0691 };
 
@@ -96,7 +96,7 @@ export function LocationPickerMap({ lat, lng, onLocationChange }: LocationPicker
         style={{
           width: "100%",
           height: "100%",
-          filter: mapMode === "dark" ? "saturate(0.92) brightness(0.95)" : "none",
+          filter: MAP_THEME_FILTER[mapMode],
           transition: "filter 450ms ease",
         }}
         mapStyle="mapbox://styles/mapbox/streets-v11"
