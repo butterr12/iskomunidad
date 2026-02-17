@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bookmark, Plus } from "lucide-react";
+import { Bookmark, Plus, Hammer, Briefcase } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreateGigForm } from "./create-gig-form";
 import { SortToggle } from "./sort-toggle";
@@ -15,6 +15,9 @@ import { GigDetail } from "./gig-detail";
 import { SwipeDeck } from "./swipe-deck";
 import {
   sortGigs,
+  GIG_CATEGORIES,
+  CATEGORY_LABELS,
+  CATEGORY_COLORS,
   type GigListing,
   type GigCategory,
   type GigSortMode,
@@ -46,7 +49,7 @@ function GigCardSkeleton() {
 
 function GigListSkeleton() {
   return (
-    <div className="space-y-3 p-4">
+    <div className="space-y-3">
       {Array.from({ length: 5 }).map((_, i) => (
         <GigCardSkeleton key={i} />
       ))}
@@ -163,49 +166,152 @@ export function GigsTab() {
               <ModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
             </div>
           </div>
+          {/* Category filter visible only on mobile */}
           {viewMode === "list" && (
-            <CategoryFilter activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+            <div className="lg:hidden">
+              <CategoryFilter activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+            </div>
           )}
         </div>
       )}
 
-      {/* Tappable banner */}
-      {!selectedGig && (
-        <button
-          onClick={() => setShowCreateGig(true)}
-          className="mx-4 mt-3 flex items-center gap-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 px-5 py-5 text-left transition-all hover:from-primary/20 hover:via-primary/10 hover:border-primary/30 active:scale-[0.98]"
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
-            <Plus className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            <p className="text-lg font-semibold">Need help with something?</p>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Tap to post a gig
-            </p>
-          </div>
-        </button>
-      )}
+      {/* Reddit-style two-column layout */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-5xl gap-4 p-4">
+          {/* Main feed column */}
+          <div className="min-w-0 flex-1 max-w-2xl mx-auto lg:mx-0">
+            {/* Welcome banner */}
+            {!selectedGig && (
+              <button
+                onClick={() => setShowCreateGig(true)}
+                className="w-full mb-3 flex items-center gap-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/10 px-5 py-4 text-left transition-all hover:from-emerald-500/20 hover:via-emerald-500/10 hover:border-emerald-500/20 active:scale-[0.98]"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
+                  <Plus className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-semibold">Need help with something?</p>
+                  <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Hammer className="h-3.5 w-3.5" />
+                      {gigs.length} {gigs.length === 1 ? "gig" : "gigs"} available
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Briefcase className="h-3.5 w-3.5" />
+                      Gig Board
+                    </span>
+                  </div>
+                </div>
+              </button>
+            )}
 
-      {/* Content */}
-      <div className="flex flex-1 overflow-y-auto flex-col">
-        {selectedGig ? (
-          <GigDetail
-            gig={selectedGig}
-            onBack={() => setSelectedGig(null)}
-          />
-        ) : isLoading ? (
-          <GigListSkeleton />
-        ) : viewMode === "list" ? (
-          <GigList gigs={filteredAndSorted} onSelectGig={handleSelectGig} />
-        ) : (
-          <SwipeDeck
-            gigs={swipeGigs}
-            onSwipe={handleSwipe}
-            onSelectGig={handleSelectGig}
-            onReset={handleResetSwipes}
-          />
-        )}
+            {selectedGig ? (
+              <GigDetail
+                gig={selectedGig}
+                onBack={() => setSelectedGig(null)}
+              />
+            ) : isLoading ? (
+              <GigListSkeleton />
+            ) : viewMode === "list" ? (
+              <GigList gigs={filteredAndSorted} onSelectGig={handleSelectGig} />
+            ) : (
+              <SwipeDeck
+                gigs={swipeGigs}
+                onSwipe={handleSwipe}
+                onSelectGig={handleSelectGig}
+                onReset={handleResetSwipes}
+              />
+            )}
+          </div>
+
+          {/* Right sidebar - hidden on mobile */}
+          {!selectedGig && (
+            <aside className="hidden lg:flex w-72 shrink-0 flex-col gap-4">
+              {/* Category filter */}
+              <div className="rounded-2xl border bg-card shadow-sm">
+                <div className="border-b px-4 py-3">
+                  <h3 className="text-sm font-semibold">Filter by Category</h3>
+                </div>
+                <div className="flex flex-wrap gap-1.5 p-3">
+                  <button onClick={() => setActiveCategory(null)} className="shrink-0">
+                    <Badge variant={activeCategory === null ? "default" : "outline"}>All</Badge>
+                  </button>
+                  {GIG_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                      className="shrink-0"
+                    >
+                      <Badge
+                        variant={activeCategory === cat ? "default" : "outline"}
+                        style={
+                          activeCategory === cat
+                            ? { backgroundColor: CATEGORY_COLORS[cat], borderColor: CATEGORY_COLORS[cat] }
+                            : { borderColor: CATEGORY_COLORS[cat], color: CATEGORY_COLORS[cat] }
+                        }
+                      >
+                        {CATEGORY_LABELS[cat]}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Gig Board Rules */}
+              <div className="rounded-2xl border bg-card shadow-sm">
+                <div className="border-b px-4 py-3">
+                  <h3 className="text-sm font-semibold">Gig Board Rules</h3>
+                </div>
+                <ol className="flex flex-col gap-2.5 p-4 text-xs text-muted-foreground">
+                  <li className="flex gap-2">
+                    <span className="font-bold text-foreground">1.</span>
+                    <span>All gigs must be legitimate and relevant to UP campus life.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-foreground">2.</span>
+                    <span>Clearly state compensation. Paid gigs must include the exact amount in PHP.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-foreground">3.</span>
+                    <span>Do not post misleading or exploitative job offers.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-foreground">4.</span>
+                    <span>One posting per gig. No duplicate or spam listings.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-foreground">5.</span>
+                    <span>Include a valid contact method so interested applicants can reach you.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-foreground">6.</span>
+                    <span>Respect applicants&apos; privacy. Do not share their info without consent.</span>
+                  </li>
+                </ol>
+              </div>
+
+              {/* About */}
+              <div className="rounded-2xl border bg-card shadow-sm">
+                <div className="border-b px-4 py-3">
+                  <h3 className="text-sm font-semibold">About Gig Board</h3>
+                </div>
+                <div className="flex flex-col gap-2 p-4 text-xs text-muted-foreground">
+                  <p>Find side gigs, tutoring opportunities, errands, and volunteer work posted by fellow iskos and campus organizations.</p>
+                  <div className="mt-1 flex items-center gap-4">
+                    <span className="flex items-center gap-1">
+                      <Hammer className="h-3.5 w-3.5" />
+                      {gigs.length} gigs
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Briefcase className="h-3.5 w-3.5" />
+                      Gig Board
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          )}
+        </div>
       </div>
 
       {/* FAB */}

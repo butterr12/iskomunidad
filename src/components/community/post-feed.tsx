@@ -20,7 +20,7 @@ export function PostFeed({ posts, onSelectPost, onVotePost }: PostFeedProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3">
       {posts.map((post) => (
         <PostCard
           key={post.id}
