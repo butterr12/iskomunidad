@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { MapPin, Users, CalendarDays, Hammer, ArrowRight, ChevronDown, Sun, Moon } from "lucide-react";
 
+
 const LandingMap = dynamic(
   () => import("@/components/landing-map").then((mod) => mod.LandingMap),
   { ssr: false, loading: () => <div className="h-full w-full animate-pulse bg-muted" /> }
@@ -56,13 +57,13 @@ export function LandingPage() {
       {/* Hero — full viewport */}
       <section className="relative h-dvh shrink-0">
         {/* Nav — overlays the hero */}
-        <header className="absolute inset-x-0 top-0 z-50 bg-black/40 backdrop-blur-sm">
+        <header className="absolute inset-x-0 top-0 z-50 bg-white/40 backdrop-blur-sm dark:bg-black/40">
           <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
             <span className="text-2xl font-bold tracking-tight drop-shadow-sm font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
               iskomunidad
             </span>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/15" onClick={toggleTheme}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground hover:bg-black/10 dark:text-white dark:hover:bg-white/15" onClick={toggleTheme}>
                 {mounted && resolvedTheme === "dark" ? (
                   <Sun className="h-4 w-4" />
                 ) : (
@@ -70,11 +71,8 @@ export function LandingPage() {
                 )}
                 <span className="sr-only">Toggle theme</span>
               </Button>
-              <Button variant="ghost" size="sm" className="text-white hover:bg-white/15" asChild>
-                <Link href="/sign-in">Log in</Link>
-              </Button>
               <Button size="sm" className="shadow-lg" asChild>
-                <Link href="/sign-up">Sign up</Link>
+                <Link href="/sign-in">Get started</Link>
               </Button>
             </div>
           </div>
@@ -85,32 +83,27 @@ export function LandingPage() {
         </div>
 
         {/* Gradient overlay for text legibility */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 via-40% to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/80 via-white/30 via-40% to-transparent dark:from-black/75 dark:via-black/30" />
 
-        {/* Headline + CTAs */}
+        {/* Headline + CTA */}
         <div className="relative z-10 flex h-full flex-col items-center justify-end px-4 pb-12 sm:pb-16 md:pb-20">
-          <h1 className="text-center text-5xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-lg sm:text-6xl md:text-7xl lg:text-8xl">
+          <h1 className="text-center text-5xl font-bold leading-[1.1] tracking-tight text-foreground drop-shadow-[0_2px_8px_rgba(255,255,255,0.5)] dark:text-white dark:drop-shadow-lg sm:text-6xl md:text-7xl lg:text-8xl">
             Your campus
             <br />
             <span className="text-primary">Your community</span>
           </h1>
-          <div className="mt-6 flex flex-col items-center gap-3 sm:mt-8 sm:flex-row sm:gap-4">
+          <div className="mt-6 sm:mt-8">
             <Button size="lg" className="gap-2 text-base shadow-lg" asChild>
-              <Link href="/sign-up">
+              <Link href="/sign-in">
                 Get started
                 <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button variant="outline" size="lg" className="border-white/30 bg-white/10 text-base text-white shadow-lg backdrop-blur-sm hover:bg-white/20 hover:text-white" asChild>
-              <Link href="/sign-in">
-                I already have an account
               </Link>
             </Button>
           </div>
           <button
             type="button"
             onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
-            className="mt-8 flex flex-col items-center gap-1 text-white/70 transition-colors hover:text-white sm:mt-10"
+            className="mt-8 flex flex-col items-center gap-1 text-muted-foreground transition-colors hover:text-foreground dark:text-white/70 dark:hover:text-white sm:mt-10"
           >
             <span className="text-xs font-medium tracking-wide uppercase">Scroll to explore</span>
             <ChevronDown className="h-5 w-5 animate-bounce" />
@@ -157,8 +150,8 @@ export function LandingPage() {
           </p>
           <div className="mt-8">
             <Button size="lg" className="gap-2 text-base" asChild>
-              <Link href="/sign-up">
-                Create your account
+              <Link href="/sign-in">
+                Get started
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>

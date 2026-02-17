@@ -1,3 +1,5 @@
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+
 export default function AuthLayout({
   children,
 }: {
@@ -6,6 +8,7 @@ export default function AuthLayout({
   return (
     <div className="flex h-full items-center justify-center bg-background px-4 overflow-y-auto">
       {children}
+      <PwaInstallPrompt />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import localFont from "next/font/local";
 import { Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+
 import { ThemeColorMeta } from "@/components/theme-color-meta";
 import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -78,7 +78,6 @@ export default function RootLayout({
           <QueryProvider>
             <ThemeColorMeta />
             {children}
-            <PwaInstallPrompt />
             <Toaster />
           </QueryProvider>
         </ThemeProvider>
