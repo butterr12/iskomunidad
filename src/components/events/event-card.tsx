@@ -26,9 +26,9 @@ export function EventCard({ event, onClick }: EventCardProps) {
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-xl border bg-card text-left shadow-sm transition-colors hover:bg-accent/50"
+      className="w-full rounded-2xl border bg-card text-left shadow-sm transition-all hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
     >
-      <div className="h-[3px] rounded-t-xl" style={{ backgroundColor: event.coverColor }} />
+      <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: event.coverColor }} />
       <div className="flex gap-4 p-4">
         <div className="flex w-10 shrink-0 flex-col items-center pt-0.5">
           <span className="text-[10px] font-semibold leading-none text-muted-foreground">

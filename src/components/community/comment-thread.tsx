@@ -1,8 +1,20 @@
 import { Reply } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { VoteControls } from "./vote-controls";
 import { formatRelativeTime, type CommentNode, type VoteDirection } from "@/lib/posts";
 import { cn } from "@/lib/utils";
+
+function getInitials(name?: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
 interface CommentThreadProps {
   nodes: CommentNode[];
@@ -26,6 +38,9 @@ export function CommentThread({ nodes, depth = 0, onVoteComment }: CommentThread
             />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Avatar className="h-5 w-5">
+                  <AvatarFallback className="text-[9px] font-medium">{getInitials(node.comment.author)}</AvatarFallback>
+                </Avatar>
                 <span className="font-medium text-foreground">{node.comment.authorHandle}</span>
                 <span>·</span>
                 <span>{formatRelativeTime(node.comment.createdAt)}</span>

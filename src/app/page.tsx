@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useSession } from "@/lib/auth-client";
+import { LandingPage } from "@/components/landing-page";
 import { NavBar } from "@/components/nav-bar";
 import { AttractionDetail } from "@/components/attraction-detail";
 import { EventsTab } from "@/components/events/events-tab";
@@ -27,7 +28,7 @@ const LandmarkMap = dynamic(
 );
 
 export default function Home() {
-  const { isPending } = useSession();
+  const { data: session, isPending } = useSession();
   const [activeTab, setActiveTab] = useState<NavTab>("map");
   const [selectedLandmark, setSelectedLandmark] = useState<Landmark | null>(null);
   const isMobile = useIsMobile();
@@ -36,7 +37,10 @@ export default function Home() {
   const [approvedEvents, setApprovedEvents] = useState<CampusEvent[]>([]);
   const [approvedPosts, setApprovedPosts] = useState<CommunityPost[]>([]);
 
+  const isAuthenticated = !!session?.user;
+
   useEffect(() => {
+    if (!isAuthenticated) return;
     Promise.all([
       getApprovedLandmarks(),
       getApprovedEvents(),
@@ -51,7 +55,7 @@ export default function Home() {
       }
       if (postsRes.success) setApprovedPosts(postsRes.data as CommunityPost[]);
     });
-  }, []);
+  }, [isAuthenticated]);
 
   const handleTabChange = (tab: NavTab) => {
     setActiveTab(tab);
@@ -88,6 +92,10 @@ export default function Home() {
         <p className="text-muted-foreground">Loading...</p>
       </div>
     );
+  }
+
+  if (!isAuthenticated) {
+    return <LandingPage />;
   }
 
   return (

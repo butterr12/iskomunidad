@@ -18,7 +18,7 @@ export function GigCard({ gig, onSelect }: GigCardProps) {
   return (
     <button
       onClick={() => onSelect(gig)}
-      className="flex w-full gap-3 rounded-xl border bg-card p-3 text-left shadow-sm transition-colors hover:bg-accent/50"
+      className="flex w-full gap-3 rounded-2xl border bg-card p-3 text-left shadow-sm transition-all hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
     >
       {/* Compensation box */}
       <div className="flex shrink-0 flex-col items-center justify-center rounded-lg bg-muted px-3 py-2 text-center">

@@ -1,3 +1,4 @@
+import { MessageCircle } from "lucide-react";
 import { PostCard } from "./post-card";
 import type { CommunityPost, VoteDirection } from "@/lib/posts";
 
@@ -10,8 +11,10 @@ interface PostFeedProps {
 export function PostFeed({ posts, onSelectPost, onVotePost }: PostFeedProps) {
   if (posts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-        <p className="text-sm">No posts found</p>
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
+        <MessageCircle className="h-10 w-10 text-muted-foreground/40" />
+        <p className="text-sm font-medium">Wala pang post dito</p>
+        <p className="text-xs">Be the first to start a conversation!</p>
       </div>
     );
   }

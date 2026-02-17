@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MessageCircle, MapPin, ExternalLink } from "lucide-react";
 import { VoteControls } from "./vote-controls";
 import {
@@ -7,6 +8,17 @@ import {
   type CommunityPost,
   type VoteDirection,
 } from "@/lib/posts";
+
+function getInitials(name?: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
 interface PostCardProps {
   post: CommunityPost;
@@ -21,7 +33,7 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(); }}
-      className="w-full cursor-pointer rounded-xl border bg-card text-left shadow-sm transition-colors hover:bg-accent/50"
+      className="w-full cursor-pointer rounded-2xl border bg-card text-left shadow-sm transition-all hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
     >
       <div className="flex gap-3 p-4">
         <VoteControls score={post.score} userVote={post.userVote} onVote={onVote} />
@@ -37,6 +49,9 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
             >
               {post.flair}
             </Badge>
+            <Avatar className="h-5 w-5">
+              <AvatarFallback className="text-[9px] font-medium">{getInitials(post.author)}</AvatarFallback>
+            </Avatar>
             <span>{post.authorHandle}</span>
             <span>·</span>
             <span>{formatRelativeTime(post.createdAt)}</span>

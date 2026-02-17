@@ -88,10 +88,9 @@ export function NavBar({ activeTab, onTabChange }: NavBarProps) {
             ))}
           </nav>
 
-          <div className="flex items-center gap-1">
-            <MapPin className="h-5 w-5 text-primary" />
-            <span className="text-lg font-bold tracking-tight">Explorer</span>
-          </div>
+          <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
+            iskomunidad
+          </span>
         </div>
       </header>
 
@@ -107,10 +106,9 @@ export function NavBar({ activeTab, onTabChange }: NavBarProps) {
               <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
             </Avatar>
           </button>
-          <div className="flex items-center gap-1">
-            <MapPin className="h-5 w-5 text-primary" />
-            <span className="text-lg font-bold tracking-tight">Explorer</span>
-          </div>
+          <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
+            iskomunidad
+          </span>
         </div>
       </header>
 

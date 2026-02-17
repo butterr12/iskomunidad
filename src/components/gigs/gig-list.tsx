@@ -1,3 +1,4 @@
+import { Hammer } from "lucide-react";
 import { GigCard } from "./gig-card";
 import type { GigListing } from "@/lib/gigs";
 
@@ -9,9 +10,10 @@ interface GigListProps {
 export function GigList({ gigs, onSelectGig }: GigListProps) {
   if (gigs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
-        <p className="text-sm text-muted-foreground">No gigs found</p>
-        <p className="text-xs text-muted-foreground">Try changing your filters</p>
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
+        <Hammer className="h-10 w-10 text-muted-foreground/40" />
+        <p className="text-sm font-medium">No gigs posted yet</p>
+        <p className="text-xs">Got something to offer? Try changing your filters or check back later!</p>
       </div>
     );
   }
