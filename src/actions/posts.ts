@@ -19,6 +19,10 @@ import {
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 
+function getActorLabel(user: { username?: string | null; name?: string | null }): string {
+  return user.username ? `@${user.username}` : (user.name ?? "Someone");
+}
+
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const createPostSchema = z.object({
@@ -159,7 +163,7 @@ export async function getPostById(
 
 export async function createPost(
   input: z.infer<typeof createPostSchema>,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; status: string }>> {
   const parsed = createPostSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
@@ -200,6 +204,13 @@ export async function createPost(
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
     });
+    await createUserNotification({
+      userId: session.user.id,
+      type: "post_pending",
+      contentType: "post",
+      targetId: created.id,
+      targetTitle: parsed.data.title,
+    });
   } else if (mode === "ai") {
     await createNotification({
       type: status === "approved" ? "post_approved" : "post_rejected",
@@ -222,7 +233,7 @@ export async function createPost(
     return { success: false, error: `Your post was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
-  return { success: true, data: { id: created.id } };
+  return { success: true, data: { id: created.id, status } };
 }
 
 export async function voteOnPost(
@@ -238,11 +249,17 @@ export async function voteOnPost(
 
   const post = await db.query.communityPost.findFirst({
     where: eq(communityPost.id, postId),
-    columns: { status: true },
+    columns: { status: true, userId: true, title: true },
   });
   if (!post || post.status !== "approved") {
     return { success: false, error: "Post not found" };
   }
+
+  const existingVote = await db.query.postVote.findFirst({
+    where: and(eq(postVote.postId, postId), eq(postVote.userId, session.user.id)),
+    columns: { value: true },
+  });
+  const previousValue = existingVote?.value ?? 0;
 
   if (parsed.data.value === 0) {
     // Delete existing vote
@@ -280,6 +297,21 @@ export async function voteOnPost(
     .set({ score: newScore })
     .where(eq(communityPost.id, postId));
 
+  const shouldNotifyUpvote =
+    parsed.data.value === 1 &&
+    previousValue !== 1 &&
+    post.userId !== session.user.id;
+  if (shouldNotifyUpvote) {
+    await createUserNotification({
+      userId: post.userId,
+      type: "post_upvoted",
+      contentType: "post",
+      targetId: postId,
+      targetTitle: post.title,
+      actor: getActorLabel(session.user),
+    });
+  }
+
   return { success: true, data: { newScore } };
 }
 
@@ -295,10 +327,22 @@ export async function createComment(
 
   const post = await db.query.communityPost.findFirst({
     where: eq(communityPost.id, parsed.data.postId),
-    columns: { status: true },
+    columns: { status: true, userId: true, title: true },
   });
   if (!post || post.status !== "approved") {
     return { success: false, error: "Post not found" };
+  }
+
+  let parentComment: { userId: string; postId: string } | null = null;
+  if (parsed.data.parentId) {
+    parentComment =
+      (await db.query.postComment.findFirst({
+        where: eq(postComment.id, parsed.data.parentId),
+        columns: { userId: true, postId: true },
+      })) ?? null;
+    if (!parentComment || parentComment.postId !== parsed.data.postId) {
+      return { success: false, error: "Parent comment not found" };
+    }
   }
 
   // AI moderation for comments (no status column — reject before inserting)
@@ -328,6 +372,39 @@ export async function createComment(
     })
     .where(eq(communityPost.id, parsed.data.postId));
 
+  const actor = getActorLabel(session.user);
+  if (parsed.data.parentId && parentComment) {
+    if (parentComment.userId !== session.user.id) {
+      await createUserNotification({
+        userId: parentComment.userId,
+        type: "comment_replied",
+        contentType: "post",
+        targetId: created.id,
+        targetTitle: post.title,
+        actor,
+      });
+    }
+    if (post.userId !== session.user.id && post.userId !== parentComment.userId) {
+      await createUserNotification({
+        userId: post.userId,
+        type: "post_commented",
+        contentType: "post",
+        targetId: created.id,
+        targetTitle: post.title,
+        actor,
+      });
+    }
+  } else if (post.userId !== session.user.id) {
+    await createUserNotification({
+      userId: post.userId,
+      type: "post_commented",
+      contentType: "post",
+      targetId: created.id,
+      targetTitle: post.title,
+      actor,
+    });
+  }
+
   return {
     success: true,
     data: {
@@ -352,6 +429,33 @@ export async function voteOnComment(
 
   const session = await getSessionOrThrow();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const comment = await db.query.postComment.findFirst({
+    where: eq(postComment.id, commentId),
+    columns: {
+      userId: true,
+    },
+    with: {
+      post: {
+        columns: {
+          status: true,
+          title: true,
+        },
+      },
+    },
+  });
+  if (!comment || comment.post.status !== "approved") {
+    return { success: false, error: "Comment not found" };
+  }
+
+  const existingVote = await db.query.commentVote.findFirst({
+    where: and(
+      eq(commentVote.commentId, commentId),
+      eq(commentVote.userId, session.user.id),
+    ),
+    columns: { value: true },
+  });
+  const previousValue = existingVote?.value ?? 0;
 
   if (parsed.data.value === 0) {
     await db
@@ -389,6 +493,21 @@ export async function voteOnComment(
     .update(postComment)
     .set({ score: newScore })
     .where(eq(postComment.id, commentId));
+
+  const shouldNotifyUpvote =
+    parsed.data.value === 1 &&
+    previousValue !== 1 &&
+    comment.userId !== session.user.id;
+  if (shouldNotifyUpvote) {
+    await createUserNotification({
+      userId: comment.userId,
+      type: "comment_upvoted",
+      contentType: "post",
+      targetId: commentId,
+      targetTitle: comment.post.title,
+      actor: getActorLabel(session.user),
+    });
+  }
 
   return { success: true, data: { newScore } };
 }

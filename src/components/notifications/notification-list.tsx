@@ -31,6 +31,32 @@ const CONTENT_TYPE_LABELS: Record<string, string> = {
   landmark: "Landmark",
 };
 
+function getTypeBadge(type: string): {
+  label: string;
+  variant: "default" | "secondary" | "destructive" | "outline";
+} {
+  if (type.endsWith("_approved")) {
+    return { label: "Approved", variant: "default" };
+  }
+  if (type.endsWith("_rejected")) {
+    return { label: "Rejected", variant: "destructive" };
+  }
+  if (type.endsWith("_pending")) {
+    return { label: "Pending", variant: "secondary" };
+  }
+  switch (type) {
+    case "post_commented":
+      return { label: "Comment", variant: "secondary" };
+    case "comment_replied":
+      return { label: "Reply", variant: "secondary" };
+    case "post_upvoted":
+    case "comment_upvoted":
+      return { label: "Upvote", variant: "outline" };
+    default:
+      return { label: "Activity", variant: "outline" };
+  }
+}
+
 function NotificationSkeleton() {
   return (
     <div className="rounded-xl border bg-card p-4 space-y-2">
@@ -140,7 +166,7 @@ export function NotificationList() {
       {notifications && notifications.length > 0 ? (
         <div className="space-y-3">
           {notifications.map((n) => {
-            const isRejected = n.type.endsWith("_rejected");
+            const typeBadge = getTypeBadge(n.type);
             return (
               <button
                 key={n.id}
@@ -159,8 +185,8 @@ export function NotificationList() {
                   )}
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant={isRejected ? "destructive" : "default"} className="text-[10px]">
-                        {isRejected ? "Rejected" : "Approved"}
+                      <Badge variant={typeBadge.variant} className="text-[10px]">
+                        {typeBadge.label}
                       </Badge>
                       <Badge variant="outline" className="text-[10px]">
                         {CONTENT_TYPE_LABELS[n.contentType] ?? n.contentType}

@@ -3,12 +3,23 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { adminSetting, adminNotification, userNotification } from "@/lib/schema";
+import {
+  adminSetting,
+  adminNotification,
+  userNotification,
+  userNotificationSetting,
+} from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import {
   buildApprovalMessage,
+  buildPendingMessage,
   buildRejectionMessage,
+  buildActivityMessage,
 } from "@/lib/notification-messages";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  areNotificationsEnabledForContentType,
+} from "@/lib/notification-preferences";
 
 // ─── ActionResult type ────────────────────────────────────────────────────────
 
@@ -109,11 +120,45 @@ export async function createUserNotification(data: {
   targetId: string;
   targetTitle: string;
   reason?: string;
+  actor?: string;
 }) {
-  const isApproved = data.type.endsWith("_approved");
-  const message = isApproved
-    ? buildApprovalMessage(data.contentType, data.targetTitle)
-    : buildRejectionMessage(data.contentType, data.targetTitle, data.reason);
+  const preferenceRow = await db.query.userNotificationSetting.findFirst({
+    where: eq(userNotificationSetting.userId, data.userId),
+    columns: {
+      posts: true,
+      events: true,
+      gigs: true,
+    },
+  });
+  const preferences = {
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+    ...preferenceRow,
+  };
+  const isModerationLifecycleNotification =
+    data.type.endsWith("_approved") ||
+    data.type.endsWith("_rejected") ||
+    data.type.endsWith("_pending");
+  if (
+    !isModerationLifecycleNotification &&
+    !areNotificationsEnabledForContentType(data.contentType, preferences)
+  ) {
+    return;
+  }
+
+  let message: string;
+  if (data.type.endsWith("_approved")) {
+    message = buildApprovalMessage(data.contentType, data.targetTitle);
+  } else if (data.type.endsWith("_rejected")) {
+    message = buildRejectionMessage(data.contentType, data.targetTitle, data.reason);
+  } else if (data.type.endsWith("_pending")) {
+    message = buildPendingMessage(data.contentType, data.targetTitle);
+  } else {
+    message = buildActivityMessage({
+      type: data.type,
+      targetTitle: data.targetTitle,
+      actor: data.actor,
+    });
+  }
 
   await db.insert(userNotification).values({
     userId: data.userId,

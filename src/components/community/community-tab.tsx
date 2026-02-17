@@ -153,7 +153,12 @@ export function CommunityTab() {
     const res = await createPost(data);
     if (res.success) {
       await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
-      toast.success("Post published!");
+      const status = (res.data as { status?: string }).status;
+      toast.success(
+        status === "draft"
+          ? "Post submitted for review."
+          : "Post published!",
+      );
     } else {
       toast.error(res.error);
     }

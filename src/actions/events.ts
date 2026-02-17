@@ -138,7 +138,7 @@ export async function getEventById(
 
 export async function createEvent(
   input: z.infer<typeof createEventSchema>,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; status: string }>> {
   const parsed = createEventSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
@@ -183,6 +183,13 @@ export async function createEvent(
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
     });
+    await createUserNotification({
+      userId: session.user.id,
+      type: "event_pending",
+      contentType: "event",
+      targetId: created.id,
+      targetTitle: parsed.data.title,
+    });
   } else if (mode === "ai") {
     await createNotification({
       type: status === "approved" ? "event_approved" : "event_rejected",
@@ -205,7 +212,7 @@ export async function createEvent(
     return { success: false, error: `Your event was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
-  return { success: true, data: { id: created.id } };
+  return { success: true, data: { id: created.id, status } };
 }
 
 export async function rsvpToEvent(
@@ -284,7 +291,7 @@ export async function rsvpToEvent(
 export async function updateEvent(
   id: string,
   input: z.infer<typeof updateEventSchema>,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; status: string }>> {
   const parsed = updateEventSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
@@ -319,15 +326,26 @@ export async function updateEvent(
   await db.update(campusEvent).set(updateData).where(eq(campusEvent.id, id));
 
   if (!autoApprove) {
+    const updatedTitle = parsed.data.title ?? existing.title;
     await createNotification({
       type: "event_pending",
       targetId: id,
-      targetTitle: parsed.data.title ?? existing.title,
+      targetTitle: updatedTitle,
       authorHandle: session.user.username ?? session.user.name,
+    });
+    await createUserNotification({
+      userId: session.user.id,
+      type: "event_pending",
+      contentType: "event",
+      targetId: id,
+      targetTitle: updatedTitle,
     });
   }
 
-  return { success: true, data: { id } };
+  return {
+    success: true,
+    data: { id, status: autoApprove ? existing.status : "draft" },
+  };
 }
 
 export async function deleteEvent(

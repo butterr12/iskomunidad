@@ -131,7 +131,12 @@ export function GigsTab() {
     const res = await createGig(data);
     if (res.success) {
       await queryClient.invalidateQueries({ queryKey: ["approved-gigs"] });
-      toast.success("Gig posted!");
+      const status = (res.data as { status?: string }).status;
+      toast.success(
+        status === "draft"
+          ? "Gig submitted for review."
+          : "Gig posted!",
+      );
     } else {
       toast.error(res.error);
     }

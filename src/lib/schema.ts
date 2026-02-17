@@ -8,6 +8,7 @@ import {
   doublePrecision,
   jsonb,
   uuid,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { user, session, account } from "./auth-schema";
@@ -309,11 +310,29 @@ export const userNotification = pgTable("user_notification", {
   message: text("message").notNull(),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("user_notification_user_created_idx").on(table.userId, table.createdAt),
+  index("user_notification_user_read_idx").on(table.userId, table.isRead),
+]);
+
+// ─── User Notification Setting ───────────────────────────────────────────────
+
+export const userNotificationSetting = pgTable("user_notification_setting", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  posts: boolean("posts").notNull().default(true),
+  events: boolean("events").notNull().default(true),
+  gigs: boolean("gigs").notNull().default(false),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
 });
 
 // ─── Relations ─────────────────────────────────────────────────────────────────
 
-export const userRelations = relations(user, ({ many }) => ({
+export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
   landmarks: many(landmark),
@@ -327,6 +346,10 @@ export const userRelations = relations(user, ({ many }) => ({
   gigListings: many(gigListing),
   gigSwipes: many(gigSwipe),
   userNotifications: many(userNotification),
+  notificationSetting: one(userNotificationSetting, {
+    fields: [user.id],
+    references: [userNotificationSetting.userId],
+  }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -490,6 +513,13 @@ export const gigSwipeRelations = relations(gigSwipe, ({ one }) => ({
 export const userNotificationRelations = relations(userNotification, ({ one }) => ({
   user: one(user, {
     fields: [userNotification.userId],
+    references: [user.id],
+  }),
+}));
+
+export const userNotificationSettingRelations = relations(userNotificationSetting, ({ one }) => ({
+  user: one(user, {
+    fields: [userNotificationSetting.userId],
     references: [user.id],
   }),
 }));
