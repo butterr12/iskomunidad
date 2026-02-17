@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { adminCreateLandmark } from "@/actions/admin";
+import { PhotoUpload, type UploadedPhoto } from "@/components/admin/photo-upload";
 import type { LandmarkCategory } from "@/lib/landmarks";
 
 const LocationPickerMap = dynamic(
@@ -38,6 +39,7 @@ export default function CreateLocationPage() {
   const [lng, setLng] = useState("");
   const [address, setAddress] = useState("");
   const [tags, setTags] = useState("");
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +69,7 @@ export default function CreateLocationPage() {
         lng: parseFloat(lng),
         address: address.trim() || undefined,
         tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-        photos: [],
+        photos: photos.map((p) => ({ url: p.key, caption: p.caption || undefined, source: "upload" as const })),
       });
 
       if (res.success) {
@@ -107,6 +109,7 @@ export default function CreateLocationPage() {
               setLng("");
               setAddress("");
               setTags("");
+              setPhotos([]);
             }}>
               Create Another
             </Button>
@@ -170,6 +173,11 @@ export default function CreateLocationPage() {
           <div className="space-y-2">
             <Label htmlFor="tags">Tags (comma-separated)</Label>
             <Input id="tags" placeholder="e.g. park, nature, scenic" value={tags} onChange={(e) => setTags(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Photos</Label>
+            <PhotoUpload photos={photos} onChange={setPhotos} />
           </div>
 
           {error && (

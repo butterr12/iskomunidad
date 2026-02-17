@@ -50,6 +50,8 @@ export const landmarkPhoto = pgTable("landmark_photo", {
     .references(() => landmark.id, { onDelete: "cascade" }),
   url: text("url").notNull(),
   caption: text("caption"),
+  source: text("source").notNull().default("upload"), // "upload" | "google_places"
+  attribution: text("attribution"),
   order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

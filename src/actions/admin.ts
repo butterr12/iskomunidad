@@ -61,7 +61,14 @@ const createLandmarkSchema = z.object({
   operatingHours: z.unknown().optional(),
   tags: z.array(z.string()).default([]),
   photos: z
-    .array(z.object({ url: z.string(), caption: z.string().optional() }))
+    .array(
+      z.object({
+        url: z.string(),
+        caption: z.string().optional(),
+        source: z.enum(["upload", "google_places"]).default("upload"),
+        attribution: z.string().optional(),
+      }),
+    )
     .default([]),
 });
 
@@ -504,6 +511,8 @@ export async function adminCreateLandmark(
         landmarkId: created.id,
         url: p.url,
         caption: p.caption ?? null,
+        source: p.source ?? "upload",
+        attribution: p.attribution ?? null,
         order: i,
       })),
     );

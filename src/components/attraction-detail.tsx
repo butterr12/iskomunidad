@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { X, MapPin, Navigation, Share2, Bookmark, Clock, CalendarDays, MessageCircle, Users } from "lucide-react";
+import { PhotoGallery } from "@/components/photo-gallery";
 import { FLAIR_COLORS } from "@/lib/posts";
 import type { Landmark } from "@/lib/landmarks";
 import type { CampusEvent } from "@/lib/events";
@@ -25,6 +26,10 @@ function formatEventTime(startDate: string, endDate: string) {
 export function AttractionDetail({ landmark, events = [], posts = [], onClose }: AttractionDetailProps) {
   return (
     <div className="flex flex-col gap-4 p-5">
+      {landmark.photos && landmark.photos.length > 0 && (
+        <PhotoGallery photos={landmark.photos} />
+      )}
+
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-xl font-semibold leading-tight">

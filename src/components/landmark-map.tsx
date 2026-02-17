@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import Map, {
   Marker,
   NavigationControl,
@@ -49,36 +49,6 @@ interface LandmarkMapProps {
 
 export function LandmarkMap({ landmarks, onSelectLandmark, selectedId }: LandmarkMapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
-
-  useEffect(() => {
-    if (!mapRef.current || landmarks.length === 0) return;
-
-    const bounds = new mapboxgl.LngLatBounds();
-    landmarks.forEach((l) => bounds.extend([l.lng, l.lat]));
-    mapRef.current.fitBounds(bounds, {
-      padding: { top: 50, right: 50, bottom: 50, left: 50 },
-    });
-  }, [landmarks]);
-
-  // Fly to selected landmark after layout settles (sidebar may resize the map container)
-  useEffect(() => {
-    if (!mapRef.current || !selectedId) return;
-    const landmark = landmarks.find((l) => l.id === selectedId);
-    if (!landmark) return;
-
-    const timer = setTimeout(() => {
-      if (!mapRef.current) return;
-      mapRef.current.resize();
-      const currentZoom = mapRef.current.getZoom();
-      mapRef.current.flyTo({
-        center: [landmark.lng, landmark.lat],
-        zoom: Math.max(currentZoom, 17),
-        duration: 600,
-      });
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [selectedId, landmarks]);
 
   return (
     <Map

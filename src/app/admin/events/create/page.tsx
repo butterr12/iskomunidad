@@ -44,6 +44,7 @@ export default function CreateEventPage() {
   const [coverColor, setCoverColor] = useState(COVER_COLORS[0]);
   const [created, setCreated] = useState<{ id: string; title: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [landmarks, setLandmarks] = useState<Landmark[]>([]);
 
   useEffect(() => {
@@ -56,22 +57,30 @@ export default function CreateEventPage() {
     e.preventDefault();
     if (!title.trim() || !organizer.trim() || !startDate || !endDate) return;
     setSubmitting(true);
+    setError(null);
 
-    const res = await adminCreateEvent({
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      organizer: organizer.trim(),
-      startDate: new Date(startDate).toISOString(),
-      endDate: new Date(endDate).toISOString(),
-      locationId: locationId && locationId !== "none" ? locationId : undefined,
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      coverColor,
-    });
+    try {
+      const res = await adminCreateEvent({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        organizer: organizer.trim(),
+        startDate: new Date(startDate).toISOString(),
+        endDate: new Date(endDate).toISOString(),
+        locationId: locationId && locationId !== "none" ? locationId : undefined,
+        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        coverColor,
+      });
 
-    setSubmitting(false);
-    if (res.success) {
-      setCreated({ id: res.data.id, title: title.trim() });
+      if (res.success) {
+        setCreated({ id: res.data.id, title: title.trim() });
+      } else {
+        setError(res.error);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -180,6 +189,10 @@ export default function CreateEventPage() {
               <Input id="coverColor" type="color" value={coverColor} onChange={(e) => setCoverColor(e.target.value)} />
             </div>
           </div>
+
+          {error && (
+            <p className="text-sm text-destructive">{error}</p>
+          )}
 
           <Button type="submit" disabled={submitting}>
             {submitting ? "Creating..." : "Create Event"}

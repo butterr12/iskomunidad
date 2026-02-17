@@ -1,5 +1,17 @@
 export type LandmarkCategory = "attraction" | "community" | "event";
 
+export type PhotoSource = "upload" | "google_places";
+
+export interface LandmarkPhoto {
+  id: string;
+  url: string;
+  caption?: string | null;
+  source: PhotoSource;
+  attribution?: string | null;
+  order: number;
+  resolvedUrl: string;
+}
+
 export interface Landmark {
   id: string;
   name: string;
@@ -9,6 +21,7 @@ export interface Landmark {
   lng: number;
   address?: string;
   tags: string[];
+  photos: LandmarkPhoto[];
   status?: "draft" | "approved" | "rejected";
   rejectionReason?: string;
 }

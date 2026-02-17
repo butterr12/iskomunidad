@@ -31,6 +31,7 @@ export function PostForm() {
   const [locationId, setLocationId] = useState("");
   const [created, setCreated] = useState<{ id: string; title: string; status: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [landmarks, setLandmarks] = useState<Landmark[]>([]);
 
   useEffect(() => {
@@ -43,21 +44,29 @@ export function PostForm() {
     e.preventDefault();
     if (!title.trim()) return;
     setSubmitting(true);
+    setError(null);
 
-    const res = await adminCreatePost({
-      title: title.trim(),
-      type,
-      flair,
-      body: type === "text" ? body.trim() || undefined : undefined,
-      linkUrl: type === "link" ? linkUrl.trim() || undefined : undefined,
-      imageEmoji: type === "image" ? imageEmoji.trim() || undefined : undefined,
-      imageColor: type === "image" ? imageColor : undefined,
-      locationId: locationId && locationId !== "none" ? locationId : undefined,
-    });
+    try {
+      const res = await adminCreatePost({
+        title: title.trim(),
+        type,
+        flair,
+        body: type === "text" ? body.trim() || undefined : undefined,
+        linkUrl: type === "link" ? linkUrl.trim() || undefined : undefined,
+        imageEmoji: type === "image" ? imageEmoji.trim() || undefined : undefined,
+        imageColor: type === "image" ? imageColor : undefined,
+        locationId: locationId && locationId !== "none" ? locationId : undefined,
+      });
 
-    setSubmitting(false);
-    if (res.success) {
-      setCreated({ id: res.data.id, title: title.trim(), status: "approved" });
+      if (res.success) {
+        setCreated({ id: res.data.id, title: title.trim(), status: "approved" });
+      } else {
+        setError(res.error);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -172,6 +181,10 @@ export function PostForm() {
               </SelectContent>
             </Select>
           </div>
+
+          {error && (
+            <p className="text-sm text-destructive">{error}</p>
+          )}
 
           <Button type="submit" disabled={submitting}>
             {submitting ? "Creating..." : "Create Post"}
