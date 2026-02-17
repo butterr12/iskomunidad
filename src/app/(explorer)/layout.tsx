@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 function ExplorerSkeleton() {
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex h-dvh flex-col overflow-hidden">
       {/* Top bar skeleton */}
       <div className="border-b bg-background/80 backdrop-blur-sm">
         <div className="flex h-14 items-center justify-between px-4">
@@ -54,7 +54,7 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex h-dvh flex-col overflow-hidden">
       <NavBar />
       {children}
     </div>

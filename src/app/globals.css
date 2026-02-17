@@ -123,6 +123,7 @@
   }
   html {
     height: 100%;
+    height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
   }
@@ -137,12 +138,16 @@
   }
 }
 
+/* Mobile bottom navbar clearance (always 3.5rem, plus safe area on notched devices) */
+.pb-safe-nav {
+  padding-bottom: 3.5rem;
+}
+
 /* PWA safe-area support for standalone mode on notched devices */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
-  /* Content padding that clears bottom navbar + safe area (mobile only via classes) */
   .pb-safe-nav {
     padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
   }

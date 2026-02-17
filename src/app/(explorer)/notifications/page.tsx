@@ -8,8 +8,12 @@ export const metadata: Metadata = {
 
 export default function NotificationsPage() {
   return (
-    <main className="flex flex-1 flex-col min-h-0 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full">
-      <NotificationList />
+    <main className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-4 py-4 max-w-2xl mx-auto w-full">
+          <NotificationList />
+        </div>
+      </div>
     </main>
   );
 }
