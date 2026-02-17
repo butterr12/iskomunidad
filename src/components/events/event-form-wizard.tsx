@@ -156,7 +156,20 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
           : await updateEvent(initialData!.id, payload);
 
       if (res.success) {
-        toast.success(mode === "create" ? "Event created!" : "Event updated!");
+        const status = (res.data as { status?: string }).status;
+        if (mode === "create") {
+          toast.success(
+            status === "draft"
+              ? "Event submitted for review."
+              : "Event created!",
+          );
+        } else {
+          toast.success(
+            status === "draft"
+              ? "Event update submitted for review."
+              : "Event updated!",
+          );
+        }
         if (onOpenChange) {
           onOpenChange(false);
           onSuccess?.();

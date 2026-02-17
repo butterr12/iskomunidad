@@ -121,10 +121,34 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background text-foreground;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
+  }
+}
+
+/* Mobile bottom navbar clearance (always 3.5rem, plus safe area on notched devices) */
+.pb-safe-nav {
+  padding-bottom: 3.5rem;
+}
+
+/* PWA safe-area support for standalone mode on notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pb-safe-nav {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
   }
 }

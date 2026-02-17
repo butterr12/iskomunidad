@@ -84,7 +84,7 @@ export async function getApprovedGigs(
 
 export async function createGig(
   input: z.infer<typeof createGigSchema>,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; status: string }>> {
   const parsed = createGigSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
@@ -137,6 +137,13 @@ export async function createGig(
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
     });
+    await createUserNotification({
+      userId: session.user.id,
+      type: "gig_pending",
+      contentType: "gig",
+      targetId: created.id,
+      targetTitle: parsed.data.title,
+    });
   } else if (mode === "ai") {
     await createNotification({
       type: status === "approved" ? "gig_approved" : "gig_rejected",
@@ -159,7 +166,7 @@ export async function createGig(
     return { success: false, error: `Your gig was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
-  return { success: true, data: { id: created.id } };
+  return { success: true, data: { id: created.id, status } };
 }
 
 export async function swipeGig(

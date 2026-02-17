@@ -91,7 +91,7 @@ export function PwaInstallPrompt() {
       />
 
       {/* Bottom sheet */}
-      <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-background p-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
+      <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-background p-6 shadow-2xl animate-in slide-in-from-bottom duration-300 safe-bottom">
         <button
           type="button"
           onClick={handleDismiss}

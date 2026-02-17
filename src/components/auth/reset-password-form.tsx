@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         <CardTitle className="text-2xl font-bold">Reset password</CardTitle>
         <CardDescription>Enter your new password below.</CardDescription>
       </CardHeader>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
           {error && (
             <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -111,7 +112,8 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         </CardContent>
         <CardFooter>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Resetting..." : "Reset password"}
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Reset password
           </Button>
         </CardFooter>
       </form>

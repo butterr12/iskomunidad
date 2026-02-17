@@ -136,7 +136,7 @@ export function NavBar() {
       </header>
 
       {/* Mobile: bottom tab bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-[1000] sm:hidden border-t bg-background/95 backdrop-blur-sm">
+      <nav className="fixed bottom-0 left-0 right-0 z-[1000] sm:hidden border-t bg-background/95 backdrop-blur-sm safe-bottom">
         <div className="flex h-14 items-center justify-around">
           {tabs.map((t) => (
             <Link

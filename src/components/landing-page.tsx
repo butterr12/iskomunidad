@@ -5,11 +5,12 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
-import { MapPin, Users, CalendarDays, Hammer, ArrowRight, Sun, Moon } from "lucide-react";
+import { MapPin, Users, CalendarDays, Hammer, ArrowRight, ChevronDown, Sun, Moon } from "lucide-react";
+
 
 const LandingMap = dynamic(
   () => import("@/components/landing-map").then((mod) => mod.LandingMap),
-  { ssr: false, loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-muted" /> }
+  { ssr: false, loading: () => <div className="h-full w-full animate-pulse bg-muted" /> }
 );
 
 const features = [
@@ -49,66 +50,63 @@ export function LandingPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Nav */}
-      <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <span className="text-2xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
-            iskomunidad
-          </span>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
-              <Sun className="hidden h-4 w-4 dark:block" />
-              <Moon className="h-4 w-4 dark:hidden" />
-              <span className="sr-only">Toggle theme</span>
-            </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/sign-in">Log in</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/sign-up">Sign up</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero */}
-      <section className="px-4 py-12 sm:py-20">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-2 lg:gap-16">
-          {/* Text */}
-          <div className="text-center lg:text-left">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-              Your campus,{" "}
-              <span className="text-primary">your community</span>
-            </h1>
-            <p className="mt-4 text-lg text-muted-foreground sm:mt-6 sm:text-xl">
-              Explore landmarks, join discussions, discover events, and find gigs
-              — all in one place built for isko, by isko.
-            </p>
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:gap-4 lg:justify-start">
-              <Button size="lg" className="gap-2 text-base" asChild>
-                <Link href="/sign-up">
-                  Get started
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+    <div className="fixed inset-0 flex flex-col overflow-y-auto">
+      {/* Hero — full viewport */}
+      <section className="relative h-dvh shrink-0">
+        {/* Nav — overlays the hero */}
+        <header className="absolute inset-x-0 top-0 z-50 bg-white/40 backdrop-blur-sm dark:bg-black/40">
+          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+            <span className="text-2xl font-bold tracking-tight drop-shadow-sm font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
+              iskomunidad
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground hover:bg-black/10 dark:text-white dark:hover:bg-white/15" onClick={toggleTheme}>
+                <Sun className="hidden h-4 w-4 dark:block" />
+                <Moon className="h-4 w-4 dark:hidden" />
+                <span className="sr-only">Toggle theme</span>
               </Button>
-              <Button variant="outline" size="lg" className="text-base" asChild>
-                <Link href="/sign-in">
-                  I already have an account
-                </Link>
+              <Button size="sm" className="shadow-lg" asChild>
+                <Link href="/sign-in">Get started</Link>
               </Button>
             </div>
           </div>
+        </header>
+        {/* Map background */}
+        <div className="absolute inset-0">
+          <LandingMap />
+        </div>
 
-          {/* 3D Map */}
-          <div className="relative mx-auto aspect-[4/3] w-full max-w-xl lg:max-w-none">
-            <LandingMap />
+        {/* Gradient overlay for text legibility */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/80 via-white/30 via-40% to-transparent dark:from-black/75 dark:via-black/30" />
+
+        {/* Headline + CTA */}
+        <div className="relative z-10 flex h-full flex-col items-center justify-end px-4 pb-12 sm:pb-16 md:pb-20">
+          <h1 className="text-center text-5xl font-bold leading-[1.1] tracking-tight text-foreground drop-shadow-[0_2px_8px_rgba(255,255,255,0.5)] dark:text-white dark:drop-shadow-lg sm:text-6xl md:text-7xl lg:text-8xl">
+            Your campus
+            <br />
+            <span className="text-primary">Your community</span>
+          </h1>
+          <div className="mt-6 sm:mt-8">
+            <Button size="lg" className="gap-2 text-base shadow-lg" asChild>
+              <Link href="/sign-in">
+                Get started
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
           </div>
+          <button
+            type="button"
+            onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
+            className="mt-8 flex flex-col items-center gap-1 text-muted-foreground transition-colors hover:text-foreground dark:text-white/70 dark:hover:text-white sm:mt-10"
+          >
+            <span className="text-xs font-medium tracking-wide uppercase">Scroll to explore</span>
+            <ChevronDown className="h-5 w-5 animate-bounce" />
+          </button>
         </div>
       </section>
 
       {/* Features */}
-      <section className="border-t bg-muted/30 px-4 py-16 sm:py-24">
+      <section id="features" className="border-t bg-muted/30 px-4 py-16 sm:py-24">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-center text-2xl font-bold tracking-tight sm:text-3xl">
             Everything you need on campus
@@ -146,8 +144,8 @@ export function LandingPage() {
           </p>
           <div className="mt-8">
             <Button size="lg" className="gap-2 text-base" asChild>
-              <Link href="/sign-up">
-                Create your account
+              <Link href="/sign-in">
+                Get started
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>

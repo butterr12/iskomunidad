@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { signOut, useSession, updateUser, changePassword, listAccounts } from "@/lib/auth-client";
 import { setPassword } from "@/actions/password";
 import { checkUsernameAvailable } from "@/actions/user";
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from "@/actions/notifications";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +32,10 @@ import {
   KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences,
+} from "@/lib/notification-preferences";
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -66,9 +74,15 @@ export default function SettingsPage() {
   const usernameTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const usernameCheckIdRef = useRef(0);
 
-  const [notifPosts, setNotifPosts] = useState(true);
-  const [notifEvents, setNotifEvents] = useState(true);
-  const [notifGigs, setNotifGigs] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(
+    DEFAULT_NOTIFICATION_PREFERENCES,
+  );
+  const [notificationPrefsLoading, setNotificationPrefsLoading] = useState(false);
+  const [notificationPrefsSaving, setNotificationPrefsSaving] = useState(false);
+  const [notificationPrefsMessage, setNotificationPrefsMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // Security / password state
   const [hasCredential, setHasCredential] = useState<boolean | null>(null);
@@ -97,6 +111,30 @@ export default function SettingsPage() {
   useEffect(() => {
     if (user) checkAccounts();
   }, [user, checkAccounts]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) return;
+
+    async function loadNotificationPreferences() {
+      setNotificationPrefsLoading(true);
+      const res = await getNotificationPreferences();
+      if (cancelled) return;
+
+      if (res.success) {
+        setNotificationPreferences(res.data);
+      } else {
+        setNotificationPrefsMessage({ type: "error", text: res.error });
+      }
+      setNotificationPrefsLoading(false);
+    }
+
+    void loadNotificationPreferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -244,8 +282,33 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleNotificationPreferenceChange(
+    key: keyof NotificationPreferences,
+    checked: boolean,
+  ) {
+    const prev = notificationPreferences;
+    const next = { ...prev, [key]: checked };
+    setNotificationPreferences(next);
+    setNotificationPrefsMessage(null);
+    setNotificationPrefsSaving(true);
+
+    const res = await updateNotificationPreferences(next);
+    if (res.success) {
+      setNotificationPreferences(res.data);
+      setNotificationPrefsMessage({
+        type: "success",
+        text: "Notification preferences updated.",
+      });
+    } else {
+      setNotificationPreferences(prev);
+      setNotificationPrefsMessage({ type: "error", text: res.error });
+    }
+
+    setNotificationPrefsSaving(false);
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
         <div className="flex h-14 items-center gap-3 px-4">
@@ -474,7 +537,13 @@ export default function SettingsPage() {
                     <p className="text-xs text-muted-foreground">New posts and replies</p>
                   </div>
                 </div>
-                <Switch checked={notifPosts} onCheckedChange={setNotifPosts} />
+                <Switch
+                  checked={notificationPreferences.posts}
+                  onCheckedChange={(checked) => {
+                    void handleNotificationPreferenceChange("posts", checked);
+                  }}
+                  disabled={notificationPrefsLoading || notificationPrefsSaving}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -485,7 +554,13 @@ export default function SettingsPage() {
                     <p className="text-xs text-muted-foreground">Event reminders and updates</p>
                   </div>
                 </div>
-                <Switch checked={notifEvents} onCheckedChange={setNotifEvents} />
+                <Switch
+                  checked={notificationPreferences.events}
+                  onCheckedChange={(checked) => {
+                    void handleNotificationPreferenceChange("events", checked);
+                  }}
+                  disabled={notificationPrefsLoading || notificationPrefsSaving}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -496,8 +571,29 @@ export default function SettingsPage() {
                     <p className="text-xs text-muted-foreground">New gigs matching your interests</p>
                   </div>
                 </div>
-                <Switch checked={notifGigs} onCheckedChange={setNotifGigs} />
+                <Switch
+                  checked={notificationPreferences.gigs}
+                  onCheckedChange={(checked) => {
+                    void handleNotificationPreferenceChange("gigs", checked);
+                  }}
+                  disabled={notificationPrefsLoading || notificationPrefsSaving}
+                />
               </div>
+              {notificationPrefsMessage && (
+                <>
+                  <Separator />
+                  <p
+                    className={cn(
+                      "text-sm",
+                      notificationPrefsMessage.type === "success"
+                        ? "text-green-600"
+                        : "text-red-500",
+                    )}
+                  >
+                    {notificationPrefsMessage.text}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </section>

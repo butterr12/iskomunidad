@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,9 +83,10 @@ export function VerifyEmailContent({ email }: VerifyEmailContentProps) {
           onClick={handleResend}
           disabled={resendStatus === "loading"}
         >
-          {resendStatus === "loading"
-            ? "Sending..."
-            : "Resend verification email"}
+          {resendStatus === "loading" && (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          )}
+          Resend verification email
         </Button>
         <Button asChild variant="ghost" className="w-full">
           <Link href="/sign-in">Back to sign in</Link>
