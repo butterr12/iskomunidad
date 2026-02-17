@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signUp } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,13 +15,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function SignUpPage() {
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,11 +26,9 @@ export default function SignUpPage() {
     setError("");
     setLoading(true);
 
-    const { error } = await signUp.email({
-      name,
-      username,
+    const { error } = await authClient.requestPasswordReset({
       email,
-      password,
+      redirectTo: "/reset-password",
     });
 
     if (error) {
@@ -43,15 +37,37 @@ export default function SignUpPage() {
       return;
     }
 
-    router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+    setSuccess(true);
+    setLoading(false);
   };
+
+  if (success) {
+    return (
+      <Card className="w-full max-w-md text-center">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
+          <CardDescription>
+            We&apos;ve sent a password reset link to{" "}
+            <span className="font-medium">{email}</span>. Please check your
+            inbox.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/sign-in">Back to sign in</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+        <CardTitle className="text-2xl font-bold">Forgot password</CardTitle>
         <CardDescription>
-          Enter your details below to create your account
+          Enter your email address and we&apos;ll send you a link to reset your
+          password.
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -61,28 +77,6 @@ export default function SignUpPage() {
               {error}
             </div>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="John Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              type="text"
-              placeholder="johndoe"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -94,25 +88,13 @@ export default function SignUpPage() {
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-          </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating account..." : "Create account"}
+            {loading ? "Sending..." : "Send reset link"}
           </Button>
           <p className="text-sm text-muted-foreground text-center">
-            Already have an account?{" "}
+            Remember your password?{" "}
             <Link
               href="/sign-in"
               className="font-medium text-primary underline-offset-4 hover:underline"
