@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useCallback } from "react";
 import Map, { Marker } from "react-map-gl/mapbox";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -87,7 +87,9 @@ function applyLandingTheme(map: mapboxgl.Map) {
 
 export function LandingMap() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
-
+  const pausedRef = useRef(false);
+  const bearingRef = useRef(-20);
+  const lastTimestampRef = useRef<number | null>(null);
   const onLoad = useCallback((e: { target: mapboxgl.Map }) => {
     const map = e.target;
     applyLandingTheme(map);
@@ -120,24 +122,46 @@ export function LandingMap() {
       });
     }
 
-    let start: number | null = null;
     const duration = 60000;
     const rotateSpeed = 0.5;
 
     function rotate(timestamp: number) {
       if (!map) return;
-      if (start === null) start = timestamp;
-      const elapsed = timestamp - start;
-      const bearing = (elapsed / duration) * 360 * rotateSpeed;
-      map.rotateTo(bearing % 360, { duration: 0 });
+      if (pausedRef.current) {
+        lastTimestampRef.current = null;
+        requestAnimationFrame(rotate);
+        return;
+      }
+      if (lastTimestampRef.current === null) {
+        lastTimestampRef.current = timestamp;
+      }
+      const delta = timestamp - lastTimestampRef.current;
+      lastTimestampRef.current = timestamp;
+      bearingRef.current += (delta / duration) * 360 * rotateSpeed;
+      map.rotateTo(bearingRef.current % 360, { duration: 0 });
       requestAnimationFrame(rotate);
     }
 
     requestAnimationFrame(rotate);
   }, []);
 
+  const handleMouseEnter = useCallback(() => {
+    pausedRef.current = true;
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (mapRef.current) {
+      bearingRef.current = mapRef.current.getBearing();
+    }
+    pausedRef.current = false;
+  }, []);
+
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-2xl border shadow-lg">
+    <div
+      className="relative h-full w-full overflow-hidden rounded-2xl border shadow-lg"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <Map
         ref={(ref) => {
           mapRef.current = ref?.getMap() ?? null;
@@ -152,8 +176,12 @@ export function LandingMap() {
         mapStyle="mapbox://styles/mapbox/streets-v11"
         mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
         onLoad={onLoad}
-        interactive={false}
         attributionControl={false}
+        dragPan
+        dragRotate
+        scrollZoom
+        touchZoomRotate
+        doubleClickZoom
       >
         {landmarks.map((lm) => (
           <Marker
