@@ -225,7 +225,7 @@ export function CommunityTab() {
   };
 
   return (
-    <div className="flex flex-1 flex-col pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
+    <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
       {!selectedPost && (
         <div className="sticky top-12 sm:top-14 z-10 border-b bg-background/80 backdrop-blur-sm">

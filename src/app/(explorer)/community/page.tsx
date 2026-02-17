@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function CommunityPage() {
   return (
-    <main className="flex flex-1 flex-col">
+    <main className="flex flex-1 flex-col min-h-0">
       <CommunityTab />
     </main>
   );

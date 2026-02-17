@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function GigsPage() {
   return (
-    <main className="flex flex-1 flex-col">
+    <main className="flex flex-1 flex-col min-h-0">
       <GigsTab />
     </main>
   );
