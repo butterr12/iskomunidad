@@ -20,6 +20,7 @@ export interface Landmark {
   lat: number;
   lng: number;
   address?: string;
+  googlePlaceId?: string | null;
   tags: string[];
   photos: LandmarkPhoto[];
   status?: "draft" | "approved" | "rejected";

@@ -120,8 +120,9 @@ async function main() {
 
     // Insert landmark
     const result = await pool.query(
-      `INSERT INTO landmark (name, description, category, lat, lng, address, tags, avg_rating, review_count, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO landmark (name, description, category, lat, lng, address, google_place_id, tags, avg_rating, review_count, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT DO NOTHING
        RETURNING id`,
       [
         place.name,
@@ -130,6 +131,7 @@ async function main() {
         place.geometry.location.lat,
         place.geometry.location.lng,
         place.vicinity,
+        place.place_id,
         tags,
         place.rating ?? 0,
         place.user_ratings_total ?? 0,

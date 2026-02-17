@@ -25,6 +25,7 @@ export const landmark = pgTable("landmark", {
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
   address: text("address"),
+  googlePlaceId: text("google_place_id"),
   phone: text("phone"),
   website: text("website"),
   operatingHours: jsonb("operating_hours"),
