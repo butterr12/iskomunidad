@@ -77,6 +77,7 @@ export function applyMapTheme(map: mapboxgl.Map, mode: MapThemeMode = "light") {
 
     if (id.startsWith("building") && t === "fill") {
       map.setPaintProperty(id, "fill-color", colors.building);
+      map.setPaintProperty(id, "fill-outline-color", colors.building);
       map.setPaintProperty(id, "fill-opacity", 0.9);
       continue;
     }
