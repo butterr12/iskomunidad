@@ -1,10 +1,11 @@
 import { mockPosts, type CommunityPost, type PostStatus } from "./posts";
 import { mockEvents, type CampusEvent } from "./events";
 import { landmarks as rawLandmarks, type Landmark } from "./landmarks";
+import { mockGigs, type GigListing } from "./gigs";
 
 export interface AdminNotification {
   id: string;
-  type: "approved" | "rejected" | "event_approved" | "event_rejected" | "location_approved" | "location_rejected";
+  type: "approved" | "rejected" | "event_approved" | "event_rejected" | "location_approved" | "location_rejected" | "gig_approved" | "gig_rejected";
   postId: string;
   postTitle: string;
   authorHandle: string;
@@ -32,6 +33,11 @@ let events: CampusEvent[] = mockEvents.map((e) => ({
 let landmarksList: Landmark[] = rawLandmarks.map((l) => ({
   ...l,
   status: l.status ?? "approved",
+}));
+
+let gigs: GigListing[] = mockGigs.map((g) => ({
+  ...g,
+  status: g.status ?? "approved",
 }));
 
 let notifications: AdminNotification[] = [
@@ -74,6 +80,10 @@ export function getEvents(): CampusEvent[] {
 
 export function getLandmarks(): Landmark[] {
   return landmarksList;
+}
+
+export function getGigs(): GigListing[] {
+  return gigs;
 }
 
 export function getNotifications(): AdminNotification[] {
@@ -266,6 +276,67 @@ export function createLandmark(landmark: Omit<Landmark, "id" | "status">): Landm
 
 export function deleteLandmark(id: string): void {
   landmarksList = landmarksList.filter((l) => l.id !== id);
+}
+
+// --- Gig Mutations ---
+
+export function approveGig(id: string): void {
+  gigs = gigs.map((g) =>
+    g.id === id ? { ...g, status: "approved" as const, rejectionReason: undefined } : g
+  );
+  const gig = gigs.find((g) => g.id === id);
+  if (gig) {
+    notifications = [
+      {
+        id: `notif-${nextNotifId++}`,
+        type: "gig_approved",
+        postId: gig.id,
+        postTitle: gig.title,
+        authorHandle: gig.posterHandle,
+        createdAt: new Date().toISOString(),
+        readByAdmin: false,
+      },
+      ...notifications,
+    ];
+  }
+}
+
+export function rejectGig(id: string, reason: string): void {
+  gigs = gigs.map((g) =>
+    g.id === id ? { ...g, status: "rejected" as const, rejectionReason: reason } : g
+  );
+  const gig = gigs.find((g) => g.id === id);
+  if (gig) {
+    notifications = [
+      {
+        id: `notif-${nextNotifId++}`,
+        type: "gig_rejected",
+        postId: gig.id,
+        postTitle: gig.title,
+        authorHandle: gig.posterHandle,
+        reason,
+        createdAt: new Date().toISOString(),
+        readByAdmin: false,
+      },
+      ...notifications,
+    ];
+  }
+}
+
+export function createGig(gig: Omit<GigListing, "id" | "applicantCount" | "swipeAction" | "status">): GigListing {
+  const newGig: GigListing = {
+    ...gig,
+    id: `gig-${Date.now()}`,
+    applicantCount: 0,
+    swipeAction: null,
+    status: settings.autoApprove ? "approved" : "draft",
+  };
+  gigs = [newGig, ...gigs];
+  return newGig;
+}
+
+export function deleteGig(id: string): void {
+  gigs = gigs.filter((g) => g.id !== id);
 }
 
 // --- Settings & Notifications ---

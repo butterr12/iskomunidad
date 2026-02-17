@@ -33,12 +33,17 @@ function getNotificationBadge(type: AdminNotification["type"]): { variant: "defa
       return { variant: "default", label: "Location Approved" };
     case "location_rejected":
       return { variant: "destructive", label: "Location Rejected" };
+    case "gig_approved":
+      return { variant: "default", label: "Gig Approved" };
+    case "gig_rejected":
+      return { variant: "destructive", label: "Gig Rejected" };
   }
 }
 
 function getEntityLabel(type: AdminNotification["type"]): string {
   if (type.startsWith("event")) return "Event";
   if (type.startsWith("location")) return "Location";
+  if (type.startsWith("gig")) return "Gig";
   return "Post";
 }
 

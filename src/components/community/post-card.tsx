@@ -19,9 +19,12 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
   const landmark = postToLandmark(post);
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
-      className="w-full rounded-xl border bg-card text-left shadow-sm transition-colors hover:bg-accent/50"
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(); }}
+      className="w-full cursor-pointer rounded-xl border bg-card text-left shadow-sm transition-colors hover:bg-accent/50"
     >
       <div className="flex gap-3 p-4">
         <VoteControls score={post.score} userVote={post.userVote} onVote={onVote} />
@@ -77,6 +80,6 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }

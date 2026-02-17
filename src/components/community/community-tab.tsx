@@ -73,10 +73,10 @@ export function CommunityTab({ onViewOnMap }: CommunityTabProps) {
   };
 
   return (
-    <div className="flex flex-1 flex-col pt-14">
+    <div className="flex flex-1 flex-col pt-12 pb-14 sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
       {!selectedPost && (
-        <div className="sticky top-14 z-10 border-b bg-background/80 backdrop-blur-sm">
+        <div className="sticky top-12 sm:top-14 z-10 border-b bg-background/80 backdrop-blur-sm">
           <div className="flex items-center justify-between px-4 py-2">
             <h2 className="text-lg font-semibold">Community</h2>
             <SortToggle sortMode={sortMode} onSortModeChange={setSortMode} />

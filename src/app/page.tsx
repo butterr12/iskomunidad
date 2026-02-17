@@ -7,14 +7,17 @@ import { NavBar } from "@/components/nav-bar";
 import { AttractionDetail } from "@/components/attraction-detail";
 import { EventsTab } from "@/components/events/events-tab";
 import { CommunityTab } from "@/components/community/community-tab";
+import { GigsTab } from "@/components/gigs/gigs-tab";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { eventToLandmark, getEventsAtLandmark } from "@/lib/events";
 import { postToLandmark, getPostsAtLandmark } from "@/lib/posts";
+import { gigToLandmark } from "@/lib/gigs";
 import { getPosts, getEvents, getLandmarks } from "@/lib/admin-store";
 import type { NavTab } from "@/components/nav-bar";
 import type { Landmark } from "@/lib/landmarks";
 import type { CampusEvent } from "@/lib/events";
 import type { CommunityPost } from "@/lib/posts";
+import type { GigListing } from "@/lib/gigs";
 
 const LandmarkMap = dynamic(
   () => import("@/components/landmark-map").then((mod) => mod.LandmarkMap),
@@ -51,6 +54,14 @@ export default function Home() {
     }
   };
 
+  const handleViewOnMapFromGig = (gig: GigListing) => {
+    const landmark = gigToLandmark(gig);
+    if (landmark) {
+      setActiveTab("map");
+      setSelectedLandmark(landmark);
+    }
+  };
+
   if (isPending) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -64,7 +75,7 @@ export default function Home() {
       <NavBar activeTab={activeTab} onTabChange={handleTabChange} />
 
       {activeTab === "map" ? (
-        <main className="relative flex flex-1 pt-14">
+        <main className="relative flex flex-1 pt-12 pb-14 sm:pt-14 sm:pb-0">
           {/* Desktop sidebar */}
           {selectedLandmark && !isMobile && (
             <aside className="w-[400px] shrink-0 overflow-y-auto border-r bg-background animate-in slide-in-from-left duration-200">
@@ -88,7 +99,7 @@ export default function Home() {
 
           {/* Mobile bottom sheet */}
           {selectedLandmark && isMobile && (
-            <div className="absolute bottom-0 left-0 right-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-2xl border-t bg-background shadow-2xl animate-in slide-in-from-bottom duration-200">
+            <div className="absolute bottom-14 sm:bottom-0 left-0 right-0 z-50 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto rounded-t-2xl border-t bg-background shadow-2xl animate-in slide-in-from-bottom duration-200">
               <div className="flex justify-center py-2">
                 <div className="h-1.5 w-10 rounded-full bg-muted-foreground/30" />
               </div>
@@ -104,6 +115,10 @@ export default function Home() {
       ) : activeTab === "events" ? (
         <main className="flex flex-1 flex-col">
           <EventsTab onViewOnMap={handleViewOnMap} />
+        </main>
+      ) : activeTab === "gigs" ? (
+        <main className="flex flex-1 flex-col">
+          <GigsTab onViewOnMap={handleViewOnMapFromGig} />
         </main>
       ) : (
         <main className="flex flex-1 flex-col">

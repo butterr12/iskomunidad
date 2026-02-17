@@ -40,10 +40,10 @@ export function EventsTab({ onViewOnMap }: EventsTabProps) {
   };
 
   return (
-    <div className="flex flex-1 flex-col pt-14">
+    <div className="flex flex-1 flex-col pt-12 pb-14 sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
       {!selectedEvent && (
-        <div className="sticky top-14 z-10 flex items-center justify-between border-b bg-background/80 px-4 py-2 backdrop-blur-sm">
+        <div className="sticky top-12 sm:top-14 z-10 flex items-center justify-between border-b bg-background/80 px-4 py-2 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Events</h2>
           <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </div>
