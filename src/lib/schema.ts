@@ -297,6 +297,20 @@ export const adminNotification = pgTable("admin_notification", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── User Notification ───────────────────────────────────────────────────────
+
+export const userNotification = pgTable("user_notification", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),           // e.g. "post_approved", "post_rejected"
+  contentType: text("content_type").notNull(), // "post" | "gig" | "event" | "landmark"
+  targetId: text("target_id").notNull(),
+  targetTitle: text("target_title").notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── Relations ─────────────────────────────────────────────────────────────────
 
 export const userRelations = relations(user, ({ many }) => ({
@@ -312,6 +326,7 @@ export const userRelations = relations(user, ({ many }) => ({
   eventRsvps: many(eventRsvp),
   gigListings: many(gigListing),
   gigSwipes: many(gigSwipe),
+  userNotifications: many(userNotification),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -468,6 +483,13 @@ export const gigSwipeRelations = relations(gigSwipe, ({ one }) => ({
   }),
   user: one(user, {
     fields: [gigSwipe.userId],
+    references: [user.id],
+  }),
+}));
+
+export const userNotificationRelations = relations(userNotification, ({ one }) => ({
+  user: one(user, {
+    fields: [userNotification.userId],
     references: [user.id],
   }),
 }));

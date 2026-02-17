@@ -28,6 +28,7 @@ import {
   Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 const tabs = [
   { label: "Map", href: "/map", icon: MapPin },
@@ -95,6 +96,7 @@ export function NavBar() {
           </nav>
 
           <div className="flex items-center gap-1" dir="ltr">
+            {user && <NotificationBell />}
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
               <Sun className="hidden h-4 w-4 dark:block" />
               <Moon className="h-4 w-4 dark:hidden" />
@@ -120,6 +122,7 @@ export function NavBar() {
             </Avatar>
           </button>
           <div className="flex items-center gap-1" dir="ltr">
+            {user && <NotificationBell />}
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
               <Sun className="hidden h-4 w-4 dark:block" />
               <Moon className="h-4 w-4 dark:hidden" />

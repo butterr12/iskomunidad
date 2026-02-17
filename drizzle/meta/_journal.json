@@ -22,6 +22,13 @@
       "when": 1771332272889,
       "tag": "0002_brown_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1771354390326,
+      "tag": "0003_nosy_psylocke",
+      "breakpoints": true
     }
   ]
 }

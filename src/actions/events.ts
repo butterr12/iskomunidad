@@ -11,6 +11,7 @@ import {
   getAutoApproveSetting,
   getApprovalMode,
   createNotification,
+  createUserNotification,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 
@@ -182,6 +183,14 @@ export async function createEvent(
       targetId: created.id,
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
+      reason: rejectionReason,
+    });
+    await createUserNotification({
+      userId: session.user.id,
+      type: status === "approved" ? "event_approved" : "event_rejected",
+      contentType: "event",
+      targetId: created.id,
+      targetTitle: parsed.data.title,
       reason: rejectionReason,
     });
   }

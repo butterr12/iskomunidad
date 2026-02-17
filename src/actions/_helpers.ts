@@ -3,8 +3,12 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { adminSetting, adminNotification } from "@/lib/schema";
+import { adminSetting, adminNotification, userNotification } from "@/lib/schema";
 import { eq } from "drizzle-orm";
+import {
+  buildApprovalMessage,
+  buildRejectionMessage,
+} from "@/lib/notification-messages";
 
 // ─── ActionResult type ────────────────────────────────────────────────────────
 
@@ -95,5 +99,28 @@ export async function createNotification(data: {
     targetTitle: data.targetTitle,
     authorHandle: data.authorHandle,
     reason: data.reason ?? null,
+  });
+}
+
+export async function createUserNotification(data: {
+  userId: string;
+  type: string;        // "post_rejected", "gig_approved", etc.
+  contentType: string; // "post", "gig", "event", "landmark"
+  targetId: string;
+  targetTitle: string;
+  reason?: string;
+}) {
+  const isApproved = data.type.endsWith("_approved");
+  const message = isApproved
+    ? buildApprovalMessage(data.contentType, data.targetTitle)
+    : buildRejectionMessage(data.contentType, data.targetTitle, data.reason);
+
+  await db.insert(userNotification).values({
+    userId: data.userId,
+    type: data.type,
+    contentType: data.contentType,
+    targetId: data.targetId,
+    targetTitle: data.targetTitle,
+    message,
   });
 }

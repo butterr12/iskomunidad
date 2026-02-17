@@ -23,6 +23,7 @@ import {
   getModerationPreset,
   getCustomModerationRules,
   createNotification,
+  createUserNotification,
 } from "./_helpers";
 import { parseCompensation } from "@/lib/gigs";
 
@@ -153,6 +154,14 @@ export async function adminApprovePost(
     authorHandle: postUser?.username ?? postUser?.name ?? "unknown",
   });
 
+  await createUserNotification({
+    userId: post.userId,
+    type: "post_approved",
+    contentType: "post",
+    targetId: id,
+    targetTitle: post.title,
+  });
+
   return { success: true, data: undefined };
 }
 
@@ -185,6 +194,15 @@ export async function adminRejectPost(
     targetId: id,
     targetTitle: post.title,
     authorHandle: postUser?.username ?? postUser?.name ?? "unknown",
+    reason: parsed.data.reason,
+  });
+
+  await createUserNotification({
+    userId: post.userId,
+    type: "post_rejected",
+    contentType: "post",
+    targetId: id,
+    targetTitle: post.title,
     reason: parsed.data.reason,
   });
 
@@ -288,6 +306,14 @@ export async function adminApproveEvent(
     authorHandle: eventUser?.username ?? eventUser?.name ?? "unknown",
   });
 
+  await createUserNotification({
+    userId: event.userId,
+    type: "event_approved",
+    contentType: "event",
+    targetId: id,
+    targetTitle: event.title,
+  });
+
   return { success: true, data: undefined };
 }
 
@@ -323,6 +349,15 @@ export async function adminRejectEvent(
     targetId: id,
     targetTitle: event.title,
     authorHandle: eventUser?.username ?? eventUser?.name ?? "unknown",
+    reason: parsed.data.reason,
+  });
+
+  await createUserNotification({
+    userId: event.userId,
+    type: "event_rejected",
+    contentType: "event",
+    targetId: id,
+    targetTitle: event.title,
     reason: parsed.data.reason,
   });
 
@@ -433,6 +468,14 @@ export async function adminApproveLandmark(
       targetTitle: lm.name,
       authorHandle: lmUser?.username ?? lmUser?.name ?? "unknown",
     });
+
+    await createUserNotification({
+      userId: lm.userId,
+      type: "landmark_approved",
+      contentType: "landmark",
+      targetId: id,
+      targetTitle: lm.name,
+    });
   }
 
   return { success: true, data: undefined };
@@ -471,6 +514,15 @@ export async function adminRejectLandmark(
       targetId: id,
       targetTitle: lm.name,
       authorHandle: lmUser?.username ?? lmUser?.name ?? "unknown",
+      reason: parsed.data.reason,
+    });
+
+    await createUserNotification({
+      userId: lm.userId,
+      type: "landmark_rejected",
+      contentType: "landmark",
+      targetId: id,
+      targetTitle: lm.name,
       reason: parsed.data.reason,
     });
   }
@@ -586,6 +638,14 @@ export async function adminApproveGig(
     authorHandle: gigUser?.username ?? gigUser?.name ?? "unknown",
   });
 
+  await createUserNotification({
+    userId: gig.userId,
+    type: "gig_approved",
+    contentType: "gig",
+    targetId: id,
+    targetTitle: gig.title,
+  });
+
   return { success: true, data: undefined };
 }
 
@@ -621,6 +681,15 @@ export async function adminRejectGig(
     targetId: id,
     targetTitle: gig.title,
     authorHandle: gigUser?.username ?? gigUser?.name ?? "unknown",
+    reason: parsed.data.reason,
+  });
+
+  await createUserNotification({
+    userId: gig.userId,
+    type: "gig_rejected",
+    contentType: "gig",
+    targetId: id,
+    targetTitle: gig.title,
     reason: parsed.data.reason,
   });
 

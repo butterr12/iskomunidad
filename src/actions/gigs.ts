@@ -10,6 +10,7 @@ import {
   getOptionalSession,
   getApprovalMode,
   createNotification,
+  createUserNotification,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 import { parseCompensation } from "@/lib/gigs";
@@ -182,6 +183,14 @@ export async function createGig(
       targetId: created.id,
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
+      reason: rejectionReason,
+    });
+    await createUserNotification({
+      userId: session.user.id,
+      type: status === "approved" ? "gig_approved" : "gig_rejected",
+      contentType: "gig",
+      targetId: created.id,
+      targetTitle: parsed.data.title,
       reason: rejectionReason,
     });
   }
