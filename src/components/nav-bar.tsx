@@ -4,21 +4,21 @@ import { useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { MapPin, Users, CalendarDays, LogOut } from "lucide-react";
-import type { LandmarkCategory } from "@/lib/landmarks";
 
-const filters: { label: string; value: LandmarkCategory | "all"; icon: React.ReactNode }[] = [
-  { label: "All", value: "all", icon: <MapPin className="h-4 w-4" /> },
-  { label: "Attractions", value: "attraction", icon: <MapPin className="h-4 w-4" /> },
+export type NavTab = "map" | "community" | "events";
+
+const tabs: { label: string; value: NavTab; icon: React.ReactNode }[] = [
+  { label: "Map", value: "map", icon: <MapPin className="h-4 w-4" /> },
   { label: "Community", value: "community", icon: <Users className="h-4 w-4" /> },
-  { label: "Events", value: "event", icon: <CalendarDays className="h-4 w-4" /> },
+  { label: "Events", value: "events", icon: <CalendarDays className="h-4 w-4" /> },
 ];
 
 interface NavBarProps {
-  activeFilter: LandmarkCategory | "all";
-  onFilterChange: (filter: LandmarkCategory | "all") => void;
+  activeTab: NavTab;
+  onTabChange: (tab: NavTab) => void;
 }
 
-export function NavBar({ activeFilter, onFilterChange }: NavBarProps) {
+export function NavBar({ activeTab, onTabChange }: NavBarProps) {
   const { data: session } = useSession();
   const router = useRouter();
 
@@ -31,16 +31,16 @@ export function NavBar({ activeFilter, onFilterChange }: NavBarProps) {
         </div>
 
         <nav className="flex items-center gap-1">
-          {filters.map((f) => (
+          {tabs.map((t) => (
             <Button
-              key={f.value}
-              variant={activeFilter === f.value ? "default" : "ghost"}
+              key={t.value}
+              variant={activeTab === t.value ? "default" : "ghost"}
               size="sm"
-              onClick={() => onFilterChange(f.value)}
+              onClick={() => onTabChange(t.value)}
               className="gap-1.5"
             >
-              {f.icon}
-              <span className="hidden sm:inline">{f.label}</span>
+              {t.icon}
+              <span className="hidden sm:inline">{t.label}</span>
             </Button>
           ))}
         </nav>

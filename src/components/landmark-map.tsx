@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import Map, {
   Marker,
-  Popup,
   NavigationControl,
 } from "react-map-gl/mapbox";
 import mapboxgl from "mapbox-gl";
@@ -12,7 +11,7 @@ import type { Landmark, LandmarkCategory } from "@/lib/landmarks";
 
 const UP_DILIMAN = { latitude: 14.6538, longitude: 121.0685 };
 
-/** Apply Google Maps–like colors to Mapbox streets style. */
+/** Apply Google Maps-like colors to Mapbox streets style. */
 function applyMapTheme(map: mapboxgl.Map) {
   const layers = map.getStyle().layers;
   if (!layers) return;
@@ -64,13 +63,7 @@ const categoryColors: Record<LandmarkCategory, string> = {
   event: "#16a34a",
 };
 
-const categoryLabels: Record<LandmarkCategory, string> = {
-  attraction: "Attraction",
-  community: "Community",
-  event: "Event",
-};
-
-function MarkerPin({ color }: { color: string }) {
+function MarkerPin({ color, selected }: { color: string; selected?: boolean }) {
   return (
     <svg
       width="28"
@@ -78,6 +71,11 @@ function MarkerPin({ color }: { color: string }) {
       viewBox="0 0 28 40"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      style={{
+        transform: selected ? "scale(1.3)" : "scale(1)",
+        transformOrigin: "bottom center",
+        transition: "transform 200ms ease-out",
+      }}
     >
       <path
         d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z"
@@ -90,10 +88,11 @@ function MarkerPin({ color }: { color: string }) {
 
 interface LandmarkMapProps {
   landmarks: Landmark[];
+  onSelectLandmark: (landmark: Landmark | null) => void;
+  selectedId?: string | null;
 }
 
-export function LandmarkMap({ landmarks }: LandmarkMapProps) {
-  const [selected, setSelected] = useState<Landmark | null>(null);
+export function LandmarkMap({ landmarks, onSelectLandmark, selectedId }: LandmarkMapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   useEffect(() => {
@@ -106,12 +105,25 @@ export function LandmarkMap({ landmarks }: LandmarkMapProps) {
     });
   }, [landmarks]);
 
-  const handleMarkerClick = useCallback(
-    (landmark: Landmark) => {
-      setSelected((prev) => (prev?.id === landmark.id ? null : landmark));
-    },
-    []
-  );
+  // Fly to selected landmark after layout settles (sidebar may resize the map container)
+  useEffect(() => {
+    if (!mapRef.current || !selectedId) return;
+    const landmark = landmarks.find((l) => l.id === selectedId);
+    if (!landmark) return;
+
+    const timer = setTimeout(() => {
+      if (!mapRef.current) return;
+      mapRef.current.resize();
+      const currentZoom = mapRef.current.getZoom();
+      mapRef.current.flyTo({
+        center: [landmark.lng, landmark.lat],
+        zoom: Math.max(currentZoom, 17),
+        duration: 600,
+      });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [selectedId, landmarks]);
 
   return (
     <Map
@@ -126,6 +138,7 @@ export function LandmarkMap({ landmarks }: LandmarkMapProps) {
       mapStyle="mapbox://styles/mapbox/streets-v11"
       mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
       onLoad={(e) => applyMapTheme(e.target)}
+      onClick={() => onSelectLandmark(null)}
     >
       <NavigationControl position="top-right" />
 
@@ -137,60 +150,16 @@ export function LandmarkMap({ landmarks }: LandmarkMapProps) {
           anchor="bottom"
           onClick={(e) => {
             e.originalEvent.stopPropagation();
-            handleMarkerClick(landmark);
+            onSelectLandmark(landmark);
           }}
-          style={{ cursor: "pointer" }}
+          style={{ cursor: "pointer", zIndex: selectedId === landmark.id ? 10 : 1 }}
         >
-          <MarkerPin color={categoryColors[landmark.category]} />
+          <MarkerPin
+            color={categoryColors[landmark.category]}
+            selected={selectedId === landmark.id}
+          />
         </Marker>
       ))}
-
-      {selected && (
-        <Popup
-          latitude={selected.lat}
-          longitude={selected.lng}
-          anchor="bottom"
-          offset={40}
-          closeOnClick={false}
-          onClose={() => setSelected(null)}
-        >
-          <div style={{ minWidth: 200, maxWidth: 260 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <span
-                style={{
-                  display: "inline-block",
-                  height: 10,
-                  width: 10,
-                  borderRadius: "50%",
-                  backgroundColor: categoryColors[selected.category],
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  color: "#6b7280",
-                }}
-              >
-                {categoryLabels[selected.category]}
-              </span>
-            </div>
-            <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.25, color: "#111827" }}>
-              {selected.name}
-            </p>
-            <p style={{ marginTop: 4, fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-              {selected.description}
-            </p>
-            {selected.address && (
-              <p style={{ marginTop: 6, fontSize: 12, color: "#9ca3af" }}>
-                {selected.address}
-              </p>
-            )}
-          </div>
-        </Popup>
-      )}
     </Map>
   );
 }
