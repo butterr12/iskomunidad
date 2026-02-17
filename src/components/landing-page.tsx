@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -38,9 +38,6 @@ const features = [
 
 export function LandingPage() {
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (theme === "system" || !theme) {
@@ -64,11 +61,8 @@ export function LandingPage() {
             </span>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground hover:bg-black/10 dark:text-white dark:hover:bg-white/15" onClick={toggleTheme}>
-                {mounted && resolvedTheme === "dark" ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
+                <Sun className="hidden h-4 w-4 dark:block" />
+                <Moon className="h-4 w-4 dark:hidden" />
                 <span className="sr-only">Toggle theme</span>
               </Button>
               <Button size="sm" className="shadow-lg" asChild>
