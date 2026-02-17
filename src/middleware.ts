@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
-const publicRoutes = ["/sign-in", "/sign-up", "/verify-email", "/forgot-password", "/reset-password"];
+const publicPrefixes = ["/sign-in", "/sign-up", "/verify-email", "/forgot-password", "/reset-password", "/admin"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicRoute =
     pathname === "/" ||
-    publicRoutes.some((route) => pathname.startsWith(route));
+    publicPrefixes.some((route) => pathname.startsWith(route));
   const isApiRoute = pathname.startsWith("/api");
 
   if (isPublicRoute || isApiRoute) {

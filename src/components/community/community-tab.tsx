@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { Users, MessageCircle } from "lucide-react";
 import { SortToggle } from "./sort-toggle";
 import { FlairFilter } from "./flair-filter";
 import { PostFeed } from "./post-feed";
@@ -85,6 +86,23 @@ export function CommunityTab() {
             <SortToggle sortMode={sortMode} onSortModeChange={setSortMode} />
           </div>
           <FlairFilter activeFlair={activeFlair} onFlairChange={setActiveFlair} />
+        </div>
+      )}
+
+      {/* Welcome banner */}
+      {!selectedPost && (
+        <div className="mx-4 mt-3 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/10 px-5 py-4">
+          <p className="text-base font-semibold">What&apos;s on your mind, isko?</p>
+          <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <MessageCircle className="h-3.5 w-3.5" />
+              {posts.length} {posts.length === 1 ? "post" : "posts"}
+            </span>
+            <span className="flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" />
+              Community
+            </span>
+          </div>
         </div>
       )}
 
