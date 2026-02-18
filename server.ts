@@ -4,14 +4,7 @@ loadEnvConfig(process.cwd());
 import { createServer } from "node:http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
-import { setIO } from "./src/lib/socket-server";
-import { db } from "./src/lib/db";
-import { session as sessionTable } from "./src/lib/auth-schema";
-import { user as userTable } from "./src/lib/auth-schema";
 import { eq, and, gt } from "drizzle-orm";
-import {
-  conversationParticipant,
-} from "./src/lib/schema";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME ?? "0.0.0.0";
@@ -21,25 +14,31 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 const VALID_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-async function isConversationParticipant(
-  conversationId: string,
-  userId: string,
-): Promise<boolean> {
-  const participant = await db
-    .select({ id: conversationParticipant.id })
-    .from(conversationParticipant)
-    .where(
-      and(
-        eq(conversationParticipant.conversationId, conversationId),
-        eq(conversationParticipant.userId, userId),
-      ),
-    )
-    .limit(1);
+app.prepare().then(async () => {
+  // Dynamic imports so env vars are available when db module loads
+  const { db } = await import("./src/lib/db");
+  const { session: sessionTable, user: userTable } = await import("./src/lib/auth-schema");
+  const { conversationParticipant } = await import("./src/lib/schema");
+  const { setIO } = await import("./src/lib/socket-server");
 
-  return participant.length > 0;
-}
+  async function isConversationParticipant_(
+    conversationId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const participant = await db
+      .select({ id: conversationParticipant.id })
+      .from(conversationParticipant)
+      .where(
+        and(
+          eq(conversationParticipant.conversationId, conversationId),
+          eq(conversationParticipant.userId, userId),
+        ),
+      )
+      .limit(1);
 
-app.prepare().then(() => {
+    return participant.length > 0;
+  }
+
   const httpServer = createServer(handle);
 
   const io = new SocketIOServer(httpServer, {
@@ -120,7 +119,7 @@ app.prepare().then(() => {
         return;
       }
 
-      if (await isConversationParticipant(conversationId, userId)) {
+      if (await isConversationParticipant_(conversationId, userId)) {
         socket.join(`conv:${conversationId}`);
       }
     });
@@ -141,7 +140,7 @@ app.prepare().then(() => {
 
       const room = `conv:${conversationId}`;
       if (!socket.rooms.has(room)) return;
-      if (!(await isConversationParticipant(conversationId, userId))) return;
+      if (!(await isConversationParticipant_(conversationId, userId))) return;
 
       socket.to(room).emit("typing", {
         conversationId,
@@ -158,7 +157,7 @@ app.prepare().then(() => {
 
       const room = `conv:${conversationId}`;
       if (!socket.rooms.has(room)) return;
-      if (!(await isConversationParticipant(conversationId, userId))) return;
+      if (!(await isConversationParticipant_(conversationId, userId))) return;
 
       socket.to(room).emit("typing", {
         conversationId,
@@ -176,7 +175,7 @@ app.prepare().then(() => {
 
       const room = `conv:${conversationId}`;
       if (!socket.rooms.has(room)) return;
-      if (!(await isConversationParticipant(conversationId, userId))) return;
+      if (!(await isConversationParticipant_(conversationId, userId))) return;
 
       socket.to(room).emit("message_read", {
         conversationId,
