@@ -160,9 +160,18 @@ export function LandingPage() {
             <span className="text-lg font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
               iskomunidad
             </span>
-            <p className="text-xs text-muted-foreground">
-              Built for the campus community.
-            </p>
+            <div className="flex flex-col items-center gap-1 text-xs text-muted-foreground sm:items-end">
+              <p>Built for the campus community.</p>
+              <p className="flex items-center gap-2">
+                <Link href="/privacy" className="underline-offset-4 hover:underline">
+                  Privacy Policy
+                </Link>
+                <span aria-hidden="true">|</span>
+                <Link href="/terms" className="underline-offset-4 hover:underline">
+                  Terms of Service
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
       </footer>

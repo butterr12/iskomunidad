@@ -330,6 +330,34 @@ export const userNotificationSetting = pgTable("user_notification_setting", {
     .notNull(),
 });
 
+// ─── User Legal Consent ──────────────────────────────────────────────────────
+
+export const userLegalConsent = pgTable(
+  "user_legal_consent",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    email: text("email").notNull(),
+    consentType: text("consent_type").notNull().default("signup"),
+    termsVersion: text("terms_version").notNull(),
+    privacyVersion: text("privacy_version").notNull(),
+    legalNoticeVersion: text("legal_notice_version").notNull(),
+    agreedToTerms: boolean("agreed_to_terms").notNull().default(false),
+    agreedToPrivacy: boolean("agreed_to_privacy").notNull().default(false),
+    ageAttested: boolean("age_attested").notNull().default(false),
+    guardianConsentAttested: boolean("guardian_consent_attested")
+      .notNull()
+      .default(false),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("user_legal_consent_user_created_idx").on(table.userId, table.createdAt),
+    index("user_legal_consent_email_created_idx").on(table.email, table.createdAt),
+  ],
+);
+
 // ─── Relations ─────────────────────────────────────────────────────────────────
 
 export const userRelations = relations(user, ({ many, one }) => ({
@@ -346,6 +374,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   gigListings: many(gigListing),
   gigSwipes: many(gigSwipe),
   userNotifications: many(userNotification),
+  legalConsents: many(userLegalConsent),
   notificationSetting: one(userNotificationSetting, {
     fields: [user.id],
     references: [userNotificationSetting.userId],
@@ -520,6 +549,13 @@ export const userNotificationRelations = relations(userNotification, ({ one }) =
 export const userNotificationSettingRelations = relations(userNotificationSetting, ({ one }) => ({
   user: one(user, {
     fields: [userNotificationSetting.userId],
+    references: [user.id],
+  }),
+}));
+
+export const userLegalConsentRelations = relations(userLegalConsent, ({ one }) => ({
+  user: one(user, {
+    fields: [userLegalConsent.userId],
     references: [user.id],
   }),
 }));
