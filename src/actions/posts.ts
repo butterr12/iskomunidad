@@ -7,8 +7,9 @@ import {
   postComment,
   postVote,
   commentVote,
+  userFollow,
 } from "@/lib/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, inArray } from "drizzle-orm";
 import {
   type ActionResult,
   getSessionOrThrow,
@@ -78,6 +79,54 @@ export async function getApprovedPosts(
     });
     userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
   }
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      author: r.user.name,
+      authorHandle: r.user.username ? `@${r.user.username}` : null,
+      authorImage: r.user.image,
+      userVote: userVotes[r.id] ?? 0,
+    })),
+  };
+}
+
+export async function getFollowingPosts(
+  opts?: { sort?: "hot" | "new" | "top" },
+): Promise<ActionResult<unknown[]>> {
+  const session = await getSessionOrThrow();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  // Get IDs of users the current user follows
+  const followedUserIds = db
+    .select({ id: userFollow.followingId })
+    .from(userFollow)
+    .where(eq(userFollow.followerId, session.user.id));
+
+  const rows = await db.query.communityPost.findMany({
+    where: (p, { eq: e, and: a }) =>
+      a(
+        e(p.status, "approved"),
+        inArray(p.userId, followedUserIds),
+      ),
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+    },
+    orderBy: (p, { desc: d }) => {
+      if (opts?.sort === "top") return [d(p.score)];
+      if (opts?.sort === "new") return [d(p.createdAt)];
+      return [d(p.score), d(p.createdAt)];
+    },
+  });
+
+  // Get current user's votes
+  const votes = await db.query.postVote.findMany({
+    where: eq(postVote.userId, session.user.id),
+  });
+  const userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
 
   return {
     success: true,

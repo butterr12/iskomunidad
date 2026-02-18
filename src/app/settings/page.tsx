@@ -10,6 +10,11 @@ import {
   getNotificationPreferences,
   updateNotificationPreferences,
 } from "@/actions/notifications";
+import {
+  getPrivacySettings,
+  updatePrivacySettings,
+  type PrivacySettings,
+} from "@/actions/follows";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +35,9 @@ import {
   Loader2,
   XCircle,
   KeyRound,
+  Shield,
+  UserPlus,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -92,6 +100,15 @@ export default function SettingsPage() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Privacy settings state
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({
+    allowFollowsFrom: "everyone",
+    allowMessagesFrom: "everyone",
+  });
+  const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [privacySaving, setPrivacySaving] = useState(false);
+  const [privacyMessage, setPrivacyMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   // Sync state when session loads, but only if user hasn't started editing
   useEffect(() => {
     if (user && !dirty) {
@@ -130,6 +147,29 @@ export default function SettingsPage() {
     }
 
     void loadNotificationPreferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Load privacy settings
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) return;
+
+    async function loadPrivacySettings() {
+      setPrivacyLoading(true);
+      const res = await getPrivacySettings();
+      if (cancelled) return;
+
+      if (res.success) {
+        setPrivacySettings(res.data);
+      }
+      setPrivacyLoading(false);
+    }
+
+    void loadPrivacySettings();
 
     return () => {
       cancelled = true;
@@ -280,6 +320,28 @@ export default function SettingsPage() {
     } finally {
       setPasswordSaving(false);
     }
+  }
+
+  async function handlePrivacyChange(
+    key: keyof PrivacySettings,
+    checked: boolean,
+  ) {
+    const prev = privacySettings;
+    const next = { ...prev, [key]: checked ? "everyone" : "nobody" };
+    setPrivacySettings(next);
+    setPrivacyMessage(null);
+    setPrivacySaving(true);
+
+    const res = await updatePrivacySettings(next);
+    if (res.success) {
+      setPrivacySettings(res.data);
+      setPrivacyMessage({ type: "success", text: "Privacy settings updated." });
+    } else {
+      setPrivacySettings(prev);
+      setPrivacyMessage({ type: "error", text: res.error });
+    }
+
+    setPrivacySaving(false);
   }
 
   async function handleNotificationPreferenceChange(
@@ -521,6 +583,65 @@ export default function SettingsPage() {
             </Card>
           </section>
         )}
+
+        {/* Privacy */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Privacy
+          </h2>
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Allow follows</p>
+                    <p className="text-xs text-muted-foreground">Let others follow you</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={privacySettings.allowFollowsFrom === "everyone"}
+                  onCheckedChange={(checked) => {
+                    void handlePrivacyChange("allowFollowsFrom", checked);
+                  }}
+                  disabled={privacyLoading || privacySaving}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Allow messages</p>
+                    <p className="text-xs text-muted-foreground">Let others send you messages</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={privacySettings.allowMessagesFrom === "everyone"}
+                  onCheckedChange={(checked) => {
+                    void handlePrivacyChange("allowMessagesFrom", checked);
+                  }}
+                  disabled={privacyLoading || privacySaving}
+                />
+              </div>
+              {privacyMessage && (
+                <>
+                  <Separator />
+                  <p
+                    className={cn(
+                      "text-sm",
+                      privacyMessage.type === "success"
+                        ? "text-green-600"
+                        : "text-red-500",
+                    )}
+                  >
+                    {privacyMessage.text}
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </section>
 
         {/* Notifications */}
         <section className="space-y-3">

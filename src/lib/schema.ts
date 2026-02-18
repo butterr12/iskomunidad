@@ -358,6 +358,41 @@ export const userLegalConsent = pgTable(
   ],
 );
 
+// ─── User Follow ────────────────────────────────────────────────────────────
+
+export const userFollow = pgTable(
+  "user_follow",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    followerId: text("follower_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    followingId: text("following_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_follow_pair_idx").on(table.followerId, table.followingId),
+    index("user_follow_follower_idx").on(table.followerId),
+    index("user_follow_following_idx").on(table.followingId),
+  ],
+);
+
+// ─── User Privacy Setting ───────────────────────────────────────────────────
+
+export const userPrivacySetting = pgTable("user_privacy_setting", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  allowFollowsFrom: text("allow_follows_from").notNull().default("everyone"), // "everyone" | "nobody"
+  allowMessagesFrom: text("allow_messages_from").notNull().default("everyone"), // "everyone" | "nobody"
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
 // ─── Relations ─────────────────────────────────────────────────────────────────
 
 export const userRelations = relations(user, ({ many, one }) => ({
@@ -378,6 +413,12 @@ export const userRelations = relations(user, ({ many, one }) => ({
   notificationSetting: one(userNotificationSetting, {
     fields: [user.id],
     references: [userNotificationSetting.userId],
+  }),
+  following: many(userFollow, { relationName: "follower" }),
+  followers: many(userFollow, { relationName: "following" }),
+  privacySetting: one(userPrivacySetting, {
+    fields: [user.id],
+    references: [userPrivacySetting.userId],
   }),
 }));
 
@@ -556,6 +597,26 @@ export const userNotificationSettingRelations = relations(userNotificationSettin
 export const userLegalConsentRelations = relations(userLegalConsent, ({ one }) => ({
   user: one(user, {
     fields: [userLegalConsent.userId],
+    references: [user.id],
+  }),
+}));
+
+export const userFollowRelations = relations(userFollow, ({ one }) => ({
+  follower: one(user, {
+    fields: [userFollow.followerId],
+    references: [user.id],
+    relationName: "follower",
+  }),
+  following: one(user, {
+    fields: [userFollow.followingId],
+    references: [user.id],
+    relationName: "following",
+  }),
+}));
+
+export const userPrivacySettingRelations = relations(userPrivacySetting, ({ one }) => ({
+  user: one(user, {
+    fields: [userPrivacySetting.userId],
     references: [user.id],
   }),
 }));

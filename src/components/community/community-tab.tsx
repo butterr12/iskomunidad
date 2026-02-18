@@ -26,6 +26,7 @@ import {
 } from "@/lib/posts";
 import {
   getApprovedPosts,
+  getFollowingPosts,
   getPostById,
   voteOnPost,
   voteOnComment,
@@ -77,6 +78,7 @@ function PostFeedSkeleton() {
 export function CommunityTab() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
+  const [feedMode, setFeedMode] = useState<"all" | "following">("all");
   const [sortMode, setSortMode] = useState<SortMode>("hot");
   const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
@@ -96,26 +98,37 @@ export function CommunityTab() {
     },
   });
 
+  const { data: followingPosts = [], isLoading: followingLoading } = useQuery({
+    queryKey: ["following-posts", sortMode],
+    queryFn: async () => {
+      const res = await getFollowingPosts({ sort: sortMode });
+      return res.success ? (res.data as CommunityPost[]) : [];
+    },
+    enabled: feedMode === "following" && !!user,
+  });
+
+  const activePosts = feedMode === "following" ? followingPosts : posts;
+  const activeLoading = feedMode === "following" ? followingLoading : isLoading;
+
   const filteredAndSorted = useMemo(() => {
     const filtered = activeFlair
-      ? posts.filter((p) => p.flair === activeFlair)
-      : posts;
+      ? activePosts.filter((p) => p.flair === activeFlair)
+      : activePosts;
     return sortPosts(filtered, sortMode);
-  }, [posts, activeFlair, sortMode]);
+  }, [activePosts, activeFlair, sortMode]);
 
   const handleVotePost = async (postId: string, direction: VoteDirection) => {
     const res = await voteOnPost(postId, direction);
     if (res.success) {
-      queryClient.setQueryData<CommunityPost[]>(
-        ["approved-posts", sortMode],
-        (old) =>
-          old?.map((p) => {
-            if (p.id !== postId) return p;
-            const updated = { ...p, score: res.data.newScore, userVote: direction };
-            if (selectedPost?.id === postId) setSelectedPost(updated);
-            return updated;
-          }),
-      );
+      const updateFn = (old: CommunityPost[] | undefined) =>
+        old?.map((p) => {
+          if (p.id !== postId) return p;
+          const updated = { ...p, score: res.data.newScore, userVote: direction };
+          if (selectedPost?.id === postId) setSelectedPost(updated);
+          return updated;
+        });
+      queryClient.setQueryData<CommunityPost[]>(["approved-posts", sortMode], updateFn);
+      queryClient.setQueryData<CommunityPost[]>(["following-posts", sortMode], updateFn);
     }
   };
 
@@ -153,6 +166,7 @@ export function CommunityTab() {
     const res = await createPost(data);
     if (res.success) {
       await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
+      await queryClient.invalidateQueries({ queryKey: ["following-posts"] });
       const status = (res.data as { status?: string }).status;
       toast.success(
         status === "draft"
@@ -233,6 +247,31 @@ export function CommunityTab() {
             <h2 className="text-lg font-semibold">Community</h2>
             <SortToggle sortMode={sortMode} onSortModeChange={setSortMode} />
           </div>
+          {/* Feed mode tabs */}
+          {user && (
+            <div className="flex gap-1 px-4 pb-1.5">
+              <button
+                onClick={() => setFeedMode("all")}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  feedMode === "all"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFeedMode("following")}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  feedMode === "following"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Following
+              </button>
+            </div>
+          )}
           {/* Flair filter visible only on mobile */}
           <div className="lg:hidden">
             <FlairFilter activeFlair={activeFlair} onFlairChange={setActiveFlair} />
@@ -261,7 +300,7 @@ export function CommunityTab() {
                   <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <MessageCircle className="h-3.5 w-3.5" />
-                      {posts.length} {posts.length === 1 ? "post" : "posts"}
+                      {activePosts.length} {activePosts.length === 1 ? "post" : "posts"}
                     </span>
                     <span className="flex items-center gap-1">
                       <Users className="h-3.5 w-3.5" />
@@ -282,8 +321,14 @@ export function CommunityTab() {
                 onComment={handleComment}
                 onReply={handleReply}
               />
-            ) : isLoading ? (
+            ) : activeLoading ? (
               <PostFeedSkeleton />
+            ) : feedMode === "following" && filteredAndSorted.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
+                <Users className="h-10 w-10 text-muted-foreground/40" />
+                <p className="text-sm font-medium">No posts from people you follow</p>
+                <p className="text-xs">Follow others to see their posts here!</p>
+              </div>
             ) : (
               <PostFeed
                 posts={filteredAndSorted}
@@ -373,7 +418,7 @@ export function CommunityTab() {
                     </span>
                     <span className="flex items-center gap-1">
                       <MessageCircle className="h-3.5 w-3.5" />
-                      {posts.length} posts
+                      {activePosts.length} posts
                     </span>
                   </div>
                 </div>

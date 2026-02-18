@@ -50,6 +50,13 @@
       "when": 1771397600115,
       "tag": "0006_volatile_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1771398100354,
+      "tag": "0007_bitter_silhouette",
+      "breakpoints": true
     }
   ]
 }

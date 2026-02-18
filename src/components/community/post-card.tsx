@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageCircle, MapPin, ExternalLink } from "lucide-react";
@@ -53,7 +54,17 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
               {post.authorImage && <AvatarImage src={post.authorImage} alt={post.author} />}
               <AvatarFallback className="text-[9px] font-medium">{getInitials(post.author)}</AvatarFallback>
             </Avatar>
-            <span>{post.authorHandle}</span>
+            {post.authorHandle ? (
+              <Link
+                href={`/profile/${post.authorHandle.replace("@", "")}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:underline hover:text-foreground"
+              >
+                {post.authorHandle}
+              </Link>
+            ) : (
+              <span>{post.author}</span>
+            )}
             <span>·</span>
             <span>{formatRelativeTime(post.createdAt)}</span>
             {post.locationId && (

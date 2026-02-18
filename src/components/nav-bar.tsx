@@ -26,6 +26,7 @@ import {
   Shield,
   Sun,
   Moon,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -188,6 +189,18 @@ export function NavBar() {
             <Separator />
 
             {/* Menu items */}
+            {displayUsername && (
+              <SheetClose asChild>
+                <button
+                  onClick={() => router.push(`/profile/${displayUsername}`)}
+                  className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted transition-colors"
+                >
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  My Profile
+                </button>
+              </SheetClose>
+            )}
+
             {user?.role === "admin" && (
               <SheetClose asChild>
                 <button
