@@ -25,6 +25,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+type OptimisticMessage = MessageData & {
+  _optimistic: true;
+  _tempId: string;
+  _status: "sending" | "failed";
+  _imagePreviewUrl?: string;
+  _imageFile?: File;
+};
+
 function getInitials(name?: string | null): string {
   if (!name) return "?";
   return name
@@ -49,10 +57,9 @@ export function ChatPanel({
   const userId = session?.user?.id;
 
   const [messageText, setMessageText] = useState("");
-  const [sending, setSending] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [readBy, setReadBy] = useState<string | null>(null);
 
@@ -99,7 +106,7 @@ export function ChatPanel({
 
   useEffect(() => {
     scrollToBottom();
-  }, [allMessages.length, scrollToBottom]);
+  }, [allMessages.length, optimisticMessages.length, scrollToBottom]);
 
   // Join conversation room
   useEffect(() => {
@@ -143,6 +150,19 @@ export function ChatPanel({
             };
           },
         );
+        // Remove matching optimistic message (our own message confirmed by server)
+        if (msg.senderId === userId) {
+          setOptimisticMessages((prev) => {
+            const idx = prev.findIndex(
+              (om) =>
+                om.senderId === msg.senderId &&
+                om.body === msg.body &&
+                om._status === "sending",
+            );
+            if (idx === -1) return prev;
+            return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+          });
+        }
         // Mark as read if it's from the other user
         if (msg.senderId !== userId) {
           void markAsRead(conversation.id);
@@ -231,60 +251,102 @@ export function ChatPanel({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  async function handleSend() {
-    if (sending) return;
-    const body = messageText.trim();
-    if (!body && !imageFile) return;
-
-    setSending(true);
+  async function fireAndForgetSend(om: OptimisticMessage) {
     let imageUrl: string | undefined;
 
     // Upload image if present
-    if (imageFile) {
-      setUploading(true);
+    if (om._imageFile) {
       const formData = new FormData();
-      formData.append("file", imageFile);
+      formData.append("file", om._imageFile);
       try {
         const uploadRes = await fetch("/api/upload", {
           method: "POST",
           body: formData,
         });
-        if (!uploadRes.ok) {
-          toast.error("Failed to upload image");
-          setSending(false);
-          setUploading(false);
-          return;
-        }
+        if (!uploadRes.ok) throw new Error("Upload failed");
         const uploadData = await uploadRes.json();
         imageUrl = uploadData.key;
       } catch {
-        toast.error("Failed to upload image");
-        setSending(false);
-        setUploading(false);
+        setOptimisticMessages((prev) =>
+          prev.map((m) =>
+            m._tempId === om._tempId ? { ...m, _status: "failed" as const } : m,
+          ),
+        );
         return;
       }
-      setUploading(false);
     }
 
     const res = await sendMessage({
       conversationId: conversation.id,
-      body: body || undefined,
+      body: om.body || undefined,
       imageUrl,
     });
 
-    if (res.success) {
-      setMessageText("");
-      clearImage();
-      textareaRef.current?.focus();
-      // Stop typing
-      if (socket) {
-        socket.emit("typing_stop", conversation.id);
-      }
-    } else {
-      toast.error(res.error);
+    if (!res.success) {
+      setOptimisticMessages((prev) =>
+        prev.map((m) =>
+          m._tempId === om._tempId ? { ...m, _status: "failed" as const } : m,
+        ),
+      );
+    }
+    // On success, the socket `new_message` event will remove the optimistic entry
+  }
+
+  function handleSend() {
+    const body = messageText.trim();
+    if (!body && !imageFile) return;
+
+    const tempId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const om: OptimisticMessage = {
+      id: tempId,
+      conversationId: conversation.id,
+      senderId: userId ?? null,
+      body: body || null,
+      imageUrl: null,
+      createdAt: now,
+      sender: session?.user
+        ? {
+            id: session.user.id,
+            name: session.user.name ?? "",
+            username: (session.user as Record<string, unknown>).username as string | null ?? null,
+            image: session.user.image ?? null,
+          }
+        : null,
+      _optimistic: true,
+      _tempId: tempId,
+      _status: "sending",
+      _imagePreviewUrl: imagePreview ?? undefined,
+      _imageFile: imageFile ?? undefined,
+    };
+
+    // Add to optimistic queue immediately
+    setOptimisticMessages((prev) => [...prev, om]);
+
+    // Clear input right away so user can keep typing
+    setMessageText("");
+    clearImage();
+    textareaRef.current?.focus();
+
+    // Stop typing indicator
+    if (socket) {
+      socket.emit("typing_stop", conversation.id);
     }
 
-    setSending(false);
+    // Fire and forget
+    void fireAndForgetSend(om);
+  }
+
+  function handleRetry(tempId: string) {
+    const om = optimisticMessages.find((m) => m._tempId === tempId);
+    if (!om) return;
+    setOptimisticMessages((prev) =>
+      prev.map((m) =>
+        m._tempId === tempId ? { ...m, _status: "sending" as const } : m,
+      ),
+    );
+    void fireAndForgetSend({ ...om, _status: "sending" });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -373,27 +435,53 @@ export function ChatPanel({
               </div>
             ))}
           </div>
-        ) : allMessages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              No messages yet. Say hello!
-            </p>
-          </div>
-        ) : (
-          allMessages.map((msg, i) => {
+        ) : (() => {
+          // Merge confirmed messages with optimistic ones, deduplicating
+          const pendingOptimistic = optimisticMessages.filter(
+            (om) =>
+              !allMessages.some(
+                (m) => m.senderId === om.senderId && m.body === om.body,
+              ),
+          );
+          const displayMessages = [...allMessages, ...pendingOptimistic];
+          displayMessages.sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
+
+          if (displayMessages.length === 0) {
+            return (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  No messages yet. Say hello!
+                </p>
+              </div>
+            );
+          }
+
+          return displayMessages.map((msg, i) => {
             const isOwn = msg.senderId === userId;
-            const prevMsg = i > 0 ? allMessages[i - 1] : null;
+            const prevMsg = i > 0 ? displayMessages[i - 1] : null;
             const showAvatar = !prevMsg || prevMsg.senderId !== msg.senderId;
+            const isOptimistic = "_optimistic" in msg;
+            const optimisticMsg = isOptimistic ? (msg as OptimisticMessage) : null;
             return (
               <MessageBubble
-                key={msg.id}
+                key={isOptimistic ? (msg as OptimisticMessage)._tempId : msg.id}
                 message={msg}
                 isOwn={isOwn}
                 showAvatar={showAvatar}
+                status={optimisticMsg?._status}
+                onRetry={
+                  optimisticMsg?._status === "failed"
+                    ? () => handleRetry(optimisticMsg._tempId)
+                    : undefined
+                }
+                imagePreviewUrl={optimisticMsg?._imagePreviewUrl}
               />
             );
-          })
-        )}
+          });
+        })()}
 
         {/* Typing indicator */}
         {typingUser && (
@@ -449,7 +537,6 @@ export function ChatPanel({
               size="icon"
               className="h-9 w-9 shrink-0"
               onClick={() => fileInputRef.current?.click()}
-              disabled={sending}
             >
               <ImagePlus className="h-5 w-5" />
             </Button>
@@ -470,13 +557,9 @@ export function ChatPanel({
               size="icon"
               className="h-9 w-9 shrink-0"
               onClick={handleSend}
-              disabled={sending || (!messageText.trim() && !imageFile)}
+              disabled={!messageText.trim() && !imageFile}
             >
-              {sending || uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+              <Send className="h-4 w-4" />
             </Button>
           </div>
         </div>

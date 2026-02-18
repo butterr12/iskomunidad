@@ -138,17 +138,23 @@
   }
 }
 
-/* Mobile bottom navbar clearance (always 3.5rem, plus safe area on notched devices) */
-.pb-safe-nav {
-  padding-bottom: 3.5rem;
+/* Mobile bottom navbar clearance — only below sm breakpoint (640px) */
+@media (max-width: 639px) {
+  .pb-safe-nav {
+    padding-bottom: 3.5rem;
+  }
+
+  /* PWA safe-area support for standalone mode on notched devices */
+  @supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .pb-safe-nav {
+      padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
+    }
+  }
 }
 
 /* PWA safe-area support for standalone mode on notched devices */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
-  }
-  .pb-safe-nav {
-    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
   }
 }

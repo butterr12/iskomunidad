@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -17,11 +17,31 @@ import { cn } from "@/lib/utils";
 export default function MessagesPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const withUserId = searchParams.get("with");
+  const chatId = searchParams.get("chat");
 
   const [activeConversation, setActiveConversation] =
     useState<ConversationPreview | null>(null);
   const [initializing, setInitializing] = useState(false);
+
+  // Update URL when active conversation changes
+  const selectConversation = useCallback(
+    (conv: ConversationPreview | null) => {
+      setActiveConversation(conv);
+      const params = new URLSearchParams(searchParams.toString());
+      if (conv) {
+        params.set("chat", conv.id);
+      } else {
+        params.delete("chat");
+      }
+      params.delete("with"); // clean up after navigation
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [searchParams, router, pathname],
+  );
 
   // Fetch conversations for auto-open via ?with= param
   const { data: conversationsData } = useQuery({
@@ -41,6 +61,13 @@ export default function MessagesPage() {
     [conversationsData?.messages, conversationsData?.requests],
   );
 
+  // Restore conversation from ?chat= param on load
+  useEffect(() => {
+    if (!chatId || activeConversation || allConversations.length === 0) return;
+    const found = allConversations.find((c) => c.id === chatId);
+    if (found) setActiveConversation(found);
+  }, [chatId, activeConversation, allConversations]);
+
   // Handle ?with= param — auto-create or find conversation
   useEffect(() => {
     if (!withUserId || !session?.user || initializing) return;
@@ -52,7 +79,7 @@ export default function MessagesPage() {
         // Find this conversation in the list, or refetch
         const found = allConversations.find((c) => c.id === res.data.conversationId);
         if (found) {
-          setActiveConversation(found);
+          selectConversation(found);
         } else {
           // The conversation is new, refetch and find it
           const freshRes = await getConversations();
@@ -64,7 +91,7 @@ export default function MessagesPage() {
             const freshFound = allFresh.find(
               (c) => c.id === res.data.conversationId,
             );
-            if (freshFound) setActiveConversation(freshFound);
+            if (freshFound) selectConversation(freshFound);
           }
         }
       }
@@ -115,7 +142,7 @@ export default function MessagesPage() {
       >
         <ConversationList
           activeConversationId={activeConversation?.id ?? null}
-          onSelect={setActiveConversation}
+          onSelect={selectConversation}
         />
       </div>
 
@@ -130,7 +157,7 @@ export default function MessagesPage() {
           <ChatPanel
             key={activeConversation.id}
             conversation={activeConversation}
-            onBack={() => setActiveConversation(null)}
+            onBack={() => selectConversation(null)}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
