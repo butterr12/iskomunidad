@@ -8,8 +8,8 @@ interface SortToggleProps {
 }
 
 const modes: { value: SortMode; label: string; icon: React.ReactNode }[] = [
-  { value: "hot", label: "Hot", icon: <Flame /> },
   { value: "new", label: "New", icon: <Clock /> },
+  { value: "hot", label: "Hot", icon: <Flame /> },
   { value: "top", label: "Top", icon: <TrendingUp /> },
 ];
 

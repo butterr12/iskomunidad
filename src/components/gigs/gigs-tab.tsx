@@ -1,8 +1,9 @@
 /* eslint-disable */
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bookmark, Plus, Hammer, Briefcase } from "lucide-react";
@@ -60,6 +61,8 @@ function GigListSkeleton() {
 
 export function GigsTab() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const gigParam = searchParams.get("gig");
   const [viewMode, setViewMode] = useState<"list" | "swipe">("list");
   const [selectedGig, setSelectedGig] = useState<GigListing | null>(null);
   const [activeCategory, setActiveCategory] = useState<GigCategory | null>(null);
@@ -110,6 +113,13 @@ export function GigsTab() {
     const latest = gigs.find((g) => g.id === gig.id) ?? gig;
     setSelectedGig(latest);
   };
+
+  // Auto-select gig from ?gig= param
+  useEffect(() => {
+    if (!gigParam || selectedGig || gigs.length === 0) return;
+    const found = gigs.find((g) => g.id === gigParam);
+    if (found) handleSelectGig(found);
+  }, [gigParam, gigs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSwipe = async (gigId: string, action: "saved" | "skipped") => {
     await swipeGig(gigId, action);

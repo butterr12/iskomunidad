@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { Bell, CheckCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -70,8 +71,24 @@ function NotificationSkeleton() {
   );
 }
 
+function getNotificationHref(n: Notification): string | null {
+  switch (n.contentType) {
+    case "post":
+      return `/community?post=${n.targetId}`;
+    case "gig":
+      return `/gigs?gig=${n.targetId}`;
+    case "event":
+      return `/events?event=${n.targetId}`;
+    case "landmark":
+      return `/map?landmark=${n.targetId}`;
+    default:
+      return null;
+  }
+}
+
 export function NotificationList() {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const { data: notifications, isLoading } = useQuery({
     queryKey: ["userNotifications"],
@@ -138,7 +155,7 @@ export function NotificationList() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-14 sm:top-14 z-10 bg-background/95 backdrop-blur-sm py-3 -mt-3">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold">Notifications</h1>
@@ -177,6 +194,8 @@ export function NotificationList() {
                 )}
                 onClick={() => {
                   if (!n.isRead) markReadMutation.mutate(n.id);
+                  const href = getNotificationHref(n);
+                  if (href) router.push(href);
                 }}
               >
                 <div className="flex items-start gap-3">

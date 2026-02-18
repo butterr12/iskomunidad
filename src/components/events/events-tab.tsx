@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { Plus, CalendarDays, Users, Search, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,8 @@ function EventListSkeleton() {
 
 export function EventsTab() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const eventParam = searchParams.get("event");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedEvent, setSelectedEvent] = useState<CampusEvent | null>(null);
   const [tab, setTab] = useState<"all" | "mine">("all");
@@ -99,6 +102,13 @@ export function EventsTab() {
     const latest = events.find((e) => e.id === event.id) ?? event;
     setSelectedEvent(latest);
   };
+
+  // Auto-select event from ?event= param
+  useEffect(() => {
+    if (!eventParam || selectedEvent || events.length === 0) return;
+    const found = events.find((e) => e.id === eventParam);
+    if (found) handleSelectEvent(found);
+  }, [eventParam, events.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">

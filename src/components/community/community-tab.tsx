@@ -1,8 +1,9 @@
 /* eslint-disable */
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { Plus, MessageCircle, Users } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,8 +79,10 @@ function PostFeedSkeleton() {
 export function CommunityTab() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const postParam = searchParams.get("post");
   const [feedMode, setFeedMode] = useState<"all" | "following">("all");
-  const [sortMode, setSortMode] = useState<SortMode>("hot");
+  const [sortMode, setSortMode] = useState<SortMode>("new");
   const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -153,6 +156,13 @@ export function CommunityTab() {
       setComments(data.comments ?? []);
     }
   };
+
+  // Auto-select post from ?post= param
+  useEffect(() => {
+    if (!postParam || selectedPost || posts.length === 0) return;
+    const found = posts.find((p) => p.id === postParam);
+    if (found) void handleSelectPost(found);
+  }, [postParam, posts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreatePost = async (data: {
     title: string;
