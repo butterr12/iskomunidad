@@ -43,6 +43,13 @@
       "when": 1771390964521,
       "tag": "0005_furry_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1771397600115,
+      "tag": "0006_volatile_jubilee",
+      "breakpoints": true
     }
   ]
 }

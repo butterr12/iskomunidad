@@ -6,7 +6,7 @@ import { useSession, signOut } from "@/lib/auth-client";
 interface AdminAuthContextValue {
   isAdmin: boolean;
   isLoading: boolean;
-  user: { name: string; email: string; image?: string | null } | null;
+  user: { id: string; name: string; email: string; image?: string | null } | null;
   logout: () => void;
 }
 

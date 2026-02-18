@@ -14,6 +14,10 @@ export const user = pgTable("user", {
   username: text("username").unique(),
   displayUsername: text("display_username"),
   role: text("role").notNull().default("user"), // "user" | "admin"
+  status: text("status").notNull().default("active"), // "active" | "banned" | "deleted"
+  bannedAt: timestamp("banned_at"),
+  banReason: text("ban_reason"),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const session = pgTable(

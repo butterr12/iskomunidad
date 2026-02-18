@@ -935,3 +935,183 @@ export async function adminUpdateSettings(
 
   return { success: true, data: undefined };
 }
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+const roleSchema = z.object({
+  role: z.enum(["user", "admin"]),
+});
+
+const banSchema = z.object({
+  reason: z.string().min(1),
+});
+
+export async function adminGetAllUsers(): Promise<ActionResult<unknown[]>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const rows = await db.query.user.findMany({
+    orderBy: (u, { desc: d }) => [d(u.createdAt)],
+  });
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      bannedAt: r.bannedAt?.toISOString() ?? null,
+      deletedAt: r.deletedAt?.toISOString() ?? null,
+    })),
+  };
+}
+
+export async function adminGetUserDetail(
+  id: string,
+): Promise<
+  ActionResult<{
+    user: unknown;
+    counts: { posts: number; events: number; gigs: number; locations: number };
+  }>
+> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const row = await db.query.user.findFirst({
+    where: eq(user.id, id),
+  });
+
+  if (!row) return { success: false, error: "User not found" };
+
+  const [postCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(communityPost)
+    .where(eq(communityPost.userId, id));
+
+  const [eventCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(campusEvent)
+    .where(eq(campusEvent.userId, id));
+
+  const [gigCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(gigListing)
+    .where(eq(gigListing.userId, id));
+
+  const [locationCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(landmark)
+    .where(eq(landmark.userId, id));
+
+  return {
+    success: true,
+    data: {
+      user: {
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+        bannedAt: row.bannedAt?.toISOString() ?? null,
+        deletedAt: row.deletedAt?.toISOString() ?? null,
+      },
+      counts: {
+        posts: Number(postCount.count),
+        events: Number(eventCount.count),
+        gigs: Number(gigCount.count),
+        locations: Number(locationCount.count),
+      },
+    },
+  };
+}
+
+export async function adminUpdateUserRole(
+  id: string,
+  role: string,
+): Promise<ActionResult<void>> {
+  const parsed = roleSchema.safeParse({ role });
+  if (!parsed.success)
+    return { success: false, error: "Invalid role" };
+
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  if (session.user.id === id)
+    return { success: false, error: "Cannot change your own role" };
+
+  await db
+    .update(user)
+    .set({ role: parsed.data.role })
+    .where(eq(user.id, id));
+
+  return { success: true, data: undefined };
+}
+
+export async function adminBanUser(
+  id: string,
+  reason: string,
+): Promise<ActionResult<void>> {
+  const parsed = banSchema.safeParse({ reason });
+  if (!parsed.success)
+    return { success: false, error: "Reason is required" };
+
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  if (session.user.id === id)
+    return { success: false, error: "Cannot ban yourself" };
+
+  await db
+    .update(user)
+    .set({
+      status: "banned",
+      bannedAt: new Date(),
+      banReason: parsed.data.reason,
+    })
+    .where(eq(user.id, id));
+
+  return { success: true, data: undefined };
+}
+
+export async function adminUnbanUser(
+  id: string,
+): Promise<ActionResult<void>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  await db
+    .update(user)
+    .set({ status: "active", bannedAt: null, banReason: null })
+    .where(eq(user.id, id));
+
+  return { success: true, data: undefined };
+}
+
+export async function adminSoftDeleteUser(
+  id: string,
+): Promise<ActionResult<void>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  if (session.user.id === id)
+    return { success: false, error: "Cannot delete yourself" };
+
+  await db
+    .update(user)
+    .set({ status: "deleted", deletedAt: new Date() })
+    .where(eq(user.id, id));
+
+  return { success: true, data: undefined };
+}
+
+export async function adminRestoreUser(
+  id: string,
+): Promise<ActionResult<void>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  await db
+    .update(user)
+    .set({ status: "active", deletedAt: null })
+    .where(eq(user.id, id));
+
+  return { success: true, data: undefined };
+}

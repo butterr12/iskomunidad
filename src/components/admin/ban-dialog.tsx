@@ -1,0 +1,68 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+
+interface BanDialogProps {
+  open: boolean;
+  userName: string;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}
+
+export function BanDialog({ open, userName, onClose, onConfirm }: BanDialogProps) {
+  const [reason, setReason] = useState("");
+
+  const handleConfirm = () => {
+    if (reason.trim()) {
+      onConfirm(reason.trim());
+      setReason("");
+    }
+  };
+
+  const handleClose = () => {
+    setReason("");
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Ban User</DialogTitle>
+          <DialogDescription>
+            Banning &quot;{userName}&quot;. Please provide a reason.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="ban-reason">Reason</Label>
+          <Textarea
+            id="ban-reason"
+            placeholder="Enter ban reason..."
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={handleConfirm} disabled={!reason.trim()}>
+            Ban User
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

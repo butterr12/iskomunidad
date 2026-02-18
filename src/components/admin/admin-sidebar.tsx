@@ -15,6 +15,7 @@ import {
   Calendar,
   MapPin,
   Briefcase,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,12 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/gigs/queue", label: "Gigs Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/gigs", label: "All Gigs", shortLabel: "Gigs", icon: Briefcase },
+    ],
+  },
+  {
+    label: "Users",
+    items: [
+      { href: "/admin/users", label: "All Users", shortLabel: "Users", icon: Users },
     ],
   },
   {
