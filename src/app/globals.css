@@ -150,6 +150,14 @@
       padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
     }
   }
+
+  /* Hide bottom nav and its padding when chat panel is active */
+  html[data-chat-active] [data-mobile-nav] {
+    display: none !important;
+  }
+  html[data-chat-active] .pb-safe-nav {
+    padding-bottom: 0;
+  }
 }
 
 /* PWA safe-area support for standalone mode on notched devices */

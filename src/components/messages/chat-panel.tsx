@@ -99,6 +99,14 @@ export function ChatPanel({
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
 
+  // Hide mobile bottom nav while chat panel is open
+  useEffect(() => {
+    document.documentElement.setAttribute("data-chat-active", "");
+    return () => {
+      document.documentElement.removeAttribute("data-chat-active");
+    };
+  }, []);
+
   // Auto-scroll on new messages
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
