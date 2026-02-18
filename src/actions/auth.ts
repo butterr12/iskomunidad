@@ -3,12 +3,12 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { userLegalConsent } from "@/lib/schema";
 import { LEGAL_VERSIONS } from "@/lib/legal";
 import type { ActionResult } from "./_helpers";
-import { getClientIp } from "./_helpers";
+import { getClientIp, getSessionOrThrow } from "./_helpers";
 
 const createAccountSchema = z.object({
   name: z.string().min(1),
@@ -101,4 +101,69 @@ export async function createAccountWithConsent(
       err instanceof Error ? err.message : "Failed to create account";
     return { success: false, error: message };
   }
+}
+
+export async function checkConsentStatus(): Promise<
+  ActionResult<{ hasValidConsent: boolean }>
+> {
+  const session = await getSessionOrThrow();
+  if (!session) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const row = await db.query.userLegalConsent.findFirst({
+    where: and(
+      eq(userLegalConsent.userId, session.user.id),
+      eq(userLegalConsent.termsVersion, LEGAL_VERSIONS.terms),
+      eq(userLegalConsent.privacyVersion, LEGAL_VERSIONS.privacy),
+      eq(userLegalConsent.agreedToTerms, true),
+      eq(userLegalConsent.agreedToPrivacy, true),
+      eq(userLegalConsent.ageAttested, true),
+      eq(userLegalConsent.guardianConsentAttested, true),
+    ),
+  });
+
+  return { success: true, data: { hasValidConsent: !!row } };
+}
+
+const recordConsentSchema = z.object({
+  agreedToTerms: z.literal(true),
+  agreedToPrivacy: z.literal(true),
+  ageAttested: z.literal(true),
+  guardianConsentAttested: z.literal(true),
+});
+
+export async function recordConsent(
+  input: z.infer<typeof recordConsentSchema>,
+): Promise<ActionResult<void>> {
+  const parsed = recordConsentSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  const session = await getSessionOrThrow();
+  if (!session) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const hdrs = await headers();
+  const ipAddress = await getClientIp(hdrs);
+  const userAgent = hdrs.get("user-agent");
+
+  await db.insert(userLegalConsent).values({
+    userId: session.user.id,
+    email: session.user.email,
+    consentType: "in-app-gate",
+    termsVersion: LEGAL_VERSIONS.terms,
+    privacyVersion: LEGAL_VERSIONS.privacy,
+    legalNoticeVersion: LEGAL_VERSIONS.signupNotice,
+    agreedToTerms: parsed.data.agreedToTerms,
+    agreedToPrivacy: parsed.data.agreedToPrivacy,
+    ageAttested: parsed.data.ageAttested,
+    guardianConsentAttested: parsed.data.guardianConsentAttested,
+    ipAddress,
+    userAgent,
+  });
+
+  return { success: true, data: undefined };
 }

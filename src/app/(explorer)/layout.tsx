@@ -2,6 +2,7 @@
 
 import { useSession } from "@/lib/auth-client";
 import { NavBar } from "@/components/nav-bar";
+import { ConsentGate } from "@/components/consent-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function ExplorerSkeleton() {
@@ -47,7 +48,7 @@ function ExplorerSkeleton() {
 }
 
 export default function ExplorerLayout({ children }: { children: React.ReactNode }) {
-  const { isPending } = useSession();
+  const { data: session, isPending } = useSession();
 
   if (isPending) {
     return <ExplorerSkeleton />;
@@ -56,7 +57,7 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       <NavBar />
-      {children}
+      <ConsentGate session={session}>{children}</ConsentGate>
     </div>
   );
 }
