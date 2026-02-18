@@ -36,6 +36,13 @@
       "when": 1771359675493,
       "tag": "0004_rainy_slapstick",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1771390964521,
+      "tag": "0005_furry_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

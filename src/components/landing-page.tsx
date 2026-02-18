@@ -311,6 +311,12 @@ export function LandingPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-6 text-sm text-white/70">
+                  <Link href="/privacy" className="transition-colors hover:text-white">
+                    Privacy Policy
+                  </Link>
+                  <Link href="/terms" className="transition-colors hover:text-white">
+                    Terms of Service
+                  </Link>
                   <Link href="/sign-in" className="transition-colors hover:text-white">
                     Sign in
                   </Link>

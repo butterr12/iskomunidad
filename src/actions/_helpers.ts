@@ -54,6 +54,21 @@ export async function requireAdmin() {
   return session;
 }
 
+// ─── Request helpers ─────────────────────────────────────────────────────────
+
+export async function getClientIp(headersList: Headers): Promise<string | null> {
+  const forwardedFor = headersList.get("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return (
+    headersList.get("x-real-ip") ??
+    headersList.get("cf-connecting-ip") ??
+    null
+  );
+}
+
 // ─── Utility helpers ──────────────────────────────────────────────────────────
 
 export type ApprovalMode = "auto" | "manual" | "ai";
