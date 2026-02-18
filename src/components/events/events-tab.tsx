@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, CalendarDays, Users, Search, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +9,7 @@ import { ViewToggle } from "./view-toggle";
 import { EventList } from "./event-list";
 import { EventCalendar } from "./event-calendar";
 import { EventDetail } from "./event-detail";
+import { EventFormWizard } from "./event-form-wizard";
 import { MyEventsList } from "./my-events-list";
 import {
   type CampusEvent,
@@ -42,12 +42,12 @@ function EventListSkeleton() {
 }
 
 export function EventsTab() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedEvent, setSelectedEvent] = useState<CampusEvent | null>(null);
   const [tab, setTab] = useState<"all" | "mine">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["approved-events"],
@@ -195,11 +195,19 @@ export function EventsTab() {
         <Button
           size="icon-lg"
           className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-4 z-20 rounded-full shadow-lg sm:bottom-6"
-          onClick={() => router.push("/events/create")}
+          onClick={() => setShowCreateEvent(true)}
         >
           <Plus className="h-5 w-5" />
         </Button>
       )}
+
+      {/* Create event dialog */}
+      <EventFormWizard
+        mode="create"
+        open={showCreateEvent}
+        onOpenChange={setShowCreateEvent}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["approved-events"] })}
+      />
     </div>
   );
 }

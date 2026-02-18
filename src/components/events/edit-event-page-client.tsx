@@ -88,5 +88,15 @@ export function EditEventPageClient() {
     );
   }
 
-  return <EventFormWizard mode="edit" initialData={state.event} />;
+  return (
+    <EventFormWizard
+      mode="edit"
+      initialData={state.event}
+      open={true}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) router.push("/events");
+      }}
+      onSuccess={() => router.push("/events")}
+    />
+  );
 }

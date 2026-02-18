@@ -76,12 +76,19 @@ function MarkerPin({ color, label }: { color: string; label: string }) {
   );
 }
 
-export function LandingMap() {
+export interface LandingMapControl {
+  map: mapboxgl.Map;
+  setPaused: (p: boolean) => void;
+}
+
+interface LandingMapProps {
+  onMapReady?: (ctrl: LandingMapControl) => void;
+}
+
+export function LandingMap({ onMapReady }: LandingMapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const { resolvedTheme } = useTheme();
   const pausedRef = useRef(false);
-  const bearingRef = useRef(-20);
-  const lastTimestampRef = useRef<number | null>(null);
   const mapMode: MapThemeMode = resolvedTheme === "dark" ? "dark" : "light";
 
   useEffect(() => {
@@ -106,46 +113,36 @@ export function LandingMap() {
     map.setTerrain({ source: "mapbox-dem", exaggeration: 1.5 });
     sync3dBuildings(map, mapMode);
 
-    const duration = 60000;
-    const rotateSpeed = 0.5;
+    const SEGMENT_DEG = 12;
+    const SEGMENT_MS = 4000;
 
-    function rotate(timestamp: number) {
-      if (!map) return;
-      if (pausedRef.current) {
-        lastTimestampRef.current = null;
-        requestAnimationFrame(rotate);
-        return;
-      }
-      if (lastTimestampRef.current === null) {
-        lastTimestampRef.current = timestamp;
-      }
-      const delta = timestamp - lastTimestampRef.current;
-      lastTimestampRef.current = timestamp;
-      bearingRef.current += (delta / duration) * 360 * rotateSpeed;
-      map.rotateTo(bearingRef.current % 360, { duration: 0 });
-      requestAnimationFrame(rotate);
+    function startRotation() {
+      if (pausedRef.current) return;
+      map.easeTo({
+        bearing: map.getBearing() + SEGMENT_DEG,
+        duration: SEGMENT_MS,
+        easing: (t: number) => t,
+      });
+      map.once("moveend", startRotation);
     }
 
-    requestAnimationFrame(rotate);
-  }, [mapMode]);
+    startRotation();
 
-  const handleMouseEnter = useCallback(() => {
-    pausedRef.current = true;
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    if (mapRef.current) {
-      bearingRef.current = mapRef.current.getBearing();
-    }
-    pausedRef.current = false;
-  }, []);
+    onMapReady?.({
+      map,
+      setPaused: (p: boolean) => {
+        pausedRef.current = p;
+        if (p) {
+          map.stop();
+        } else {
+          startRotation();
+        }
+      },
+    });
+  }, [mapMode, onMapReady]);
 
   return (
-    <div
-      className="relative h-full w-full overflow-hidden"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div className="relative h-full w-full overflow-hidden">
       <Map
         ref={(ref) => {
           mapRef.current = ref?.getMap() ?? null;
@@ -166,11 +163,7 @@ export function LandingMap() {
         mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
         onLoad={onLoad}
         attributionControl={false}
-        dragPan
-        dragRotate
-        scrollZoom
-        touchZoomRotate
-        doubleClickZoom
+        interactive={false}
       >
         {landmarks.map((lm) => (
           <Marker
@@ -178,6 +171,7 @@ export function LandingMap() {
             latitude={lm.lat}
             longitude={lm.lng}
             anchor="bottom"
+            style={{ willChange: "transform" }}
           >
             <MarkerPin color={lm.color} label={lm.name} />
           </Marker>
