@@ -111,26 +111,28 @@ export function NavBar() {
 
       {/* Mobile: slim top bar */}
       <header className="fixed top-0 left-0 right-0 z-[1000] sm:hidden border-b bg-background/80 backdrop-blur-sm">
-        <div className="flex h-12 items-center justify-between px-4">
-          <button
-            onClick={() => setSheetOpen(true)}
-            className="rounded-full transition-shadow hover:ring-2 hover:ring-muted-foreground/30 hover:ring-offset-1 hover:ring-offset-background"
-          >
-            <Avatar size="sm">
-              <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? "User"} />
-              <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
-            </Avatar>
-          </button>
-          <div className="flex items-center gap-1" dir="ltr">
-            {user && <NotificationBell />}
+        <div className="relative flex h-12 items-center justify-between px-4">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSheetOpen(true)}
+              className="rounded-full transition-shadow hover:ring-2 hover:ring-muted-foreground/30 hover:ring-offset-1 hover:ring-offset-background"
+            >
+              <Avatar size="sm">
+                <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? "User"} />
+                <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
+              </Avatar>
+            </button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
               <Sun className="hidden h-4 w-4 dark:block" />
               <Moon className="h-4 w-4 dark:hidden" />
               <span className="sr-only">Toggle theme</span>
             </Button>
-            <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
-              iskomunidad
-            </span>
+          </div>
+          <span className="absolute left-1/2 -translate-x-1/2 text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
+            iskomunidad
+          </span>
+          <div className="flex items-center">
+            {user && <NotificationBell />}
           </div>
         </div>
       </header>
