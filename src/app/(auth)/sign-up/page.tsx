@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { signUp } from "@/lib/auth-client";
+import { createAccountWithConsent } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,28 +23,51 @@ export default function SignUpPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [ageConsentAttestation, setAgeConsentAttestation] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const { error: signUpError } = await signUp.email({
-      name,
-      username,
-      email,
-      password,
-    });
-
-    if (signUpError) {
-      setError(signUpError.message ?? "Something went wrong");
-      setLoading(false);
+    if (!acceptedLegal) {
+      setError("You must agree to the Terms of Service and Privacy Policy.");
       return;
     }
 
-    router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+    if (!ageConsentAttestation) {
+      setError(
+        "You must confirm your age and guardian consent attestation to continue.",
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const result = await createAccountWithConsent({
+        name,
+        username,
+        email: normalizedEmail,
+        password,
+        agreedToTerms: true,
+        agreedToPrivacy: true,
+        ageAttested: true,
+        guardianConsentAttested: true,
+      });
+
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+
+      router.push(`/verify-email?email=${encodeURIComponent(normalizedEmail)}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -106,6 +129,48 @@ export default function SignUpPage() {
               required
               minLength={8}
             />
+          </div>
+          <div className="space-y-3 rounded-md border p-3">
+            <label className="flex items-start gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={acceptedLegal}
+                onChange={(e) => setAcceptedLegal(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-primary"
+                required
+              />
+              <span>
+                I agree to the{" "}
+                <Link
+                  href="/terms"
+                  className="underline-offset-4 hover:underline"
+                >
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  href="/privacy"
+                  className="underline-offset-4 hover:underline"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={ageConsentAttestation}
+                onChange={(e) => setAgeConsentAttestation(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-primary"
+                required
+              />
+              <span>
+                I attest that I am at least 16 years old. If I am under 18, I
+                attest that I have explicit consent from my parent or legal
+                guardian.
+              </span>
+            </label>
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
