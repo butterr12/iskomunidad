@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Link from "next/link";
 import { ArrowLeft, MapPin, Share2, Bookmark, ExternalLink } from "lucide-react";
 import { VoteControls } from "./vote-controls";
 import { CommentSection } from "./comment-section";
@@ -66,7 +67,13 @@ export function PostDetail({
                   {post.author?.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() ?? "?"}
                 </AvatarFallback>
               </Avatar>
-              <span>{post.authorHandle}</span>
+              {post.authorHandle ? (
+                <Link href={`/profile/${post.authorHandle.replace("@", "")}`} className="hover:underline">
+                  {post.authorHandle}
+                </Link>
+              ) : (
+                <span>{post.author}</span>
+              )}
               <span>·</span>
               <span>{formatRelativeTime(post.createdAt)}</span>
             </div>

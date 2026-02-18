@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { userLegalConsent } from "@/lib/schema";
 import { LEGAL_VERSIONS } from "@/lib/legal";
 import type { ActionResult } from "./_helpers";
-import { getClientIp, getSessionOrThrow } from "./_helpers";
+import { getClientIp, getSession } from "./_helpers";
 
 const createAccountSchema = z.object({
   name: z.string().min(1),
@@ -106,7 +106,7 @@ export async function createAccountWithConsent(
 export async function checkConsentStatus(): Promise<
   ActionResult<{ hasValidConsent: boolean }>
 > {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) {
     return { success: false, error: "Not authenticated" };
   }
@@ -141,7 +141,7 @@ export async function recordConsent(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) {
     return { success: false, error: "Not authenticated" };
   }

@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { userNotification, userNotificationSetting } from "@/lib/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { type ActionResult, getSessionOrThrow } from "./_helpers";
+import { type ActionResult, getSession } from "./_helpers";
 import { z } from "zod";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -11,7 +11,7 @@ import {
 } from "@/lib/notification-preferences";
 
 export async function getUserNotifications(): Promise<ActionResult<unknown[]>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const rows = await db.query.userNotification.findMany({
@@ -32,7 +32,7 @@ export async function getUserNotifications(): Promise<ActionResult<unknown[]>> {
 export async function getUnreadNotificationCount(): Promise<
   ActionResult<{ count: number }>
 > {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const [result] = await db
@@ -51,7 +51,7 @@ export async function getUnreadNotificationCount(): Promise<
 export async function markNotificationAsRead(
   id: string,
 ): Promise<ActionResult<void>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   await db
@@ -70,7 +70,7 @@ export async function markNotificationAsRead(
 export async function markAllNotificationsAsRead(): Promise<
   ActionResult<void>
 > {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   await db
@@ -95,7 +95,7 @@ const notificationPreferencesSchema = z.object({
 export async function getNotificationPreferences(): Promise<
   ActionResult<NotificationPreferences>
 > {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const row = await db.query.userNotificationSetting.findFirst({
@@ -124,7 +124,7 @@ export async function updateNotificationPreferences(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   await db

@@ -6,7 +6,7 @@ import { campusEvent, eventRsvp } from "@/lib/schema";
 import { eq, sql, and, desc } from "drizzle-orm";
 import {
   type ActionResult,
-  getSessionOrThrow,
+  getSession,
   getOptionalSession,
   getAutoApproveSetting,
   getApprovalMode,
@@ -143,7 +143,7 @@ export async function createEvent(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const mode = await getApprovalMode();
@@ -223,7 +223,7 @@ export async function rsvpToEvent(
   if (!parsed.success)
     return { success: false, error: "Invalid RSVP status" };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const event = await db.query.campusEvent.findFirst({
@@ -296,7 +296,7 @@ export async function updateEvent(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const existing = await db.query.campusEvent.findFirst({
@@ -351,7 +351,7 @@ export async function updateEvent(
 export async function deleteEvent(
   id: string,
 ): Promise<ActionResult<void>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const existing = await db.query.campusEvent.findFirst({
@@ -366,7 +366,7 @@ export async function deleteEvent(
 }
 
 export async function getUserEvents(): Promise<ActionResult<unknown[]>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const rows = await db.query.campusEvent.findMany({

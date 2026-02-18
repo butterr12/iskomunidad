@@ -1,8 +1,11 @@
 "use client";
 
-import { useSession } from "@/lib/auth-client";
+import { useEffect, useRef } from "react";
+import { useSession, signOut } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 import { NavBar } from "@/components/nav-bar";
 import { ConsentGate } from "@/components/consent-gate";
+import { SocketProvider } from "@/components/providers/socket-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function ExplorerSkeleton() {
@@ -49,15 +52,29 @@ function ExplorerSkeleton() {
 
 export default function ExplorerLayout({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
+  const router = useRouter();
+  const signingOut = useRef(false);
 
-  if (isPending) {
+  const isInactive = !isPending && !!session?.user?.status && session.user.status !== "active";
+
+  useEffect(() => {
+    if (!isInactive || signingOut.current) return;
+    signingOut.current = true;
+    signOut()
+      .catch(() => {})
+      .finally(() => router.push("/sign-in"));
+  }, [isInactive, router]);
+
+  if (isPending || isInactive) {
     return <ExplorerSkeleton />;
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
-      <NavBar />
-      <ConsentGate session={session}>{children}</ConsentGate>
-    </div>
+    <SocketProvider>
+      <div className="flex h-dvh flex-col overflow-hidden">
+        <NavBar />
+        <ConsentGate session={session}>{children}</ConsentGate>
+      </div>
+    </SocketProvider>
   );
 }

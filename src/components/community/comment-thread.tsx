@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Reply, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,7 +100,13 @@ export function CommentThread({ nodes, depth = 0, onVoteComment, onReply }: Comm
                   {node.comment.authorImage && <AvatarImage src={node.comment.authorImage} alt={node.comment.author} />}
                   <AvatarFallback className="text-[9px] font-medium">{getInitials(node.comment.author)}</AvatarFallback>
                 </Avatar>
-                <span className="font-medium text-foreground">{node.comment.authorHandle}</span>
+                {node.comment.authorHandle ? (
+                  <Link href={`/profile/${node.comment.authorHandle.replace("@", "")}`} className="font-medium text-foreground hover:underline">
+                    {node.comment.authorHandle}
+                  </Link>
+                ) : (
+                  <span className="font-medium text-foreground">{node.comment.author}</span>
+                )}
                 <span>·</span>
                 <span>{formatRelativeTime(node.comment.createdAt)}</span>
               </div>

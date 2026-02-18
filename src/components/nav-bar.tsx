@@ -21,6 +21,7 @@ import {
   Users,
   CalendarDays,
   Hammer,
+  MessageSquare,
   Settings,
   LogOut,
   Shield,
@@ -30,10 +31,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { useSocket } from "@/components/providers/socket-provider";
 
 const tabs = [
   { label: "Map", href: "/map", icon: MapPin },
   { label: "Community", href: "/community", icon: Users },
+  { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Events", href: "/events", icon: CalendarDays },
   { label: "Gigs", href: "/gigs", icon: Hammer },
 ] as const;
@@ -55,6 +58,8 @@ export function NavBar() {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  const { unreadCount } = useSocket();
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
@@ -85,12 +90,15 @@ export function NavBar() {
                 key={t.href}
                 variant={pathname === t.href ? "default" : "ghost"}
                 size="sm"
-                className="gap-1.5"
+                className="gap-1.5 relative"
                 asChild
               >
                 <Link href={t.href}>
                   <t.icon className="h-4 w-4" />
                   {t.label}
+                  {t.href === "/messages" && unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-destructive" />
+                  )}
                 </Link>
               </Button>
             ))}
@@ -146,13 +154,18 @@ export function NavBar() {
               key={t.href}
               href={t.href}
               className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 py-1 text-[11px] font-medium transition-colors",
+                "relative flex flex-1 flex-col items-center gap-0.5 py-1 text-[11px] font-medium transition-colors",
                 pathname === t.href
                   ? "text-primary"
                   : "text-muted-foreground"
               )}
             >
-              <t.icon className={cn("h-5 w-5", pathname === t.href && "text-primary")} />
+              <div className="relative">
+                <t.icon className={cn("h-5 w-5", pathname === t.href && "text-primary")} />
+                {t.href === "/messages" && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1.5 h-2.5 w-2.5 rounded-full bg-destructive border border-background" />
+                )}
+              </div>
               {t.label}
             </Link>
           ))}

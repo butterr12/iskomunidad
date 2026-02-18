@@ -8,6 +8,7 @@ export interface CampusEvent {
   description: string;
   category: EventCategory;
   organizer: string;
+  authorHandle?: string | null;
   startDate: string;
   endDate: string;
   locationId?: string;

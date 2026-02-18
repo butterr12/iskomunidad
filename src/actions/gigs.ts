@@ -6,7 +6,7 @@ import { gigListing, gigSwipe } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import {
   type ActionResult,
-  getSessionOrThrow,
+  getSession,
   getOptionalSession,
   getApprovalMode,
   createNotification,
@@ -89,7 +89,7 @@ export async function createGig(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const mode = await getApprovalMode();
@@ -177,7 +177,7 @@ export async function swipeGig(
   if (!parsed.success)
     return { success: false, error: "Invalid swipe action" };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const gig = await db.query.gigListing.findFirst({

@@ -12,7 +12,7 @@ import {
 import { eq, sql, and, inArray } from "drizzle-orm";
 import {
   type ActionResult,
-  getSessionOrThrow,
+  getSession,
   getOptionalSession,
   getApprovalMode,
   createNotification,
@@ -97,7 +97,7 @@ export async function getApprovedPosts(
 export async function getFollowingPosts(
   opts?: { sort?: "hot" | "new" | "top" },
 ): Promise<ActionResult<unknown[]>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   // Get IDs of users the current user follows
@@ -217,7 +217,7 @@ export async function createPost(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const mode = await getApprovalMode();
@@ -293,7 +293,7 @@ export async function voteOnPost(
   if (!parsed.success)
     return { success: false, error: "Value must be -1, 0, or 1" };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const post = await db.query.communityPost.findFirst({
@@ -371,7 +371,7 @@ export async function createComment(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const post = await db.query.communityPost.findFirst({
@@ -476,7 +476,7 @@ export async function voteOnComment(
   if (!parsed.success)
     return { success: false, error: "Value must be -1, 0, or 1" };
 
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const comment = await db.query.postComment.findFirst({

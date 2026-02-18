@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import Link from "next/link";
 import { ArrowLeft, Clock, MapPin, Globe, Users, User, Share2, Star, Check, Pencil, Trash2 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { deleteEvent } from "@/actions/events";
@@ -153,7 +154,16 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
           </div>
           <div className="flex items-start gap-2">
             <User className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>Organized by {event.organizer}</span>
+            <span>
+              Organized by{" "}
+              {event.authorHandle ? (
+                <Link href={`/profile/${event.authorHandle.replace("@", "")}`} className="hover:underline">
+                  {event.organizer}
+                </Link>
+              ) : (
+                event.organizer
+              )}
+            </span>
           </div>
         </div>
 

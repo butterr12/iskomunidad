@@ -27,6 +27,7 @@ import {
   Users,
   CalendarDays,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { CommunityPost, VoteDirection } from "@/lib/posts";
@@ -238,27 +239,37 @@ export default function ProfilePage() {
 
             {/* Follow / Edit button */}
             {session?.user && !isOwnProfile && (
-              <Button
-                size="sm"
-                variant={followStatus?.isFollowing ? "outline" : "default"}
-                onClick={handleFollow}
-                disabled={followLoading}
-                className="min-w-[100px]"
-              >
-                {followLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : followStatus?.isFollowing ? (
-                  <>
-                    <UserMinus className="mr-1.5 h-4 w-4" />
-                    Unfollow
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="mr-1.5 h-4 w-4" />
-                    Follow
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={followStatus?.isFollowing ? "outline" : "default"}
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className="min-w-[100px]"
+                >
+                  {followLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : followStatus?.isFollowing ? (
+                    <>
+                      <UserMinus className="mr-1.5 h-4 w-4" />
+                      Unfollow
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-1.5 h-4 w-4" />
+                      Follow
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/messages?with=${profile.id}`)}
+                >
+                  <MessageSquare className="mr-1.5 h-4 w-4" />
+                  Message
+                </Button>
+              </div>
             )}
             {isOwnProfile && (
               <Button

@@ -8,6 +8,8 @@ import {
   adminNotification,
   userNotification,
   userNotificationSetting,
+  session as authSession,
+  user as authUser,
 } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import {
@@ -29,10 +31,27 @@ export type ActionResult<T = void> =
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
-export async function getSessionOrThrow() {
+export async function getSession() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+  if (!session) return null;
+
+  const userStatus = session.user.status;
+  if (userStatus && userStatus !== "active") {
+    await revokeUserSessions(session.user.id);
+    return null;
+  }
+
+  const userRow = await db.query.user.findFirst({
+    where: eq(authUser.id, session.user.id),
+    columns: { status: true },
+  });
+  if (!userRow || userRow.status !== "active") {
+    await revokeUserSessions(session.user.id);
+    return null;
+  }
+
   return session;
 }
 
@@ -48,10 +67,14 @@ export async function getOptionalSession() {
 }
 
 export async function requireAdmin() {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return null;
   if (session.user.role !== "admin") return null;
   return session;
+}
+
+export async function revokeUserSessions(userId: string) {
+  await db.delete(authSession).where(eq(authSession.userId, userId));
 }
 
 // ─── Request helpers ─────────────────────────────────────────────────────────

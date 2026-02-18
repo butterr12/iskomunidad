@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx watch server.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx server.ts",
     "lint": "eslint",
     "seed:landmarks": "tsx scripts/seed-landmarks.ts"
   },
@@ -32,6 +32,8 @@
     "react-email": "^5.2.8",
     "react-map-gl": "^8.1.0",
     "resend": "^6.9.2",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "sonner": "^2.0.7",
     "supercluster": "^8.0.1",
     "tailwind-merge": "^3.4.1",

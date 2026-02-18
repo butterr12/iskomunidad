@@ -393,6 +393,96 @@ export const userPrivacySetting = pgTable("user_privacy_setting", {
     .notNull(),
 });
 
+// ─── Conversation ──────────────────────────────────────────────────────────────
+
+export const conversation = pgTable("conversation", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  isRequest: boolean("is_request").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ─── Conversation Participant ──────────────────────────────────────────────────
+
+export const conversationParticipant = pgTable(
+  "conversation_participant",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    lastReadAt: timestamp("last_read_at"),
+  },
+  (table) => [
+    uniqueIndex("conversation_participant_conv_user_idx").on(
+      table.conversationId,
+      table.userId,
+    ),
+    index("conversation_participant_user_idx").on(table.userId),
+  ],
+);
+
+// ─── Message ───────────────────────────────────────────────────────────────────
+
+export const message = pgTable(
+  "message",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+    senderId: text("sender_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    body: text("body"),
+    imageUrl: text("image_url"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("message_conv_created_idx").on(
+      table.conversationId,
+      table.createdAt,
+    ),
+  ],
+);
+
+// ─── Message Request ───────────────────────────────────────────────────────────
+
+export const messageRequest = pgTable(
+  "message_request",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+    fromUserId: text("from_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    toUserId: text("to_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("pending"), // "pending" | "accepted" | "declined"
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("message_request_conv_idx").on(table.conversationId),
+    index("message_request_to_user_status_idx").on(
+      table.toUserId,
+      table.status,
+    ),
+  ],
+);
+
 // ─── Relations ─────────────────────────────────────────────────────────────────
 
 export const userRelations = relations(user, ({ many, one }) => ({
@@ -420,6 +510,8 @@ export const userRelations = relations(user, ({ many, one }) => ({
     fields: [user.id],
     references: [userPrivacySetting.userId],
   }),
+  conversationParticipants: many(conversationParticipant),
+  sentMessages: many(message),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -618,5 +710,55 @@ export const userPrivacySettingRelations = relations(userPrivacySetting, ({ one 
   user: one(user, {
     fields: [userPrivacySetting.userId],
     references: [user.id],
+  }),
+}));
+
+// ─── Chat Relations ──────────────────────────────────────────────────────────
+
+export const conversationRelations = relations(conversation, ({ many, one }) => ({
+  participants: many(conversationParticipant),
+  messages: many(message),
+  request: one(messageRequest),
+}));
+
+export const conversationParticipantRelations = relations(
+  conversationParticipant,
+  ({ one }) => ({
+    conversation: one(conversation, {
+      fields: [conversationParticipant.conversationId],
+      references: [conversation.id],
+    }),
+    user: one(user, {
+      fields: [conversationParticipant.userId],
+      references: [user.id],
+    }),
+  }),
+);
+
+export const messageRelations = relations(message, ({ one }) => ({
+  conversation: one(conversation, {
+    fields: [message.conversationId],
+    references: [conversation.id],
+  }),
+  sender: one(user, {
+    fields: [message.senderId],
+    references: [user.id],
+  }),
+}));
+
+export const messageRequestRelations = relations(messageRequest, ({ one }) => ({
+  conversation: one(conversation, {
+    fields: [messageRequest.conversationId],
+    references: [conversation.id],
+  }),
+  fromUser: one(user, {
+    fields: [messageRequest.fromUserId],
+    references: [user.id],
+    relationName: "requestFromUser",
+  }),
+  toUser: one(user, {
+    fields: [messageRequest.toUserId],
+    references: [user.id],
+    relationName: "requestToUser",
   }),
 }));

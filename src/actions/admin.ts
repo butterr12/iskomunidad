@@ -11,6 +11,7 @@ import {
   adminNotification,
   adminSetting,
   user,
+  session as authSession,
 } from "@/lib/schema";
 import { eq, sql } from "drizzle-orm";
 import {
@@ -1059,14 +1060,17 @@ export async function adminBanUser(
   if (session.user.id === id)
     return { success: false, error: "Cannot ban yourself" };
 
-  await db
-    .update(user)
-    .set({
-      status: "banned",
-      bannedAt: new Date(),
-      banReason: parsed.data.reason,
-    })
-    .where(eq(user.id, id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(user)
+      .set({
+        status: "banned",
+        bannedAt: new Date(),
+        banReason: parsed.data.reason,
+      })
+      .where(eq(user.id, id));
+    await tx.delete(authSession).where(eq(authSession.userId, id));
+  });
 
   return { success: true, data: undefined };
 }
@@ -1076,6 +1080,14 @@ export async function adminUnbanUser(
 ): Promise<ActionResult<void>> {
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
+
+  const target = await db.query.user.findFirst({
+    where: eq(user.id, id),
+    columns: { status: true },
+  });
+  if (!target) return { success: false, error: "User not found" };
+  if (target.status !== "banned")
+    return { success: false, error: "User is not banned" };
 
   await db
     .update(user)
@@ -1094,10 +1106,13 @@ export async function adminSoftDeleteUser(
   if (session.user.id === id)
     return { success: false, error: "Cannot delete yourself" };
 
-  await db
-    .update(user)
-    .set({ status: "deleted", deletedAt: new Date() })
-    .where(eq(user.id, id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(user)
+      .set({ status: "deleted", deletedAt: new Date() })
+      .where(eq(user.id, id));
+    await tx.delete(authSession).where(eq(authSession.userId, id));
+  });
 
   return { success: true, data: undefined };
 }
@@ -1107,6 +1122,14 @@ export async function adminRestoreUser(
 ): Promise<ActionResult<void>> {
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
+
+  const target = await db.query.user.findFirst({
+    where: eq(user.id, id),
+    columns: { status: true },
+  });
+  if (!target) return { success: false, error: "User not found" };
+  if (target.status !== "deleted")
+    return { success: false, error: "User is not deleted" };
 
   await db
     .update(user)

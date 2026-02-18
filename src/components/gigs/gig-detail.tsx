@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -115,7 +116,13 @@ export function GigDetail({ gig, onBack }: GigDetailProps) {
             <User className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
               {gig.posterName}{" "}
-              <span className="text-muted-foreground/60">{gig.posterHandle}</span>
+              {gig.posterHandle ? (
+                <Link href={`/profile/${gig.posterHandle.replace("@", "")}`} className="text-muted-foreground/60 hover:underline">
+                  {gig.posterHandle}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground/60">{gig.posterName}</span>
+              )}
             </span>
           </div>
           {gig.posterCollege && (

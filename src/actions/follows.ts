@@ -8,10 +8,10 @@ import {
   postVote,
 } from "@/lib/schema";
 import { user } from "@/lib/auth-schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, ilike, or, ne } from "drizzle-orm";
 import {
   type ActionResult,
-  getSessionOrThrow,
+  getSession,
   getOptionalSession,
   createUserNotification,
 } from "./_helpers";
@@ -25,7 +25,7 @@ function getActorLabel(u: { username?: string | null; name?: string | null }): s
 export async function followUser(
   targetId: string,
 ): Promise<ActionResult<void>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   if (session.user.id === targetId) {
@@ -79,7 +79,7 @@ export async function followUser(
 export async function unfollowUser(
   targetId: string,
 ): Promise<ActionResult<void>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   await db
@@ -152,7 +152,7 @@ export type FollowStatus = {
 export async function getFollowStatus(
   targetId: string,
 ): Promise<ActionResult<FollowStatus>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   if (session.user.id === targetId) {
@@ -221,7 +221,7 @@ export type PrivacySettings = {
 };
 
 export async function getPrivacySettings(): Promise<ActionResult<PrivacySettings>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const row = await db.query.userPrivacySetting.findFirst({
@@ -240,7 +240,7 @@ export async function getPrivacySettings(): Promise<ActionResult<PrivacySettings
 export async function updatePrivacySettings(
   settings: PrivacySettings,
 ): Promise<ActionResult<PrivacySettings>> {
-  const session = await getSessionOrThrow();
+  const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
   const valid = ["everyone", "nobody"];
@@ -307,6 +307,46 @@ export async function getUserProfile(
       ...counts,
     },
   };
+}
+
+// ─── Search users by name or username ────────────────────────────────────────
+
+export type UserSearchResult = {
+  id: string;
+  name: string;
+  username: string | null;
+  image: string | null;
+};
+
+export async function searchUsers(
+  query: string,
+): Promise<ActionResult<UserSearchResult[]>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const trimmed = query.trim();
+  if (!trimmed) return { success: true, data: [] };
+
+  const pattern = `%${trimmed}%`;
+
+  const rows = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      image: user.image,
+    })
+    .from(user)
+    .where(
+      and(
+        or(ilike(user.name, pattern), ilike(user.username, pattern)),
+        eq(user.status, "active"),
+        ne(user.id, session.user.id),
+      ),
+    )
+    .limit(10);
+
+  return { success: true, data: rows };
 }
 
 // ─── Get user's approved posts ──────────────────────────────────────────────

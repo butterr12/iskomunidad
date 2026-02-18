@@ -152,23 +152,6 @@ export function SettingsPanel({
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Admin Credentials</CardTitle>
-          <CardDescription>Mock credentials for development.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Email</span>
-            <code className="rounded bg-muted px-2 py-0.5">admin@iskomunidad.ph</code>
-          </div>
-          <Separator />
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Password</span>
-            <code className="rounded bg-muted px-2 py-0.5">admin1234</code>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -57,6 +57,13 @@
       "when": 1771398100354,
       "tag": "0007_bitter_silhouette",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1771401584656,
+      "tag": "0008_peaceful_nova",
+      "breakpoints": true
     }
   ]
 }
