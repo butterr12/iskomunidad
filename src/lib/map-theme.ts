@@ -125,14 +125,13 @@ export function applyMapTheme(map: mapboxgl.Map, mode: MapThemeMode = "light") {
     }
 
     // Catch-all: theme any remaining line/fill layers (bridges, tunnels,
-    // structure casings, boundaries, etc.) so nothing leaks light-mode colors.
-    if (mode === "dark") {
-      if (t === "line") {
-        map.setPaintProperty(id, "line-color", colors.roadCase);
-      } else if (t === "fill") {
-        map.setPaintProperty(id, "fill-color", colors.background);
-        map.setPaintProperty(id, "fill-outline-color", colors.background);
-      }
+    // structure casings, boundaries, etc.) so nothing leaks stale colors
+    // when switching between light ↔ dark.
+    if (t === "line") {
+      map.setPaintProperty(id, "line-color", colors.roadCase);
+    } else if (t === "fill") {
+      map.setPaintProperty(id, "fill-color", colors.background);
+      map.setPaintProperty(id, "fill-outline-color", colors.background);
     }
   }
 }

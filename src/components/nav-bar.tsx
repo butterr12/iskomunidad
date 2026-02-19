@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -36,6 +36,7 @@ import { useSocket } from "@/components/providers/socket-provider";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import { getUserBorderSelectionById } from "@/actions/borders";
 import { MoreSheet } from "@/components/more-sheet";
+import { BetaBadge } from "@/components/beta-badge";
 import type { BorderDefinition } from "@/lib/profile-borders";
 
 /** Desktop: all 5 original tabs */
@@ -93,8 +94,12 @@ export function NavBar() {
 
   const isMoreActive = ["/events", "/settings"].some((p) => pathname.startsWith(p));
 
+  const themeCooldownRef = useRef(false);
   const toggleTheme = () => {
+    if (themeCooldownRef.current) return;
+    themeCooldownRef.current = true;
     setTheme(resolvedTheme === "dark" ? "light" : "dark");
+    setTimeout(() => { themeCooldownRef.current = false; }, 600);
   };
 
   return (
@@ -141,8 +146,9 @@ export function NavBar() {
               <Moon className="h-4 w-4 dark:hidden" />
               <span className="sr-only">Toggle theme</span>
             </Button>
-            <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
+            <span className="flex items-center text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
               iskomunidad
+              <BetaBadge />
             </span>
           </div>
         </div>
@@ -169,8 +175,9 @@ export function NavBar() {
               <span className="sr-only">Toggle theme</span>
             </Button>
           </div>
-          <span className="absolute left-1/2 -translate-x-1/2 text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
+          <span className="absolute left-1/2 -translate-x-1/2 flex items-center text-xl font-bold tracking-tight font-[family-name:var(--font-hoover)]" style={{ color: "#bf0000" }}>
             iskomunidad
+            <BetaBadge />
           </span>
           <div className="flex items-center">
             {user && <NotificationBell />}

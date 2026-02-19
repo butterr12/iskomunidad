@@ -121,6 +121,7 @@ export function LandingPage() {
   const [minTimePassed, setMinTimePassed] = useState(false);
   const autoBearingRef = useRef(-20);
   const scrollControlRef = useRef(false);
+  const themeCooldownRef = useRef(false);
 
   useEffect(() => {
     if (theme === "system" || !theme) setTheme("light");
@@ -131,7 +132,12 @@ export function LandingPage() {
     return () => clearTimeout(t);
   }, []);
 
-  const toggleTheme = () => setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  const toggleTheme = () => {
+    if (themeCooldownRef.current) return;
+    themeCooldownRef.current = true;
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+    setTimeout(() => { themeCooldownRef.current = false; }, 600);
+  };
 
   /* ── map ready callback ── */
   const handleMapReady = useCallback((ctrl: LandingMapControl) => {
@@ -224,7 +230,7 @@ export function LandingPage() {
         {/* ── hero ── */}
         <section className="relative h-dvh snap-start">
           {/* nav */}
-          <header className="absolute inset-x-0 top-0 z-50 bg-white/40 backdrop-blur-sm dark:bg-black/40">
+          <header className="absolute inset-x-0 top-0 z-50 bg-white/40 backdrop-blur-sm transition-colors duration-500 dark:bg-black/40">
             <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
               <span
                 className="text-2xl font-bold tracking-tight drop-shadow-sm font-[family-name:var(--font-hoover)]"
@@ -250,8 +256,9 @@ export function LandingPage() {
             </div>
           </header>
 
-          {/* hero gradient */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/80 via-white/30 via-40% to-transparent dark:from-black/75 dark:via-black/30" />
+          {/* hero gradient — dual overlays for cross-fade between themes */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/80 via-white/30 via-40% to-transparent transition-opacity duration-500 dark:opacity-0" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 via-40% to-transparent opacity-0 transition-opacity duration-500 dark:opacity-100" />
 
           {/* headline */}
           <div
@@ -286,8 +293,11 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* inverted hero gradient — smooth transition into story sections */}
-        <div className="pointer-events-none sticky top-0 z-[5] -mb-[50dvh] h-[50dvh] bg-gradient-to-b from-white/80 via-white/30 to-transparent dark:from-black/75 dark:via-black/30" />
+        {/* inverted hero gradient — cross-fade between themes */}
+        <div className="pointer-events-none sticky top-0 z-[5] -mb-[50dvh] h-[50dvh]">
+          <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/30 to-transparent transition-opacity duration-500 dark:opacity-0" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/30 to-transparent opacity-0 transition-opacity duration-500 dark:opacity-100" />
+        </div>
 
         {/* ── story sections — map rotates/zooms behind, cards on alternating sides ── */}
         {stories.map((story, i) => {
@@ -301,7 +311,7 @@ export function LandingPage() {
             >
               <div
                 ref={(el) => { cardRefs.current[i] = el; }}
-                className="w-full max-w-md rounded-3xl border bg-background/85 p-8 shadow-2xl backdrop-blur-xl sm:p-10"
+                className="w-full max-w-md rounded-3xl border bg-background/85 p-8 shadow-2xl backdrop-blur-xl transition-colors duration-500 sm:p-10"
                 style={{ opacity: 0, transform: "translateY(30px)" }}
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
@@ -322,9 +332,9 @@ export function LandingPage() {
         })}
 
         {/* ── full-screen CTA + footer ── */}
-        <div className="relative z-10 snap-start bg-background">
+        <div className="relative z-10 snap-start bg-background transition-colors duration-500">
           {/* CTA */}
-          <section className="flex min-h-dvh items-center justify-center bg-background px-4">
+          <section className="flex min-h-dvh items-center justify-center bg-background transition-colors duration-500 px-4">
             <div
               ref={ctaRef}
               className="mx-auto max-w-2xl text-center"

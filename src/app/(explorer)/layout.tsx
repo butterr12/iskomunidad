@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { NavBar } from "@/components/nav-bar";
 import { ConsentGate } from "@/components/consent-gate";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { BetaAnnouncement } from "@/components/beta-announcement";
 import { SocketProvider } from "@/components/providers/socket-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
@@ -76,7 +77,10 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
     <SocketProvider>
       <div className="flex h-dvh flex-col overflow-hidden">
         <NavBar />
-        <ConsentGate session={session}>{children}</ConsentGate>
+        <ConsentGate session={session}>
+          {children}
+          <BetaAnnouncement />
+        </ConsentGate>
         <PwaInstallPrompt />
       </div>
     </SocketProvider>
