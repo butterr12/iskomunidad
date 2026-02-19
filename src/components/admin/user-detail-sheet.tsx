@@ -13,6 +13,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Shield,
   Ban,
   CheckCircle,
@@ -25,6 +32,8 @@ import {
   MapPin,
   Check,
   X,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { adminGetUserDetail, adminGetUserFlairs, adminGrantFlair, adminRevokeFlair } from "@/actions/admin";
 import { adminGetUserUnlockedBorders, adminGrantBorder, adminRevokeBorder, getUserBorderSelectionById } from "@/actions/borders";
@@ -277,53 +286,65 @@ export function UserDetailSheet({
             <div className="space-y-3">
               <p className="text-sm font-medium">Flairs</p>
               {userFlairs.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {userFlairs.map((flair) => (
-                    <span
+                    <div
                       key={flair.id}
-                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
-                      style={{ backgroundColor: flair.color }}
+                      className="flex items-center justify-between rounded-md border px-3 py-2"
                     >
-                      {flair.label}
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          className="text-white border-0"
+                          style={{ backgroundColor: flair.color }}
+                        >
+                          {flair.label}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground capitalize">{flair.tier}</span>
+                      </div>
                       {flair.tier !== "basic" && (
-                        <button
-                          type="button"
-                          className="ml-0.5 hover:opacity-80"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                           disabled={revokeMutation.isPending}
                           onClick={() => revokeMutation.mutate(flair.id)}
                         >
-                          <X className="h-3 w-3" />
-                        </button>
+                          <Minus className="h-3.5 w-3.5 mr-1" />
+                          Revoke
+                        </Button>
                       )}
-                    </span>
+                    </div>
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No flairs yet</p>
               )}
               {grantableFlairs.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <select
-                    className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
-                    defaultValue=""
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        grantMutation.mutate(e.target.value);
-                        e.target.value = "";
-                      }
-                    }}
-                    disabled={grantMutation.isPending}
-                  >
-                    <option value="" disabled>
-                      Grant a flair...
-                    </option>
+                <Select
+                  key={grantableFlairs.map((f) => f.id).join()}
+                  onValueChange={(value) => grantMutation.mutate(value)}
+                  disabled={grantMutation.isPending}
+                >
+                  <SelectTrigger size="sm" className="w-full">
+                    <div className="flex items-center gap-2">
+                      <Plus className="h-3.5 w-3.5" />
+                      <SelectValue placeholder="Grant a flair..." />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
                     {grantableFlairs.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.label}
-                      </option>
+                      <SelectItem key={f.id} value={f.id}>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: f.color }}
+                          />
+                          {f.label}
+                        </div>
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
+                  </SelectContent>
+                </Select>
               )}
               {(grantMutation.isError || revokeMutation.isError) && (
                 <p className="text-xs text-red-500">
@@ -338,64 +359,76 @@ export function UserDetailSheet({
             <div className="space-y-3">
               <p className="text-sm font-medium">Borders</p>
               {selectedBorder && (
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Selected:</span>
-                  <span
-                    className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                <div className="flex items-center gap-2 text-sm rounded-md border px-3 py-2 bg-muted/30">
+                  <span className="text-muted-foreground">Active:</span>
+                  <Badge
+                    className="text-white border-0"
                     style={{ background: selectedBorder.color }}
                   >
                     {selectedBorder.label}
-                  </span>
+                  </Badge>
                 </div>
               )}
               {unlockedBorders.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {unlockedBorders.map((border) => (
-                    <span
+                    <div
                       key={border.id}
-                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
-                      style={{ background: border.color }}
+                      className="flex items-center justify-between rounded-md border px-3 py-2"
                     >
-                      {border.label}
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-4 w-4 rounded-full shrink-0 border border-black/10"
+                          style={{ background: border.color }}
+                        />
+                        <span className="text-sm">{border.label}</span>
+                        <span className="text-xs text-muted-foreground capitalize">{border.tier}</span>
+                      </div>
                       {border.tier !== "basic" && (
-                        <button
-                          type="button"
-                          className="ml-0.5 hover:opacity-80"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                           disabled={borderRevokeMutation.isPending}
                           onClick={() => borderRevokeMutation.mutate(border.id)}
                         >
-                          <X className="h-3 w-3" />
-                        </button>
+                          <Minus className="h-3.5 w-3.5 mr-1" />
+                          Revoke
+                        </Button>
                       )}
-                    </span>
+                    </div>
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No unlocked borders</p>
               )}
               {grantableBorders.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <select
-                    className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
-                    defaultValue=""
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        borderGrantMutation.mutate(e.target.value);
-                        e.target.value = "";
-                      }
-                    }}
-                    disabled={borderGrantMutation.isPending}
-                  >
-                    <option value="" disabled>
-                      Grant a border...
-                    </option>
+                <Select
+                  key={grantableBorders.map((b) => b.id).join()}
+                  onValueChange={(value) => borderGrantMutation.mutate(value)}
+                  disabled={borderGrantMutation.isPending}
+                >
+                  <SelectTrigger size="sm" className="w-full">
+                    <div className="flex items-center gap-2">
+                      <Plus className="h-3.5 w-3.5" />
+                      <SelectValue placeholder="Grant a border..." />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
                     {grantableBorders.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.label} ({b.tier})
-                      </option>
+                      <SelectItem key={b.id} value={b.id}>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full shrink-0 border border-black/10"
+                            style={{ background: b.color }}
+                          />
+                          {b.label}
+                          <span className="text-muted-foreground">({b.tier})</span>
+                        </div>
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
+                  </SelectContent>
+                </Select>
               )}
               {(borderGrantMutation.isError || borderRevokeMutation.isError) && (
                 <p className="text-xs text-red-500">
