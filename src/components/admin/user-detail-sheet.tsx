@@ -194,7 +194,7 @@ export function UserDetailSheet({
 
   return (
     <Sheet open={!!userId} onOpenChange={() => onClose()}>
-      <SheetContent className="overflow-y-auto">
+      <SheetContent>
         <SheetHeader>
           <SheetTitle>User Details</SheetTitle>
           <SheetDescription>View user profile and content summary.</SheetDescription>
@@ -205,7 +205,7 @@ export function UserDetailSheet({
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : user ? (
-          <div className="space-y-6 p-4 pt-0">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-6 p-4 pt-0">
             {/* Profile */}
             <div className="flex items-center gap-3">
               <Avatar className="h-12 w-12">
