@@ -73,6 +73,14 @@ export async function getOrCreateConversation(
     return { success: false, error: "Cannot message yourself" };
   }
 
+  const targetUser = await db.query.user.findFirst({
+    where: eq(user.id, targetUserId),
+    columns: { id: true },
+  });
+  if (!targetUser) {
+    return { success: false, error: "User not found" };
+  }
+
   const pairKey = [userId, targetUserId].sort().join(":");
 
   const result = await db.transaction(async (tx) => {

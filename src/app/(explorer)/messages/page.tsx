@@ -74,28 +74,33 @@ export default function MessagesPage() {
 
     async function openConversation() {
       setInitializing(true);
-      const res = await getOrCreateConversation(withUserId!);
-      if (res.success) {
-        // Find this conversation in the list, or refetch
-        const found = allConversations.find((c) => c.id === res.data.conversationId);
-        if (found) {
-          selectConversation(found);
-        } else {
-          // The conversation is new, refetch and find it
-          const freshRes = await getConversations();
-          if (freshRes.success) {
-            const allFresh = [
-              ...freshRes.data.messages,
-              ...freshRes.data.requests,
-            ];
-            const freshFound = allFresh.find(
-              (c) => c.id === res.data.conversationId,
-            );
-            if (freshFound) selectConversation(freshFound);
+      try {
+        const res = await getOrCreateConversation(withUserId!);
+        if (res.success) {
+          // Find this conversation in the list, or refetch
+          const found = allConversations.find((c) => c.id === res.data.conversationId);
+          if (found) {
+            selectConversation(found);
+          } else {
+            // The conversation is new, refetch and find it
+            const freshRes = await getConversations();
+            if (freshRes.success) {
+              const allFresh = [
+                ...freshRes.data.messages,
+                ...freshRes.data.requests,
+              ];
+              const freshFound = allFresh.find(
+                (c) => c.id === res.data.conversationId,
+              );
+              if (freshFound) selectConversation(freshFound);
+            }
           }
         }
+      } catch {
+        // Failed to open conversation — don't leave page stuck
+      } finally {
+        setInitializing(false);
       }
-      setInitializing(false);
     }
 
     void openConversation();

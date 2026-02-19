@@ -27,6 +27,7 @@ import {
   createUserNotification,
 } from "./_helpers";
 import { parseCompensation } from "@/lib/gigs";
+import { isoDateString } from "@/lib/validation/date";
 import {
   grantFlair,
   revokeFlair,
@@ -56,12 +57,15 @@ const createEventSchema = z.object({
   description: z.string().min(1),
   category: z.enum(["academic", "cultural", "social", "sports", "org"]),
   organizer: z.string().min(1),
-  startDate: z.string(),
-  endDate: z.string(),
+  startDate: isoDateString,
+  endDate: isoDateString,
   locationId: z.string().uuid().optional(),
   tags: z.array(z.string()).default([]),
   coverColor: z.string().default("#3b82f6"),
-});
+}).refine(
+  (data) => new Date(data.endDate).getTime() >= new Date(data.startDate).getTime(),
+  { message: "End date must be on or after start date", path: ["endDate"] },
+);
 
 const createLandmarkSchema = z.object({
   name: z.string().min(1),
@@ -95,7 +99,7 @@ const createGigSchema = z.object({
   tags: z.array(z.string()).default([]),
   locationId: z.string().uuid().optional(),
   locationNote: z.string().optional(),
-  deadline: z.string().optional(),
+  deadline: isoDateString.optional(),
   urgency: z.enum(["flexible", "soon", "urgent"]).default("flexible"),
   contactMethod: z.string().min(1),
 });

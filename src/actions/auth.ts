@@ -5,11 +5,11 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { user as userTable, userLegalConsent } from "@/lib/schema";
+import { user as userTable, userLegalConsent, userFlair } from "@/lib/schema";
 import { LEGAL_VERSIONS } from "@/lib/legal";
 import type { ActionResult } from "./_helpers";
 import { getClientIp, getSession, rateLimit } from "./_helpers";
-import { syncCampusFlair } from "@/lib/flair-service";
+import { getCampusFlairId } from "@/lib/user-flairs";
 import { UP_CAMPUSES } from "@/lib/constants";
 
 const createAccountSchema = z.object({
@@ -198,12 +198,37 @@ export async function setUserUniversity(
     return { success: false, error: "University is already set" };
   }
 
-  await db
-    .update(userTable)
-    .set({ university })
-    .where(and(eq(userTable.id, session.user.id), isNull(userTable.university)));
+  try {
+    await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(userTable)
+        .set({ university })
+        .where(and(eq(userTable.id, session.user.id), isNull(userTable.university)))
+        .returning({ id: userTable.id });
 
-  await syncCampusFlair(session.user.id, university);
+      if (updated.length === 0) {
+        throw new Error("ALREADY_SET");
+      }
+
+      const campusFlairId = getCampusFlairId(university);
+      if (campusFlairId) {
+        await tx
+          .insert(userFlair)
+          .values({
+            userId: session.user.id,
+            flairId: campusFlairId,
+            source: "university-sync",
+            visible: true,
+          })
+          .onConflictDoNothing();
+      }
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "ALREADY_SET") {
+      return { success: false, error: "University is already set" };
+    }
+    return { success: false, error: "Failed to set university. Please try again." };
+  }
 
   return { success: true, data: undefined };
 }

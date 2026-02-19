@@ -47,29 +47,24 @@ export async function followUser(
     return { success: false, error: "This user is not accepting follows" };
   }
 
-  // Check if already following
-  const existing = await db.query.userFollow.findFirst({
-    where: and(
-      eq(userFollow.followerId, session.user.id),
-      eq(userFollow.followingId, targetId),
-    ),
-  });
-  if (existing) return { success: true, data: undefined };
-
-  await db.insert(userFollow).values({
+  const inserted = await db.insert(userFollow).values({
     followerId: session.user.id,
     followingId: targetId,
-  });
+  }).onConflictDoNothing({
+    target: [userFollow.followerId, userFollow.followingId],
+  }).returning({ id: userFollow.id });
 
-  // Notify the target user
-  await createUserNotification({
-    userId: targetId,
-    type: "new_follower",
-    contentType: "post", // closest content type
-    targetId: session.user.id,
-    targetTitle: target.name ?? "your profile",
-    actor: getActorLabel(session.user),
-  });
+  if (inserted.length > 0) {
+    // Notify the target user only on new follow
+    await createUserNotification({
+      userId: targetId,
+      type: "new_follower",
+      contentType: "post", // closest content type
+      targetId: session.user.id,
+      targetTitle: target.name ?? "your profile",
+      actor: getActorLabel(session.user),
+    });
+  }
 
   return { success: true, data: undefined };
 }

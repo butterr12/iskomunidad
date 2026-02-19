@@ -62,6 +62,8 @@ export function ChatPanel({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const optimisticMessagesRef = useRef(optimisticMessages);
+  optimisticMessagesRef.current = optimisticMessages;
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [readBy, setReadBy] = useState<string | null>(null);
 
@@ -161,19 +163,7 @@ export function ChatPanel({
             };
           },
         );
-        // Remove matching optimistic message (our own message confirmed by server)
-        if (msg.senderId === userId) {
-          setOptimisticMessages((prev) => {
-            const idx = prev.findIndex(
-              (om) =>
-                om.senderId === msg.senderId &&
-                om.body === msg.body &&
-                om._status === "sending",
-            );
-            if (idx === -1) return prev;
-            return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-          });
-        }
+        // Optimistic removal is handled by the HTTP response in fireAndForgetSend
         // Mark as read if it's from the other user
         if (msg.senderId !== userId) {
           void markAsRead(conversation.id);
@@ -229,6 +219,15 @@ export function ChatPanel({
     }
   }, [conversation.id, conversation.unreadCount]);
 
+  // Cleanup remaining blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      optimisticMessagesRef.current.forEach((om) => {
+        if (om._imagePreviewUrl) URL.revokeObjectURL(om._imagePreviewUrl);
+      });
+    };
+  }, []);
+
   // Auto-fetch older messages on scroll (IntersectionObserver)
   useEffect(() => {
     if (!loadOlderRef.current || !hasNextPage) return;
@@ -283,8 +282,8 @@ export function ChatPanel({
   }
 
   function clearImage() {
-    setImageFile(null);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
     setImagePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -314,20 +313,55 @@ export function ChatPanel({
       }
     }
 
-    const res = await sendMessage({
-      conversationId: conversation.id,
-      body: om.body || undefined,
-      imageUrl,
-    });
+    try {
+      const res = await sendMessage({
+        conversationId: conversation.id,
+        body: om.body || undefined,
+        imageUrl,
+      });
 
-    if (!res.success) {
+      if (!res.success) {
+        setOptimisticMessages((prev) =>
+          prev.map((m) =>
+            m._tempId === om._tempId ? { ...m, _status: "failed" as const } : m,
+          ),
+        );
+      } else {
+        // Insert confirmed message into cache before removing optimistic to avoid flash
+        queryClient.setQueryData(
+          ["messages", conversation.id],
+          (old: typeof data) => {
+            if (!old) return old;
+            const lastPage = old.pages[old.pages.length - 1];
+            if (lastPage.messages.find((m) => m.id === res.data.id)) return old;
+            return {
+              ...old,
+              pages: [
+                ...old.pages.slice(0, -1),
+                {
+                  ...lastPage,
+                  messages: [...lastPage.messages, res.data],
+                },
+              ],
+            };
+          },
+        );
+        // Remove optimistic message and revoke blob URL
+        setOptimisticMessages((prev) => {
+          const idx = prev.findIndex((m) => m._tempId === om._tempId);
+          if (idx === -1) return prev;
+          const removed = prev[idx];
+          if (removed._imagePreviewUrl) URL.revokeObjectURL(removed._imagePreviewUrl);
+          return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+        });
+      }
+    } catch {
       setOptimisticMessages((prev) =>
         prev.map((m) =>
           m._tempId === om._tempId ? { ...m, _status: "failed" as const } : m,
         ),
       );
     }
-    // On success, the socket `new_message` event will remove the optimistic entry
   }
 
   function handleSend() {
@@ -362,9 +396,11 @@ export function ChatPanel({
     // Add to optimistic queue immediately
     setOptimisticMessages((prev) => [...prev, om]);
 
-    // Clear input right away so user can keep typing
+    // Clear input right away so user can keep typing (don't revoke blob — optimistic msg needs it)
     setMessageText("");
-    clearImage();
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     textareaRef.current?.focus();
 
     // Stop typing indicator
@@ -474,10 +510,7 @@ export function ChatPanel({
         ) : (() => {
           // Merge confirmed messages with optimistic ones, deduplicating
           const pendingOptimistic = optimisticMessages.filter(
-            (om) =>
-              !allMessages.some(
-                (m) => m.senderId === om.senderId && m.body === om.body,
-              ),
+            (om) => !allMessages.some((m) => m.id === om.id),
           );
           const displayMessages = [...allMessages, ...pendingOptimistic];
           displayMessages.sort(

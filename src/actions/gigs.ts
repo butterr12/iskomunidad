@@ -15,6 +15,7 @@ import {
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 import { parseCompensation } from "@/lib/gigs";
+import { isoDateString } from "@/lib/validation/date";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ const createGigSchema = z.object({
   tags: z.array(z.string()).default([]),
   locationId: z.string().uuid().optional(),
   locationNote: z.string().optional(),
-  deadline: z.string().optional(), // ISO string
+  deadline: isoDateString.optional(),
   urgency: z.enum(["flexible", "soon", "urgent"]).default("flexible"),
   contactMethod: z.string().min(1),
 });

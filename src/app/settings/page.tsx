@@ -331,7 +331,8 @@ export default function SettingsPage() {
       const { key } = await uploadRes.json();
       const imageUrl = `/api/photos/${key}`;
 
-      await updateUser({ image: imageUrl });
+      const { error } = await updateUser({ image: imageUrl });
+      if (error) throw new Error(error.message ?? "Failed to update avatar");
       setAvatarUrl(imageUrl);
     } catch (err) {
       setSaveMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed" });
@@ -359,7 +360,8 @@ export default function SettingsPage() {
         return;
       }
 
-      await updateUser(updates);
+      const { error } = await updateUser(updates);
+      if (error) throw new Error(error.message ?? "Failed to save changes");
       setDirty(false);
       setSaveMessage({ type: "success", text: "Profile updated!" });
     } catch (err) {

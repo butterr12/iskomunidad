@@ -8,13 +8,13 @@ import {
   type ActionResult,
   getSession,
   getOptionalSession,
-  getAutoApproveSetting,
   getApprovalMode,
   createNotification,
   createUserNotification,
   rateLimit,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
+import { isoDateString } from "@/lib/validation/date";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -23,24 +23,35 @@ const createEventSchema = z.object({
   description: z.string().min(1),
   category: z.enum(["academic", "cultural", "social", "sports", "org"]),
   organizer: z.string().min(1),
-  startDate: z.string(), // ISO string
-  endDate: z.string(),
+  startDate: isoDateString,
+  endDate: isoDateString,
   locationId: z.string().uuid().optional(),
   tags: z.array(z.string()).default([]),
   coverColor: z.string().default("#3b82f6"),
-});
+}).refine(
+  (data) => new Date(data.endDate).getTime() >= new Date(data.startDate).getTime(),
+  { message: "End date must be on or after start date", path: ["endDate"] },
+);
 
 const updateEventSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
   category: z.enum(["academic", "cultural", "social", "sports", "org"]).optional(),
   organizer: z.string().min(1).optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
+  startDate: isoDateString.optional(),
+  endDate: isoDateString.optional(),
   locationId: z.string().uuid().optional().nullable(),
   tags: z.array(z.string()).optional(),
   coverColor: z.string().optional(),
-});
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return new Date(data.endDate).getTime() >= new Date(data.startDate).getTime();
+    }
+    return true;
+  },
+  { message: "End date must be on or after start date", path: ["endDate"] },
+);
 
 const rsvpSchema = z.object({
   status: z.enum(["going", "interested"]).nullable(),
@@ -351,7 +362,7 @@ export async function updateEvent(
   if (existing.userId !== session.user.id)
     return { success: false, error: "Not authorized" };
 
-  const autoApprove = await getAutoApproveSetting();
+  const mode = await getApprovalMode();
 
   const updateData: Record<string, unknown> = {};
   if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
@@ -364,14 +375,37 @@ export async function updateEvent(
   if (parsed.data.tags !== undefined) updateData.tags = parsed.data.tags;
   if (parsed.data.coverColor !== undefined) updateData.coverColor = parsed.data.coverColor;
 
-  if (!autoApprove) {
-    updateData.status = "draft";
+  // Validate date range against existing dates when only one date is updated
+  const effectiveStart = parsed.data.startDate ? new Date(parsed.data.startDate) : existing.startDate;
+  const effectiveEnd = parsed.data.endDate ? new Date(parsed.data.endDate) : existing.endDate;
+  if (effectiveEnd.getTime() < effectiveStart.getTime()) {
+    return { success: false, error: "End date must be on or after start date" };
+  }
+
+  let status: string;
+  let rejectionReason: string | undefined;
+
+  if (mode === "ai") {
+    const title = parsed.data.title ?? existing.title;
+    const description = parsed.data.description ?? existing.description;
+    const result = await moderateContent({ type: "event", title, body: description });
+    status = result.approved ? "approved" : "rejected";
+    rejectionReason = result.reason;
+    updateData.status = status;
+    updateData.rejectionReason = rejectionReason ?? null;
+  } else if (mode === "auto") {
+    status = "approved";
+    updateData.status = status;
+  } else {
+    status = "draft";
+    updateData.status = status;
   }
 
   await db.update(campusEvent).set(updateData).where(eq(campusEvent.id, id));
 
-  if (!autoApprove) {
-    const updatedTitle = parsed.data.title ?? existing.title;
+  const updatedTitle = parsed.data.title ?? existing.title;
+
+  if (mode === "manual") {
     await createNotification({
       type: "event_pending",
       targetId: id,
@@ -385,11 +419,31 @@ export async function updateEvent(
       targetId: id,
       targetTitle: updatedTitle,
     });
+  } else if (mode === "ai") {
+    await createNotification({
+      type: status === "approved" ? "event_approved" : "event_rejected",
+      targetId: id,
+      targetTitle: updatedTitle,
+      authorHandle: session.user.username ?? session.user.name,
+      reason: rejectionReason,
+    });
+    await createUserNotification({
+      userId: session.user.id,
+      type: status === "approved" ? "event_approved" : "event_rejected",
+      contentType: "event",
+      targetId: id,
+      targetTitle: updatedTitle,
+      reason: rejectionReason,
+    });
+  }
+
+  if (status === "rejected") {
+    return { success: false, error: `Your event was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
   return {
     success: true,
-    data: { id, status: autoApprove ? existing.status : "draft" },
+    data: { id, status },
   };
 }
 
