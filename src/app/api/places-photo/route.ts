@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, getIpFromHeaders } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
+  const ip = getIpFromHeaders(request.headers);
+  const rl = checkRateLimit("proxy", ip);
+  if (!rl.allowed) {
+    const retryAfter = Math.ceil(rl.retryAfterMs / 1000);
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
+
   const ref = request.nextUrl.searchParams.get("ref");
   const maxwidthParam = request.nextUrl.searchParams.get("maxwidth");
 

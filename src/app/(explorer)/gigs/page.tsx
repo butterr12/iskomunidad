@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { GigsTab } from "@/components/gigs/gigs-tab";
 
 export const metadata: Metadata = {
-  title: "Gigs | iskomunidad",
+  title: "Gigs",
   description: "Find side gigs and opportunities posted by the campus community.",
+  alternates: { canonical: "/gigs" },
+  openGraph: { url: "/gigs" },
 };
 
 export default function GigsPage() {

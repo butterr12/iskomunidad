@@ -483,6 +483,60 @@ export const messageRequest = pgTable(
   ],
 );
 
+// ─── User Selected Border ───────────────────────────────────────────────────
+
+export const userSelectedBorder = pgTable("user_selected_border", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  borderId: text("border_id").notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ─── User Unlocked Border ───────────────────────────────────────────────────
+
+export const userUnlockedBorder = pgTable(
+  "user_unlocked_border",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    borderId: text("border_id").notNull(),
+    unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_unlocked_border_user_border_idx").on(
+      table.userId,
+      table.borderId,
+    ),
+    index("user_unlocked_border_user_idx").on(table.userId),
+  ],
+);
+
+// ─── User Flair ──────────────────────────────────────────────────────────────
+
+export const userFlair = pgTable(
+  "user_flair",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    flairId: text("flair_id").notNull(),
+    visible: boolean("visible").notNull().default(false),
+    source: text("source").notNull().default("admin"), // "admin" | "basic-seed" | "university-sync" | "system"
+    grantedAt: timestamp("granted_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_flair_user_flair_idx").on(table.userId, table.flairId),
+    index("user_flair_user_idx").on(table.userId),
+  ],
+);
+
 // ─── Relations ─────────────────────────────────────────────────────────────────
 
 export const userRelations = relations(user, ({ many, one }) => ({
@@ -512,6 +566,12 @@ export const userRelations = relations(user, ({ many, one }) => ({
   }),
   conversationParticipants: many(conversationParticipant),
   sentMessages: many(message),
+  selectedBorder: one(userSelectedBorder, {
+    fields: [user.id],
+    references: [userSelectedBorder.userId],
+  }),
+  unlockedBorders: many(userUnlockedBorder),
+  flairs: many(userFlair),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -760,5 +820,36 @@ export const messageRequestRelations = relations(messageRequest, ({ one }) => ({
     fields: [messageRequest.toUserId],
     references: [user.id],
     relationName: "requestToUser",
+  }),
+}));
+
+// ─── Border Relations ───────────────────────────────────────────────────────
+
+export const userSelectedBorderRelations = relations(
+  userSelectedBorder,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userSelectedBorder.userId],
+      references: [user.id],
+    }),
+  }),
+);
+
+export const userUnlockedBorderRelations = relations(
+  userUnlockedBorder,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userUnlockedBorder.userId],
+      references: [user.id],
+    }),
+  }),
+);
+
+// ─── Flair Relations ─────────────────────────────────────────────────────────
+
+export const userFlairRelations = relations(userFlair, ({ one }) => ({
+  user: one(user, {
+    fields: [userFlair.userId],
+    references: [user.id],
   }),
 }));

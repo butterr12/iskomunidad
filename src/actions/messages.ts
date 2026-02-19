@@ -10,8 +10,8 @@ import {
   userPrivacySetting,
 } from "@/lib/schema";
 import { user } from "@/lib/auth-schema";
-import { eq, and, desc, lt, sql, ne, count } from "drizzle-orm";
-import { getSession, type ActionResult } from "./_helpers";
+import { eq, and, desc, lt, sql, ne } from "drizzle-orm";
+import { getSession, rateLimit, type ActionResult } from "./_helpers";
 import { getIO } from "@/lib/socket-server";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -184,6 +184,9 @@ export async function sendMessage(input: {
   body?: string;
   imageUrl?: string;
 }): Promise<ActionResult<MessageData>> {
+  const limited = await rateLimit("create");
+  if (limited) return limited;
+
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
   const userId = session.user.id;
@@ -362,7 +365,7 @@ export async function getConversations(): Promise<
   if (!session) return { success: false, error: "Not authenticated" };
   const userId = session.user.id;
 
-  // Get all conversations for user
+  // 1. Get my participations
   const myParticipations = await db
     .select({
       conversationId: conversationParticipant.conversationId,
@@ -375,140 +378,137 @@ export async function getConversations(): Promise<
     return { success: true, data: { messages: [], requests: [] } };
   }
 
-  const conversations: ConversationPreview[] = [];
+  const convIds = myParticipations.map((p) => p.conversationId);
+  const convIdsSql = sql.join(convIds.map((id) => sql`${id}`), sql`, `);
 
-  for (const participation of myParticipations) {
-    const convId = participation.conversationId;
+  // 2. Get conversation data + other participant info (single query with JOINs)
+  const convRows = await db
+    .select({
+      convId: conversation.id,
+      isRequest: conversation.isRequest,
+      updatedAt: conversation.updatedAt,
+      otherUserId: user.id,
+      otherUserName: user.name,
+      otherUserUsername: user.username,
+      otherUserImage: user.image,
+    })
+    .from(conversation)
+    .innerJoin(
+      conversationParticipant,
+      and(
+        eq(conversationParticipant.conversationId, conversation.id),
+        ne(conversationParticipant.userId, userId),
+      ),
+    )
+    .innerJoin(user, eq(user.id, conversationParticipant.userId))
+    .where(sql`${conversation.id} IN (${convIdsSql})`)
+    .orderBy(desc(conversation.updatedAt));
 
-    // Get conversation data
-    const [conv] = await db
+  if (convRows.length === 0) {
+    return { success: true, data: { messages: [], requests: [] } };
+  }
+
+  // 3. Get last message per conversation using DISTINCT ON (single query)
+  const lastMsgResult = await db.execute<{
+    conversation_id: string;
+    body: string | null;
+    image_url: string | null;
+    sender_id: string | null;
+    created_at: string;
+  }>(sql`
+    SELECT DISTINCT ON (conversation_id)
+      conversation_id, body, image_url, sender_id, created_at
+    FROM message
+    WHERE conversation_id IN (${convIdsSql})
+    ORDER BY conversation_id, created_at DESC
+  `);
+
+  const lastMsgMap = new Map(
+    lastMsgResult.rows.map((r) => [r.conversation_id, r]),
+  );
+
+  // 4. Get unread counts per conversation (single query)
+  const unreadResult = await db.execute<{
+    conversation_id: string;
+    unread_count: string;
+  }>(sql`
+    SELECT m.conversation_id, COUNT(*)::text AS unread_count
+    FROM message m
+    JOIN conversation_participant cp
+      ON cp.conversation_id = m.conversation_id
+      AND cp.user_id = ${userId}
+    WHERE m.conversation_id IN (${convIdsSql})
+      AND m.sender_id != ${userId}
+      AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+    GROUP BY m.conversation_id
+  `);
+
+  const unreadMap = new Map(
+    unreadResult.rows.map((r) => [r.conversation_id, Number(r.unread_count)]),
+  );
+
+  // 5. Get request info for request conversations (single query)
+  const requestConvIds = convRows
+    .filter((r) => r.isRequest)
+    .map((r) => r.convId);
+  const requestMap = new Map<
+    string,
+    { status: string; fromUserId: string; toUserId: string }
+  >();
+
+  if (requestConvIds.length > 0) {
+    const requestIdsSql = sql.join(
+      requestConvIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
+    const requestRows = await db
       .select({
-        id: conversation.id,
-        isRequest: conversation.isRequest,
-        updatedAt: conversation.updatedAt,
+        conversationId: messageRequest.conversationId,
+        status: messageRequest.status,
+        fromUserId: messageRequest.fromUserId,
+        toUserId: messageRequest.toUserId,
       })
-      .from(conversation)
-      .where(eq(conversation.id, convId));
-
-    if (!conv) continue;
-
-    // Get other participant
-    const [otherParticipant] = await db
-      .select({
-        userId: conversationParticipant.userId,
-      })
-      .from(conversationParticipant)
+      .from(messageRequest)
       .where(
-        and(
-          eq(conversationParticipant.conversationId, convId),
-          ne(conversationParticipant.userId, userId),
-        ),
-      )
-      .limit(1);
-
-    if (!otherParticipant) continue;
-
-    // Get other user's info
-    const [otherUser] = await db
-      .select({
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        image: user.image,
-      })
-      .from(user)
-      .where(eq(user.id, otherParticipant.userId));
-
-    if (!otherUser) continue;
-
-    // Get last message
-    const [lastMsg] = await db
-      .select({
-        body: message.body,
-        imageUrl: message.imageUrl,
-        senderId: message.senderId,
-        createdAt: message.createdAt,
-      })
-      .from(message)
-      .where(eq(message.conversationId, convId))
-      .orderBy(desc(message.createdAt))
-      .limit(1);
-
-    // Count unread messages
-    let unreadCount = 0;
-    if (participation.lastReadAt) {
-      const [unread] = await db
-        .select({ count: count() })
-        .from(message)
-        .where(
-          and(
-            eq(message.conversationId, convId),
-            sql`${message.createdAt} > ${participation.lastReadAt}`,
-            ne(message.senderId, userId),
-          ),
-        );
-      unreadCount = unread?.count ?? 0;
-    } else if (lastMsg) {
-      // Never read — count all messages from others
-      const [unread] = await db
-        .select({ count: count() })
-        .from(message)
-        .where(
-          and(
-            eq(message.conversationId, convId),
-            ne(message.senderId, userId),
-          ),
-        );
-      unreadCount = unread?.count ?? 0;
+        sql`${messageRequest.conversationId} IN (${requestIdsSql})`,
+      );
+    for (const r of requestRows) {
+      requestMap.set(r.conversationId, r);
     }
+  }
 
-    // Get request info if applicable
-    let requestStatus: string | undefined;
-    let requestFromUserId: string | undefined;
-    let requestToUserId: string | undefined;
+  // 6. Assemble results
+  const conversations: ConversationPreview[] = convRows.map((row) => {
+    const lastMsg = lastMsgMap.get(row.convId);
+    const request = requestMap.get(row.convId);
 
-    if (conv.isRequest) {
-      const [req] = await db
-        .select({
-          status: messageRequest.status,
-          fromUserId: messageRequest.fromUserId,
-          toUserId: messageRequest.toUserId,
-        })
-        .from(messageRequest)
-        .where(eq(messageRequest.conversationId, convId))
-        .limit(1);
-
-      if (req) {
-        requestStatus = req.status;
-        requestFromUserId = req.fromUserId;
-        requestToUserId = req.toUserId;
-      }
-    }
-
-    conversations.push({
-      id: conv.id,
-      isRequest: conv.isRequest,
-      updatedAt: conv.updatedAt.toISOString(),
-      otherUser,
+    return {
+      id: row.convId,
+      isRequest: row.isRequest,
+      updatedAt: row.updatedAt.toISOString(),
+      otherUser: {
+        id: row.otherUserId,
+        name: row.otherUserName,
+        username: row.otherUserUsername,
+        image: row.otherUserImage,
+      },
       lastMessage: lastMsg
         ? {
             body: lastMsg.body,
-            imageUrl: lastMsg.imageUrl,
-            senderId: lastMsg.senderId,
-            createdAt: lastMsg.createdAt.toISOString(),
+            imageUrl: lastMsg.image_url,
+            senderId: lastMsg.sender_id,
+            createdAt:
+              typeof lastMsg.created_at === "string"
+                ? new Date(lastMsg.created_at).toISOString()
+                : lastMsg.created_at,
           }
         : null,
-      unreadCount,
-      requestStatus,
-      requestFromUserId,
-      requestToUserId,
-    });
-  }
-
-  // Sort by updatedAt descending
-  conversations.sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
+      unreadCount: unreadMap.get(row.convId) ?? 0,
+      requestStatus: request?.status,
+      requestFromUserId: request?.fromUserId,
+      requestToUserId: request?.toUserId,
+    };
+  });
 
   return {
     success: true,
@@ -781,45 +781,19 @@ export async function getUnreadCount(): Promise<ActionResult<number>> {
   if (!session) return { success: false, error: "Not authenticated" };
   const userId = session.user.id;
 
-  // Get all non-request conversations for user
-  const participations = await db
-    .select({
-      conversationId: conversationParticipant.conversationId,
-      lastReadAt: conversationParticipant.lastReadAt,
-    })
-    .from(conversationParticipant)
-    .innerJoin(
-      conversation,
-      eq(conversation.id, conversationParticipant.conversationId),
-    )
-    .where(
-      and(
-        eq(conversationParticipant.userId, userId),
-        eq(conversation.isRequest, false),
-      ),
-    );
+  // Count conversations with unread messages (single query)
+  const result = await db.execute<{ count: string }>(sql`
+    SELECT COUNT(DISTINCT m.conversation_id)::text AS count
+    FROM message m
+    JOIN conversation_participant cp
+      ON cp.conversation_id = m.conversation_id
+      AND cp.user_id = ${userId}
+    JOIN conversation c
+      ON c.id = m.conversation_id
+      AND c.is_request = false
+    WHERE m.sender_id != ${userId}
+      AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+  `);
 
-  let totalUnread = 0;
-
-  for (const p of participations) {
-    const conditions = [
-      eq(message.conversationId, p.conversationId),
-      ne(message.senderId, userId),
-    ];
-
-    if (p.lastReadAt) {
-      conditions.push(sql`${message.createdAt} > ${p.lastReadAt}`);
-    }
-
-    const [result] = await db
-      .select({ count: count() })
-      .from(message)
-      .where(and(...conditions));
-
-    if (result && result.count > 0) {
-      totalUnread++;
-    }
-  }
-
-  return { success: true, data: totalUnread };
+  return { success: true, data: Number(result.rows[0]?.count ?? 0) };
 }

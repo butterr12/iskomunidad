@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { checkRateLimit, type RateLimitTier } from "@/lib/rate-limit";
 import {
   adminSetting,
   adminNotification,
@@ -90,6 +91,28 @@ export async function getClientIp(headersList: Headers): Promise<string | null> 
     headersList.get("cf-connecting-ip") ??
     null
   );
+}
+
+// ─── Rate limiting ───────────────────────────────────────────────────────────
+
+/**
+ * Check rate limit for the current request IP.
+ * Returns an error ActionResult if over the limit, or `null` if allowed.
+ *
+ * Usage in any server action:
+ *   const limited = await rateLimit("create");
+ *   if (limited) return limited;
+ */
+export async function rateLimit(
+  tier: RateLimitTier,
+): Promise<ActionResult<never> | null> {
+  const hdrs = await headers();
+  const ip = (await getClientIp(hdrs)) ?? "unknown";
+  const result = checkRateLimit(tier, ip);
+  if (!result.allowed) {
+    return { success: false, error: "Too many requests. Please try again later." };
+  }
+  return null;
 }
 
 // ─── Utility helpers ──────────────────────────────────────────────────────────

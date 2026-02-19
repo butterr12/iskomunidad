@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -32,6 +32,9 @@ import {
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { useSocket } from "@/components/providers/socket-provider";
+import { BorderedAvatar } from "@/components/bordered-avatar";
+import { getUserBorderSelectionById } from "@/actions/borders";
+import type { BorderDefinition } from "@/lib/profile-borders";
 
 const tabs = [
   { label: "Map", href: "/map", icon: MapPin },
@@ -65,6 +68,17 @@ export function NavBar() {
   const displayUsername = (user as Record<string, unknown> | undefined)
     ?.displayUsername as string | undefined;
 
+  const [userBorder, setUserBorder] = useState<BorderDefinition | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    void getUserBorderSelectionById(user.id).then((res) => {
+      if (!cancelled && res.success) setUserBorder(res.data);
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   const toggleTheme = () => {
     setTheme(resolvedTheme === "dark" ? "light" : "dark");
   };
@@ -78,10 +92,12 @@ export function NavBar() {
             onClick={() => setSheetOpen(true)}
             className="rounded-full transition-shadow hover:ring-2 hover:ring-muted-foreground/30 hover:ring-offset-2 hover:ring-offset-background"
           >
-            <Avatar size="default">
-              <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? "User"} />
-              <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
-            </Avatar>
+            <BorderedAvatar border={userBorder} avatarSize={32}>
+              <Avatar size="default">
+                <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? "User"} />
+                <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
+              </Avatar>
+            </BorderedAvatar>
           </button>
 
           <nav className="flex items-center gap-1">
@@ -126,10 +142,12 @@ export function NavBar() {
               onClick={() => setSheetOpen(true)}
               className="rounded-full transition-shadow hover:ring-2 hover:ring-muted-foreground/30 hover:ring-offset-1 hover:ring-offset-background"
             >
-              <Avatar size="sm">
-                <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? "User"} />
-                <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
-              </Avatar>
+              <BorderedAvatar border={userBorder} avatarSize={24}>
+                <Avatar size="sm">
+                  <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? "User"} />
+                  <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
+                </Avatar>
+              </BorderedAvatar>
             </button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
               <Sun className="hidden h-4 w-4 dark:block" />
@@ -185,10 +203,12 @@ export function NavBar() {
           <div className="flex flex-col gap-4 px-4 pb-6">
             {/* Profile preview */}
             <div className="flex items-center gap-3">
-              <Avatar className="size-12">
-                <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? "User"} />
-                <AvatarFallback className="text-lg">{getInitials(user?.name)}</AvatarFallback>
-              </Avatar>
+              <BorderedAvatar border={userBorder} avatarSize={48}>
+                <Avatar className="size-12">
+                  <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? "User"} />
+                  <AvatarFallback className="text-lg">{getInitials(user?.name)}</AvatarFallback>
+                </Avatar>
+              </BorderedAvatar>
               <div className="min-w-0">
                 <p className="font-semibold truncate">{user?.name ?? "User"}</p>
                 {displayUsername && (

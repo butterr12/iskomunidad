@@ -23,6 +23,8 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import { UserFlairs } from "@/components/user-flairs";
+import { BorderedAvatar } from "@/components/bordered-avatar";
 import { toast } from "sonner";
 
 type OptimisticMessage = MessageData & {
@@ -65,6 +67,7 @@ export function ChatPanel({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loadOlderRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const typingIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -226,6 +229,33 @@ export function ChatPanel({
     }
   }, [conversation.id, conversation.unreadCount]);
 
+  // Auto-fetch older messages on scroll (IntersectionObserver)
+  useEffect(() => {
+    if (!loadOlderRef.current || !hasNextPage) return;
+    const el = loadOlderRef.current;
+    const container = scrollContainerRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          // Save scroll position before fetch
+          const prevHeight = container?.scrollHeight ?? 0;
+          fetchNextPage().then(() => {
+            // Restore scroll position after new messages prepend
+            requestAnimationFrame(() => {
+              if (container) {
+                const newHeight = container.scrollHeight;
+                container.scrollTop += newHeight - prevHeight;
+              }
+            });
+          });
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   // Handle typing events
   const handleTypingStart = useCallback(() => {
     if (!socket) return;
@@ -381,19 +411,26 @@ export function ChatPanel({
         <Button variant="ghost" size="sm" onClick={onBack} className="sm:hidden">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <Avatar size="sm">
-          <AvatarImage
-            src={conversation.otherUser.image ?? undefined}
-            alt={conversation.otherUser.name}
-          />
-          <AvatarFallback className="text-xs">
-            {getInitials(conversation.otherUser.name)}
-          </AvatarFallback>
-        </Avatar>
+        <BorderedAvatar avatarSize={24}>
+          <Avatar size="sm">
+            <AvatarImage
+              src={conversation.otherUser.image ?? undefined}
+              alt={conversation.otherUser.name}
+            />
+            <AvatarFallback className="text-xs">
+              {getInitials(conversation.otherUser.name)}
+            </AvatarFallback>
+          </Avatar>
+        </BorderedAvatar>
         <div className="min-w-0">
-          <p className="text-sm font-semibold truncate">
-            {conversation.otherUser.name}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-semibold truncate">
+              {conversation.otherUser.name}
+            </p>
+            {conversation.otherUser.username && (
+              <UserFlairs username={conversation.otherUser.username} context="inline" max={2} />
+            )}
+          </div>
           {conversation.otherUser.username && (
             <p className="text-xs text-muted-foreground truncate">
               @{conversation.otherUser.username}
@@ -418,19 +455,10 @@ export function ChatPanel({
         className="flex-1 overflow-y-auto py-3"
       >
         {hasNextPage && (
-          <div className="flex justify-center py-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => fetchNextPage()}
-              disabled={isFetchingNextPage}
-            >
-              {isFetchingNextPage ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Load older messages"
-              )}
-            </Button>
+          <div ref={loadOlderRef} className="flex justify-center py-2">
+            {isFetchingNextPage && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
           </div>
         )}
 

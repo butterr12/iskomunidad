@@ -3,9 +3,11 @@ import Link from "next/link";
 import { LEGAL_EFFECTIVE_DATE, LEGAL_VERSIONS } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | iskomunidad",
+  title: "Privacy Policy",
   description:
     "How iskomunidad collects, uses, and protects personal information under Philippine data privacy principles.",
+  alternates: { canonical: "/privacy" },
+  openGraph: { url: "/privacy" },
 };
 
 const effectiveDate = LEGAL_EFFECTIVE_DATE;

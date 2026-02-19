@@ -3,12 +3,13 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { userLegalConsent } from "@/lib/schema";
+import { user as userTable, userLegalConsent } from "@/lib/schema";
 import { LEGAL_VERSIONS } from "@/lib/legal";
 import type { ActionResult } from "./_helpers";
-import { getClientIp, getSession } from "./_helpers";
+import { getClientIp, getSession, rateLimit } from "./_helpers";
+import { syncCampusFlair } from "@/lib/flair-service";
 
 const createAccountSchema = z.object({
   name: z.string().min(1),
@@ -24,6 +25,9 @@ const createAccountSchema = z.object({
 export async function createAccountWithConsent(
   input: z.infer<typeof createAccountSchema>,
 ): Promise<ActionResult<void>> {
+  const limited = await rateLimit("auth");
+  if (limited) return limited;
+
   try {
     const parsed = createAccountSchema.safeParse(input);
     if (!parsed.success) {
@@ -164,6 +168,52 @@ export async function recordConsent(
     ipAddress,
     userAgent,
   });
+
+  return { success: true, data: undefined };
+}
+
+// ─── UP University Selection ─────────────────────────────────────────────────
+
+export const UP_CAMPUSES = [
+  { value: "up-diliman", label: "UP Diliman" },
+  { value: "up-manila", label: "UP Manila" },
+  { value: "up-los-banos", label: "UP Los Baños" },
+  { value: "up-visayas", label: "UP Visayas" },
+  { value: "up-mindanao", label: "UP Mindanao" },
+  { value: "up-baguio", label: "UP Baguio" },
+  { value: "up-cebu", label: "UP Cebu" },
+  { value: "up-open-university", label: "UP Open University" },
+] as const;
+
+const validCampusValues = UP_CAMPUSES.map((c) => c.value) as readonly string[];
+
+export async function setUserUniversity(
+  university: string,
+): Promise<ActionResult<void>> {
+  if (!validCampusValues.includes(university)) {
+    return { success: false, error: "Invalid university selection" };
+  }
+
+  const session = await getSession();
+  if (!session) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  // One-time only — reject if already set
+  const existing = await db.query.user.findFirst({
+    where: eq(userTable.id, session.user.id),
+    columns: { university: true },
+  });
+  if (existing?.university) {
+    return { success: false, error: "University is already set" };
+  }
+
+  await db
+    .update(userTable)
+    .set({ university })
+    .where(and(eq(userTable.id, session.user.id), isNull(userTable.university)));
+
+  await syncCampusFlair(session.user.id, university);
 
   return { success: true, data: undefined };
 }

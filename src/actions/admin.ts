@@ -27,6 +27,12 @@ import {
   createUserNotification,
 } from "./_helpers";
 import { parseCompensation } from "@/lib/gigs";
+import {
+  grantFlair,
+  revokeFlair,
+  getUserFlairsFromDb,
+} from "@/lib/flair-service";
+import { getFlairById, getBasicFlairIds } from "@/lib/user-flairs";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -1136,5 +1142,53 @@ export async function adminRestoreUser(
     .set({ status: "active", deletedAt: null })
     .where(eq(user.id, id));
 
+  return { success: true, data: undefined };
+}
+
+// ─── Flairs ──────────────────────────────────────────────────────────────────
+
+export async function adminGetUserFlairs(
+  userId: string,
+): Promise<ActionResult<{ id: string; label: string; color: string; tier: string }[]>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const flairs = await getUserFlairsFromDb(userId);
+  return {
+    success: true,
+    data: flairs.map((f) => ({ id: f.id, label: f.label, color: f.color, tier: f.tier })),
+  };
+}
+
+export async function adminGrantFlair(
+  userId: string,
+  flairId: string,
+): Promise<ActionResult<void>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const def = getFlairById(flairId);
+  if (!def) return { success: false, error: "Unknown flair" };
+
+  if (getBasicFlairIds().includes(flairId)) {
+    return { success: false, error: "Basic flairs are auto-granted and cannot be manually assigned" };
+  }
+
+  await grantFlair(userId, flairId, "admin");
+  return { success: true, data: undefined };
+}
+
+export async function adminRevokeFlair(
+  userId: string,
+  flairId: string,
+): Promise<ActionResult<void>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  if (getBasicFlairIds().includes(flairId)) {
+    return { success: false, error: "Basic flairs cannot be revoked" };
+  }
+
+  await revokeFlair(userId, flairId);
   return { success: true, data: undefined };
 }

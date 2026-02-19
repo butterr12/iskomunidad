@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { CommunityTab } from "@/components/community/community-tab";
 
 export const metadata: Metadata = {
-  title: "Community | iskomunidad",
+  title: "Community",
   description: "Read and share campus discussions, questions, and announcements.",
+  alternates: { canonical: "/community" },
+  openGraph: { url: "/community" },
 };
 
 export default function CommunityPage() {

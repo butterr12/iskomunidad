@@ -8,6 +8,7 @@ import Link from "next/link";
 import { ArrowLeft, MapPin, Share2, Bookmark, ExternalLink } from "lucide-react";
 import { VoteControls } from "./vote-controls";
 import { CommentSection } from "./comment-section";
+import { UserFlairs } from "@/components/user-flairs";
 import {
   FLAIR_COLORS,
   formatRelativeTime,
@@ -74,6 +75,7 @@ export function PostDetail({
               ) : (
                 <span>{post.author}</span>
               )}
+              <UserFlairs username={post.authorHandle?.replace("@", "") ?? ""} context="inline" max={2} />
               <span>·</span>
               <span>{formatRelativeTime(post.createdAt)}</span>
             </div>

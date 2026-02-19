@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { EventsTab } from "@/components/events/events-tab";
 
 export const metadata: Metadata = {
-  title: "Events | iskomunidad",
+  title: "Events",
   description: "Browse upcoming campus events and track what you're attending.",
+  alternates: { canonical: "/events" },
+  openGraph: { url: "/events" },
 };
 
 export default function EventsPage() {

@@ -4,8 +4,10 @@ import { Loader2 } from "lucide-react";
 import { MapPageClient } from "@/components/map-page-client";
 
 export const metadata: Metadata = {
-  title: "Map | iskomunidad",
+  title: "Map",
   description: "Explore campus landmarks and see related events and community posts.",
+  alternates: { canonical: "/map" },
+  openGraph: { url: "/map" },
 };
 
 function MapPageFallback() {

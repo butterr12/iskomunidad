@@ -11,6 +11,7 @@ import {
   getApprovalMode,
   createNotification,
   createUserNotification,
+  rateLimit,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 import { parseCompensation } from "@/lib/gigs";
@@ -85,6 +86,9 @@ export async function getApprovedGigs(
 export async function createGig(
   input: z.infer<typeof createGigSchema>,
 ): Promise<ActionResult<{ id: string; status: string }>> {
+  const limited = await rateLimit("create");
+  if (limited) return limited;
+
   const parsed = createGigSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };

@@ -17,6 +17,7 @@ import {
   getApprovalMode,
   createNotification,
   createUserNotification,
+  rateLimit,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 
@@ -94,6 +95,42 @@ export async function getApprovedPosts(
   };
 }
 
+export async function getPostsForLandmark(
+  landmarkId: string,
+): Promise<ActionResult<unknown[]>> {
+  const session = await getOptionalSession();
+
+  const rows = await db.query.communityPost.findMany({
+    where: (p, { eq: e, and: a }) =>
+      a(e(p.status, "approved"), e(p.locationId, landmarkId)),
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+    },
+    orderBy: (p, { desc: d }) => [d(p.score), d(p.createdAt)],
+  });
+
+  let userVotes: Record<string, number> = {};
+  if (session?.user) {
+    const votes = await db.query.postVote.findMany({
+      where: eq(postVote.userId, session.user.id),
+    });
+    userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+  }
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      author: r.user.name,
+      authorHandle: r.user.username ? `@${r.user.username}` : null,
+      authorImage: r.user.image,
+      userVote: userVotes[r.id] ?? 0,
+    })),
+  };
+}
+
 export async function getFollowingPosts(
   opts?: { sort?: "hot" | "new" | "top" },
 ): Promise<ActionResult<unknown[]>> {
@@ -139,6 +176,59 @@ export async function getFollowingPosts(
       authorImage: r.user.image,
       userVote: userVotes[r.id] ?? 0,
     })),
+  };
+}
+
+export async function getApprovedPostsPaginated(
+  opts?: { sort?: "hot" | "new" | "top"; flair?: string; page?: number },
+): Promise<ActionResult<{ posts: unknown[]; hasMore: boolean }>> {
+  const session = await getOptionalSession();
+  const PAGE_SIZE = 20;
+  const page = opts?.page ?? 0;
+
+  const rows = await db.query.communityPost.findMany({
+    where: (p, { eq: e, and: a }) => {
+      const conditions = [e(p.status, "approved")];
+      if (opts?.flair) conditions.push(e(p.flair, opts.flair));
+      return conditions.length === 1 ? conditions[0] : a(...conditions);
+    },
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+    },
+    orderBy: (p, { desc: d }) => {
+      if (opts?.sort === "top") return [d(p.score)];
+      if (opts?.sort === "new") return [d(p.createdAt)];
+      return [d(p.score), d(p.createdAt)];
+    },
+    limit: PAGE_SIZE + 1,
+    offset: page * PAGE_SIZE,
+  });
+
+  const hasMore = rows.length > PAGE_SIZE;
+  const pageRows = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+
+  let userVotes: Record<string, number> = {};
+  if (session?.user) {
+    const votes = await db.query.postVote.findMany({
+      where: eq(postVote.userId, session.user.id),
+    });
+    userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+  }
+
+  return {
+    success: true,
+    data: {
+      posts: pageRows.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+        author: r.user.name,
+        authorHandle: r.user.username ? `@${r.user.username}` : null,
+        authorImage: r.user.image,
+        userVote: userVotes[r.id] ?? 0,
+      })),
+      hasMore,
+    },
   };
 }
 
@@ -213,6 +303,9 @@ export async function getPostById(
 export async function createPost(
   input: z.infer<typeof createPostSchema>,
 ): Promise<ActionResult<{ id: string; status: string }>> {
+  const limited = await rateLimit("create");
+  if (limited) return limited;
+
   const parsed = createPostSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
@@ -367,6 +460,9 @@ export async function voteOnPost(
 export async function createComment(
   input: z.infer<typeof createCommentSchema>,
 ): Promise<ActionResult<unknown>> {
+  const limited = await rateLimit("create");
+  if (limited) return limited;
+
   const parsed = createCommentSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };

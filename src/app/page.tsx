@@ -5,9 +5,11 @@ import { LandingPage } from "@/components/landing-page";
 import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "iskomunidad",
+  title: { absolute: "iskomunidad" },
   description:
     "Discover campus landmarks, events, community posts, and gigs in one place.",
+  alternates: { canonical: "/" },
+  openGraph: { url: "/" },
 };
 
 export default async function Home() {

@@ -18,6 +18,7 @@ export const user = pgTable("user", {
   bannedAt: timestamp("banned_at"),
   banReason: text("ban_reason"),
   deletedAt: timestamp("deleted_at"),
+  university: text("university"),
 });
 
 export const session = pgTable(

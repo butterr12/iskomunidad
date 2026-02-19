@@ -6,11 +6,9 @@ import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { AttractionDetail } from "@/components/attraction-detail";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getEventsAtLandmark } from "@/lib/events";
-import { getPostsAtLandmark } from "@/lib/posts";
 import { getLandmarkPins, getLandmarkById } from "@/actions/landmarks";
-import { getApprovedEvents } from "@/actions/events";
-import { getApprovedPosts } from "@/actions/posts";
+import { getEventsForLandmark } from "@/actions/events";
+import { getPostsForLandmark } from "@/actions/posts";
 import type { LandmarkPin, Landmark } from "@/lib/landmarks";
 import type { CampusEvent } from "@/lib/events";
 import type { CommunityPost } from "@/lib/posts";
@@ -39,28 +37,6 @@ export function MapPageClient({ landmarkParam }: MapPageClientProps) {
     },
   });
 
-  const { data: approvedEvents = [] } = useQuery({
-    queryKey: ["approved-events"],
-    queryFn: async () => {
-      const res = await getApprovedEvents();
-      if (!res.success) return [];
-      return (res.data as (CampusEvent & { userRsvp?: CampusEvent["rsvpStatus"] })[]).map(
-        (event) => ({
-          ...event,
-          rsvpStatus: event.userRsvp ?? null,
-        }),
-      );
-    },
-  });
-
-  const { data: approvedPosts = [] } = useQuery({
-    queryKey: ["approved-posts"],
-    queryFn: async () => {
-      const res = await getApprovedPosts();
-      return res.success ? (res.data as CommunityPost[]) : [];
-    },
-  });
-
   const autoSelectedId = useMemo(() => {
     if (!landmarkParam || pins.length === 0) return null;
     return pins.find((pin) => pin.id === landmarkParam)?.id ?? null;
@@ -75,6 +51,32 @@ export function MapPageClient({ landmarkParam }: MapPageClientProps) {
       if (!selectedId) return null;
       const res = await getLandmarkById(selectedId);
       return res.success ? (res.data as Landmark) : null;
+    },
+    enabled: !!selectedId,
+  });
+
+  const { data: landmarkEvents = [] } = useQuery({
+    queryKey: ["landmark-events", selectedId],
+    queryFn: async () => {
+      if (!selectedId) return [];
+      const res = await getEventsForLandmark(selectedId);
+      if (!res.success) return [];
+      return (res.data as (CampusEvent & { userRsvp?: CampusEvent["rsvpStatus"] })[]).map(
+        (event) => ({
+          ...event,
+          rsvpStatus: event.userRsvp ?? null,
+        }),
+      );
+    },
+    enabled: !!selectedId,
+  });
+
+  const { data: landmarkPosts = [] } = useQuery({
+    queryKey: ["landmark-posts", selectedId],
+    queryFn: async () => {
+      if (!selectedId) return [];
+      const res = await getPostsForLandmark(selectedId);
+      return res.success ? (res.data as CommunityPost[]) : [];
     },
     enabled: !!selectedId,
   });
@@ -99,8 +101,8 @@ export function MapPageClient({ landmarkParam }: MapPageClientProps) {
   const detailContent = selectedLandmark && !loadingDetail ? (
     <AttractionDetail
       landmark={selectedLandmark}
-      events={getEventsAtLandmark(selectedLandmark.id, approvedEvents)}
-      posts={getPostsAtLandmark(selectedLandmark.id, approvedPosts)}
+      events={landmarkEvents}
+      posts={landmarkPosts}
       onClose={() => setSelectedIdOverride(null)}
     />
   ) : null;

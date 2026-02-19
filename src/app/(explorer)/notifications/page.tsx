@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { NotificationList } from "@/components/notifications/notification-list";
 
 export const metadata: Metadata = {
-  title: "Notifications | iskomunidad",
+  title: "Notifications",
   description: "View updates about your posts, events, gigs, and activity.",
+  alternates: { canonical: "/notifications" },
+  openGraph: { url: "/notifications" },
+  robots: { index: false },
 };
 
 export default function NotificationsPage() {

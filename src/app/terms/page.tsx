@@ -3,9 +3,11 @@ import Link from "next/link";
 import { LEGAL_EFFECTIVE_DATE, LEGAL_VERSIONS } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Terms of Service | iskomunidad",
+  title: "Terms of Service",
   description:
     "Terms governing the use of iskomunidad and its campus community features.",
+  alternates: { canonical: "/terms" },
+  openGraph: { url: "/terms" },
 };
 
 const effectiveDate = LEGAL_EFFECTIVE_DATE;

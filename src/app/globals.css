@@ -138,6 +138,13 @@
   }
 }
 
+/* Splash screen loading bar */
+@keyframes loading {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+
 /* Mobile bottom navbar clearance — only below sm breakpoint (640px) */
 @media (max-width: 639px) {
   .pb-safe-nav {

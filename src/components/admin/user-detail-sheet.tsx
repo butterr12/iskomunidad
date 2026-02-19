@@ -26,7 +26,9 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { adminGetUserDetail } from "@/actions/admin";
+import { adminGetUserDetail, adminGetUserFlairs, adminGrantFlair, adminRevokeFlair } from "@/actions/admin";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { USER_FLAIR_CATALOG, getProvisionedFlairIds } from "@/lib/user-flairs";
 
 interface AdminUser {
   id: string;
@@ -76,6 +78,8 @@ export function UserDetailSheet({
   onSoftDelete,
   onRestore,
 }: UserDetailSheetProps) {
+  const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
     queryKey: ["admin-user-detail", userId],
     queryFn: async () => {
@@ -85,6 +89,43 @@ export function UserDetailSheet({
     },
     enabled: !!userId,
   });
+
+  const { data: userFlairs = [] } = useQuery({
+    queryKey: ["admin-user-flairs", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const res = await adminGetUserFlairs(userId);
+      return res.success ? res.data : [];
+    },
+    enabled: !!userId,
+  });
+
+  const grantMutation = useMutation({
+    mutationFn: async (flairId: string) => {
+      if (!userId) throw new Error("No user");
+      const res = await adminGrantFlair(userId, flairId);
+      if (!res.success) throw new Error(res.error);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-user-flairs", userId] });
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: async (flairId: string) => {
+      if (!userId) throw new Error("No user");
+      const res = await adminRevokeFlair(userId, flairId);
+      if (!res.success) throw new Error(res.error);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-user-flairs", userId] });
+    },
+  });
+
+  const ownedFlairIds = new Set(userFlairs.map((f) => f.id));
+  const grantableFlairs = USER_FLAIR_CATALOG.filter(
+    (f) => getProvisionedFlairIds().includes(f.id) && !ownedFlairIds.has(f.id),
+  );
 
   const user = data?.user;
   const counts = data?.counts;
@@ -178,6 +219,67 @@ export function UserDetailSheet({
                 </div>
               </div>
             )}
+
+            <Separator />
+
+            {/* Flairs */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Flairs</p>
+              {userFlairs.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {userFlairs.map((flair) => (
+                    <span
+                      key={flair.id}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                      style={{ backgroundColor: flair.color }}
+                    >
+                      {flair.label}
+                      {flair.tier !== "basic" && (
+                        <button
+                          type="button"
+                          className="ml-0.5 hover:opacity-80"
+                          disabled={revokeMutation.isPending}
+                          onClick={() => revokeMutation.mutate(flair.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No flairs yet</p>
+              )}
+              {grantableFlairs.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <select
+                    className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        grantMutation.mutate(e.target.value);
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={grantMutation.isPending}
+                  >
+                    <option value="" disabled>
+                      Grant a flair...
+                    </option>
+                    {grantableFlairs.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {(grantMutation.isError || revokeMutation.isError) && (
+                <p className="text-xs text-red-500">
+                  {(grantMutation.error ?? revokeMutation.error)?.message}
+                </p>
+              )}
+            </div>
 
             <Separator />
 

@@ -1,10 +1,10 @@
 /* eslint-disable */
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { Plus, MessageCircle, Users } from "lucide-react";
+import { Plus, MessageCircle, Users, Loader2 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ import {
   type VoteDirection,
 } from "@/lib/posts";
 import {
-  getApprovedPosts,
+  getApprovedPostsPaginated,
   getFollowingPosts,
   getPostById,
   voteOnPost,
@@ -39,6 +39,8 @@ import { toast } from "sonner";
 type PostWithComments = {
   comments?: PostComment[];
 };
+
+type PostPage = { posts: CommunityPost[]; hasMore: boolean };
 
 function PostCardSkeleton() {
   return (
@@ -87,20 +89,42 @@ export function CommunityTab() {
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<PostComment[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
     ?.displayUsername as string | undefined;
   const promptName = displayUsername?.trim() || user?.name?.trim() || undefined;
 
-  const { data: posts = [], isLoading } = useQuery({
-    queryKey: ["approved-posts", sortMode],
-    queryFn: async () => {
-      const res = await getApprovedPosts({ sort: sortMode });
-      return res.success ? (res.data as CommunityPost[]) : [];
+  // Paginated "all" feed
+  const {
+    data: postsData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["approved-posts", sortMode, activeFlair],
+    queryFn: async ({ pageParam }) => {
+      const res = await getApprovedPostsPaginated({
+        sort: sortMode,
+        flair: activeFlair ?? undefined,
+        page: pageParam,
+      });
+      if (!res.success) return { posts: [] as CommunityPost[], hasMore: false };
+      return res.data as PostPage;
     },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasMore ? allPages.length : undefined,
+    initialPageParam: 0,
   });
 
+  const posts = useMemo(
+    () => postsData?.pages.flatMap((p) => p.posts) ?? [],
+    [postsData],
+  );
+
+  // "following" feed (unchanged — fetch-all)
   const { data: followingPosts = [], isLoading: followingLoading } = useQuery({
     queryKey: ["following-posts", sortMode],
     queryFn: async () => {
@@ -110,28 +134,69 @@ export function CommunityTab() {
     enabled: feedMode === "following" && !!user,
   });
 
+  const displayPosts = useMemo(() => {
+    if (feedMode === "following") {
+      const filtered = activeFlair
+        ? followingPosts.filter((p) => p.flair === activeFlair)
+        : followingPosts;
+      return sortPosts(filtered, sortMode);
+    }
+    // "all" feed: already sorted and filtered by server
+    return posts;
+  }, [feedMode, posts, followingPosts, activeFlair, sortMode]);
+
   const activePosts = feedMode === "following" ? followingPosts : posts;
   const activeLoading = feedMode === "following" ? followingLoading : isLoading;
 
-  const filteredAndSorted = useMemo(() => {
-    const filtered = activeFlair
-      ? activePosts.filter((p) => p.flair === activeFlair)
-      : activePosts;
-    return sortPosts(filtered, sortMode);
-  }, [activePosts, activeFlair, sortMode]);
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    if (feedMode !== "all" || !loadMoreRef.current || !hasNextPage) return;
+    const el = loadMoreRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [feedMode, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleVotePost = async (postId: string, direction: VoteDirection) => {
     const res = await voteOnPost(postId, direction);
     if (res.success) {
-      const updateFn = (old: CommunityPost[] | undefined) =>
-        old?.map((p) => {
-          if (p.id !== postId) return p;
-          const updated = { ...p, score: res.data.newScore, userVote: direction };
-          if (selectedPost?.id === postId) setSelectedPost(updated);
-          return updated;
-        });
-      queryClient.setQueryData<CommunityPost[]>(["approved-posts", sortMode], updateFn);
-      queryClient.setQueryData<CommunityPost[]>(["following-posts", sortMode], updateFn);
+      // Update infinite query cache
+      queryClient.setQueryData(
+        ["approved-posts", sortMode, activeFlair],
+        (old: typeof postsData) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              posts: page.posts.map((p: CommunityPost) => {
+                if (p.id !== postId) return p;
+                const updated = { ...p, score: res.data.newScore, userVote: direction };
+                if (selectedPost?.id === postId) setSelectedPost(updated);
+                return updated;
+              }),
+            })),
+          };
+        },
+      );
+      // Update following feed cache
+      queryClient.setQueryData<CommunityPost[]>(
+        ["following-posts", sortMode],
+        (old) =>
+          old?.map((p) => {
+            if (p.id !== postId) return p;
+            const updated = { ...p, score: res.data.newScore, userVote: direction };
+            if (selectedPost?.id === postId) setSelectedPost(updated);
+            return updated;
+          }),
+      );
     }
   };
 
@@ -189,6 +254,30 @@ export function CommunityTab() {
     return { success: res.success };
   };
 
+  const updateCommentCount = useCallback(
+    (newCount: number) => {
+      queryClient.setQueryData(
+        ["approved-posts", sortMode, activeFlair],
+        (old: typeof postsData) => {
+          if (!old || !selectedPost) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              posts: page.posts.map((p: CommunityPost) =>
+                p.id === selectedPost.id ? { ...p, commentCount: newCount } : p,
+              ),
+            })),
+          };
+        },
+      );
+      setSelectedPost((prev) =>
+        prev ? { ...prev, commentCount: newCount } : prev,
+      );
+    },
+    [queryClient, sortMode, activeFlair, selectedPost, postsData],
+  );
+
   const handleComment = async (body: string) => {
     if (!selectedPost) return;
     const res = await createComment({ postId: selectedPost.id, body });
@@ -196,26 +285,11 @@ export function CommunityTab() {
       toast.error(res.error);
       return;
     }
-    if (res.success) {
-      // Re-fetch post to get updated comments
-      const postRes = await getPostById(selectedPost.id);
-      if (postRes.success) {
-        const data = postRes.data as PostWithComments;
-        setComments(data.comments ?? []);
-        // Update comment count in the posts list
-        queryClient.setQueryData<CommunityPost[]>(
-          ["approved-posts", sortMode],
-          (old) =>
-            old?.map((p) =>
-              p.id === selectedPost.id
-                ? { ...p, commentCount: (data.comments ?? []).length }
-                : p
-            ),
-        );
-        setSelectedPost((prev) =>
-          prev ? { ...prev, commentCount: (data.comments ?? []).length } : prev
-        );
-      }
+    const postRes = await getPostById(selectedPost.id);
+    if (postRes.success) {
+      const data = postRes.data as PostWithComments;
+      setComments(data.comments ?? []);
+      updateCommentCount((data.comments ?? []).length);
     }
   };
 
@@ -226,25 +300,11 @@ export function CommunityTab() {
       toast.error(res.error);
       return;
     }
-    if (res.success) {
-      // Re-fetch post to get updated comments
-      const postRes = await getPostById(selectedPost.id);
-      if (postRes.success) {
-        const data = postRes.data as PostWithComments;
-        setComments(data.comments ?? []);
-        queryClient.setQueryData<CommunityPost[]>(
-          ["approved-posts", sortMode],
-          (old) =>
-            old?.map((p) =>
-              p.id === selectedPost.id
-                ? { ...p, commentCount: (data.comments ?? []).length }
-                : p
-            ),
-        );
-        setSelectedPost((prev) =>
-          prev ? { ...prev, commentCount: (data.comments ?? []).length } : prev
-        );
-      }
+    const postRes = await getPostById(selectedPost.id);
+    if (postRes.success) {
+      const data = postRes.data as PostWithComments;
+      setComments(data.comments ?? []);
+      updateCommentCount((data.comments ?? []).length);
     }
   };
 
@@ -333,18 +393,27 @@ export function CommunityTab() {
               />
             ) : activeLoading ? (
               <PostFeedSkeleton />
-            ) : feedMode === "following" && filteredAndSorted.length === 0 ? (
+            ) : feedMode === "following" && displayPosts.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
                 <Users className="h-10 w-10 text-muted-foreground/40" />
                 <p className="text-sm font-medium">No posts from people you follow</p>
                 <p className="text-xs">Follow others to see their posts here!</p>
               </div>
             ) : (
-              <PostFeed
-                posts={filteredAndSorted}
-                onSelectPost={handleSelectPost}
-                onVotePost={handleVotePost}
-              />
+              <>
+                <PostFeed
+                  posts={displayPosts}
+                  onSelectPost={handleSelectPost}
+                  onVotePost={handleVotePost}
+                />
+                {feedMode === "all" && hasNextPage && (
+                  <div ref={loadMoreRef} className="flex justify-center py-4">
+                    {isFetchingNextPage && (
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 

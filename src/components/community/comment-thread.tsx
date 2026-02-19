@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { VoteControls } from "./vote-controls";
+import { UserFlairs } from "@/components/user-flairs";
 import { formatRelativeTime, type CommentNode, type VoteDirection } from "@/lib/posts";
 import { cn } from "@/lib/utils";
 
@@ -107,6 +108,7 @@ export function CommentThread({ nodes, depth = 0, onVoteComment, onReply }: Comm
                 ) : (
                   <span className="font-medium text-foreground">{node.comment.author}</span>
                 )}
+                <UserFlairs username={node.comment.authorHandle?.replace("@", "") ?? ""} context="inline" max={1} />
                 <span>·</span>
                 <span>{formatRelativeTime(node.comment.createdAt)}</span>
               </div>

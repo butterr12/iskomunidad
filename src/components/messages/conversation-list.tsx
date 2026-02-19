@@ -10,6 +10,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { SquarePen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserFlairs } from "@/components/user-flairs";
+import { BorderedAvatar } from "@/components/bordered-avatar";
 import { formatRelativeTime } from "@/lib/posts";
 import { ComposeDialog } from "./compose-dialog";
 
@@ -48,13 +50,15 @@ function ConversationItem({
       )}
     >
       <div className="relative shrink-0">
-        <Avatar size="default">
-          <AvatarImage
-            src={conversation.otherUser.image ?? undefined}
-            alt={conversation.otherUser.name}
-          />
-          <AvatarFallback>{getInitials(conversation.otherUser.name)}</AvatarFallback>
-        </Avatar>
+        <BorderedAvatar avatarSize={32}>
+          <Avatar size="default">
+            <AvatarImage
+              src={conversation.otherUser.image ?? undefined}
+              alt={conversation.otherUser.name}
+            />
+            <AvatarFallback>{getInitials(conversation.otherUser.name)}</AvatarFallback>
+          </Avatar>
+        </BorderedAvatar>
         {conversation.unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-primary border-2 border-background" />
         )}
@@ -65,6 +69,9 @@ function ConversationItem({
           <span className={cn("text-sm truncate", conversation.unreadCount > 0 ? "font-semibold" : "font-medium")}>
             {conversation.otherUser.name}
           </span>
+          {conversation.otherUser.username && (
+            <UserFlairs username={conversation.otherUser.username} context="inline" max={1} />
+          )}
           {conversation.lastMessage && (
             <span className="text-[11px] text-muted-foreground shrink-0">
               {formatRelativeTime(conversation.lastMessage.createdAt)}

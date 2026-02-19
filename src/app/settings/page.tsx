@@ -44,6 +44,22 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   type NotificationPreferences,
 } from "@/lib/notification-preferences";
+import { type DisplayFlair } from "@/lib/user-flairs";
+import { getMyFlairs, toggleFlairVisibility } from "@/actions/flairs";
+import {
+  PROFILE_BORDER_CATALOG,
+  getBorderById,
+  getBordersByTier,
+  type BorderDefinition,
+} from "@/lib/profile-borders";
+import {
+  getUserBorderSelectionById,
+  setUserBorderSelection,
+  getUserUnlockedBorders,
+} from "@/actions/borders";
+import { BorderedAvatar } from "@/components/bordered-avatar";
+import { Lock } from "lucide-react";
+import { toast } from "sonner";
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -108,6 +124,14 @@ export default function SettingsPage() {
   const [privacyLoading, setPrivacyLoading] = useState(false);
   const [privacySaving, setPrivacySaving] = useState(false);
   const [privacyMessage, setPrivacyMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Flair state
+  const [userFlairs, setUserFlairs] = useState<DisplayFlair[]>([]);
+
+  // Border state
+  const [selectedBorder, setSelectedBorder] = useState("none");
+  const [unlockedBorders, setUnlockedBorders] = useState<string[]>([]);
+  const [borderLoading, setBorderLoading] = useState(false);
 
   // Sync state when session loads, but only if user hasn't started editing
   useEffect(() => {
@@ -175,6 +199,81 @@ export default function SettingsPage() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  // Load flair data from DB
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function loadFlairs() {
+      const res = await getMyFlairs();
+      if (cancelled) return;
+      if (res.success) {
+        setUserFlairs(res.data);
+      }
+    }
+
+    void loadFlairs();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Load border data from DB
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    setBorderLoading(true);
+
+    Promise.all([
+      getUserBorderSelectionById(user.id),
+      getUserUnlockedBorders(),
+    ]).then(([selRes, unlockRes]) => {
+      if (cancelled) return;
+      if (selRes.success && selRes.data) {
+        setSelectedBorder(selRes.data.id);
+      }
+      if (unlockRes.success) {
+        setUnlockedBorders(unlockRes.data);
+      }
+      setBorderLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  async function handleBorderSelect(borderId: string) {
+    const prev = selectedBorder;
+    setSelectedBorder(borderId); // optimistic
+    const res = await setUserBorderSelection(borderId);
+    if (res.success) {
+      const label = PROFILE_BORDER_CATALOG.find((b) => b.id === borderId)?.label ?? borderId;
+      toast.success(`Border set to ${label}`);
+    } else {
+      setSelectedBorder(prev); // rollback
+      toast.error(res.error);
+    }
+  }
+
+  const MAX_VISIBLE_FLAIRS = 3;
+
+  async function handleFlairToggle(flairId: string, checked: boolean) {
+    const visibleCount = userFlairs.filter((f) => f.visible).length;
+    if (checked && visibleCount >= MAX_VISIBLE_FLAIRS) {
+      toast.error(`You can display at most ${MAX_VISIBLE_FLAIRS} flairs`);
+      return;
+    }
+
+    // Optimistic update
+    const prev = userFlairs;
+    setUserFlairs((flairs) =>
+      flairs.map((f) => (f.id === flairId ? { ...f, visible: checked } : f)),
+    );
+
+    const res = await toggleFlairVisibility(flairId, checked);
+    if (!res.success) {
+      setUserFlairs(prev); // rollback
+      toast.error(res.error);
+    }
+  }
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -392,10 +491,12 @@ export default function SettingsPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
               >
-                <Avatar className="size-20">
-                  <AvatarImage src={avatarUrl} alt={user?.name ?? "User"} />
-                  <AvatarFallback className="text-2xl">{getInitials(user?.name)}</AvatarFallback>
-                </Avatar>
+                <BorderedAvatar border={getBorderById(selectedBorder)} avatarSize={80}>
+                  <Avatar className="size-20">
+                    <AvatarImage src={avatarUrl} alt={user?.name ?? "User"} />
+                    <AvatarFallback className="text-2xl">{getInitials(user?.name)}</AvatarFallback>
+                  </Avatar>
+                </BorderedAvatar>
                 <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
                   {uploading ? (
                     <Loader2 className="h-6 w-6 text-white animate-spin" />
@@ -639,6 +740,191 @@ export default function SettingsPage() {
                   </p>
                 </>
               )}
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Profile Flairs */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Profile Flairs
+          </h2>
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <p className="text-sm text-muted-foreground">
+                Choose which flairs appear on your profile (max {MAX_VISIBLE_FLAIRS})
+              </p>
+              {userFlairs.map((flair, i) => (
+                <div key={flair.id}>
+                  {i > 0 && <Separator className="mb-4" />}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                        style={{
+                          backgroundColor: flair.color,
+                          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 3px rgba(0,0,0,0.15)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                        }}
+                      >
+                        {flair.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {flair.category}
+                      </span>
+                    </div>
+                    <Switch
+                      checked={flair.visible}
+                      onCheckedChange={(checked) =>
+                        handleFlairToggle(flair.id, checked)
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+              {userFlairs.length === 0 && (
+                <p className="text-sm text-muted-foreground">No flairs available yet.</p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Profile Border */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Profile Border
+          </h2>
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <p className="text-sm text-muted-foreground">
+                Choose a decorative border for your avatar
+              </p>
+
+              {/* None — reset */}
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center gap-3 w-full rounded-lg border p-3 transition-colors hover:bg-muted/50",
+                  selectedBorder === "none" && "ring-2 ring-primary bg-muted/30",
+                )}
+                onClick={() => handleBorderSelect("none")}
+              >
+                <Avatar className="size-10">
+                  <AvatarImage src={avatarUrl} alt={user?.name ?? "User"} />
+                  <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium">None</span>
+                {selectedBorder === "none" && (
+                  <CheckCircle2 className="h-4 w-4 text-primary ml-auto" />
+                )}
+              </button>
+
+              {/* Tier: Basic */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Basic</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {getBordersByTier().basic.filter((b) => b.id !== "none").map((border) => (
+                    <button
+                      key={border.id}
+                      type="button"
+                      className={cn(
+                        "flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/50",
+                        selectedBorder === border.id && "ring-2 ring-primary bg-muted/30",
+                      )}
+                      onClick={() => handleBorderSelect(border.id)}
+                    >
+                      <BorderedAvatar avatarSize={48} borderId={border.id}>
+                        <Avatar className="size-12">
+                          <AvatarImage src={avatarUrl} alt={user?.name ?? "User"} />
+                          <AvatarFallback className="text-lg">{getInitials(user?.name)}</AvatarFallback>
+                        </Avatar>
+                      </BorderedAvatar>
+                      <span className="text-xs font-medium">{border.label}</span>
+                      {selectedBorder === border.id && (
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tier: Gradients */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gradients</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {getBordersByTier().gradient.map((border) => {
+                    const isLocked = !unlockedBorders.includes(border.id);
+                    return (
+                      <button
+                        key={border.id}
+                        type="button"
+                        disabled={isLocked}
+                        className={cn(
+                          "relative flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors",
+                          isLocked
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:bg-muted/50",
+                          selectedBorder === border.id && !isLocked && "ring-2 ring-primary bg-muted/30",
+                        )}
+                        onClick={() => !isLocked && handleBorderSelect(border.id)}
+                      >
+                        <BorderedAvatar avatarSize={48} borderId={border.id}>
+                          <Avatar className="size-12">
+                            <AvatarImage src={avatarUrl} alt={user?.name ?? "User"} />
+                            <AvatarFallback className="text-lg">{getInitials(user?.name)}</AvatarFallback>
+                          </Avatar>
+                        </BorderedAvatar>
+                        <span className="text-xs font-medium">{border.label}</span>
+                        {isLocked && (
+                          <Lock className="h-3.5 w-3.5 text-muted-foreground absolute top-2 right-2" />
+                        )}
+                        {selectedBorder === border.id && !isLocked && (
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tier: Exclusive */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Exclusive</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {getBordersByTier().exclusive.map((border) => {
+                    const isLocked = !unlockedBorders.includes(border.id);
+                    return (
+                      <button
+                        key={border.id}
+                        type="button"
+                        disabled={isLocked}
+                        className={cn(
+                          "relative flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors",
+                          isLocked
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:bg-muted/50",
+                          selectedBorder === border.id && !isLocked && "ring-2 ring-primary bg-muted/30",
+                        )}
+                        onClick={() => !isLocked && handleBorderSelect(border.id)}
+                      >
+                        <BorderedAvatar avatarSize={48} borderId={border.id}>
+                          <Avatar className="size-12">
+                            <AvatarImage src={avatarUrl} alt={user?.name ?? "User"} />
+                            <AvatarFallback className="text-lg">{getInitials(user?.name)}</AvatarFallback>
+                          </Avatar>
+                        </BorderedAvatar>
+                        <span className="text-xs font-medium">{border.label}</span>
+                        {isLocked && (
+                          <Lock className="h-3.5 w-3.5 text-muted-foreground absolute top-2 right-2" />
+                        )}
+                        {selectedBorder === border.id && !isLocked && (
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </section>

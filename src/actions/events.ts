@@ -12,6 +12,7 @@ import {
   getApprovalMode,
   createNotification,
   createUserNotification,
+  rateLimit,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 
@@ -52,11 +53,14 @@ export async function getApprovedEvents(
 ): Promise<ActionResult<unknown[]>> {
   const session = await getOptionalSession();
 
+  const pastCutoff = new Date();
+  pastCutoff.setDate(pastCutoff.getDate() - 1);
+
   const rows = await db.query.campusEvent.findMany({
-    where: (e, { eq: eqFn, and: andFn }) => {
-      const conditions = [eqFn(e.status, "approved")];
+    where: (e, { eq: eqFn, and: andFn, gte }) => {
+      const conditions = [eqFn(e.status, "approved"), gte(e.endDate, pastCutoff)];
       if (opts?.category) conditions.push(eqFn(e.category, opts.category));
-      return conditions.length === 1 ? conditions[0] : andFn(...conditions);
+      return andFn(...conditions);
     },
     with: {
       user: { columns: { name: true, username: true, image: true } },
@@ -65,6 +69,44 @@ export async function getApprovedEvents(
   });
 
   // Get current user's RSVPs
+  let userRsvps: Record<string, string> = {};
+  if (session?.user) {
+    const rsvps = await db.query.eventRsvp.findMany({
+      where: eq(eventRsvp.userId, session.user.id),
+    });
+    userRsvps = Object.fromEntries(rsvps.map((r) => [r.eventId, r.status]));
+  }
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      startDate: r.startDate.toISOString(),
+      endDate: r.endDate.toISOString(),
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      author: r.user.name,
+      authorHandle: r.user.username ? `@${r.user.username}` : null,
+      authorImage: r.user.image,
+      userRsvp: userRsvps[r.id] ?? null,
+    })),
+  };
+}
+
+export async function getEventsForLandmark(
+  landmarkId: string,
+): Promise<ActionResult<unknown[]>> {
+  const session = await getOptionalSession();
+
+  const rows = await db.query.campusEvent.findMany({
+    where: (e, { eq: eqFn, and: andFn }) =>
+      andFn(eqFn(e.status, "approved"), eqFn(e.locationId, landmarkId)),
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+    },
+    orderBy: (e, { asc }) => [asc(e.startDate)],
+  });
+
   let userRsvps: Record<string, string> = {};
   if (session?.user) {
     const rsvps = await db.query.eventRsvp.findMany({
@@ -139,6 +181,9 @@ export async function getEventById(
 export async function createEvent(
   input: z.infer<typeof createEventSchema>,
 ): Promise<ActionResult<{ id: string; status: string }>> {
+  const limited = await rateLimit("create");
+  if (limited) return limited;
+
   const parsed = createEventSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };

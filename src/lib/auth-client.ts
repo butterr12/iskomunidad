@@ -10,6 +10,7 @@ export const authClient = createAuthClient({
       user: {
         role: { type: "string", required: false },
         status: { type: "string", required: false },
+        university: { type: "string", required: false },
       },
     }),
   ],

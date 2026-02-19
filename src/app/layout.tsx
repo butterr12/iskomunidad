@@ -7,6 +7,7 @@ import "./globals.css";
 import { ThemeColorMeta } from "@/components/theme-color-meta";
 import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { siteConfig } from "@/lib/site-config";
 
 const satoshi = localFont({
   src: [
@@ -45,17 +46,32 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "iskomunidad",
-  description:
-    "Discover and explore local landmarks and attractions in your community",
-  applicationName: "iskomunidad",
+  metadataBase: new URL(siteConfig.url),
+  title: { default: siteConfig.name, template: `%s | ${siteConfig.name}` },
+  description: siteConfig.description,
+  applicationName: siteConfig.name,
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "iskomunidad",
+    title: siteConfig.name,
   },
   icons: {
     apple: "/icons/apple-touch-icon.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_PH",
+    siteName: siteConfig.name,
+  },
+  twitter: {
+    card: "summary",
+  },
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
