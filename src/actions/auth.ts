@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { and, eq, isNull } from "drizzle-orm";
@@ -11,6 +11,7 @@ import type { ActionResult } from "./_helpers";
 import { getClientIp, getSession, rateLimit } from "./_helpers";
 import { getCampusFlairId } from "@/lib/user-flairs";
 import { UP_CAMPUSES } from "@/lib/constants";
+import { REFERRAL_COOKIE_NAME, normalizeRef } from "@/lib/referrals";
 
 const createAccountSchema = z.object({
   name: z.string().min(1),
@@ -98,6 +99,33 @@ export async function createAccountWithConsent(
         .where(eq(userLegalConsent.id, consentId));
     } catch {
       // Non-fatal: consent exists by email, userId link is supplementary
+    }
+
+    // 4. Resolve referral inviter from cookie (non-blocking).
+    try {
+      const cookieStore = await cookies();
+      const refCookieValue = cookieStore.get(REFERRAL_COOKIE_NAME)?.value;
+      if (refCookieValue) {
+        const normalizedRef = normalizeRef(refCookieValue);
+        if (normalizedRef) {
+          const inviter = await db.query.user.findFirst({
+            where: and(
+              eq(userTable.username, normalizedRef),
+              eq(userTable.status, "active"),
+            ),
+            columns: { id: true },
+          });
+          if (inviter && inviter.id !== result.user.id) {
+            await db
+              .update(userTable)
+              .set({ inviterId: inviter.id })
+              .where(and(eq(userTable.id, result.user.id), isNull(userTable.inviterId)));
+          }
+        }
+        cookieStore.delete(REFERRAL_COOKIE_NAME);
+      }
+    } catch {
+      // Attribution failure must not block signup
     }
 
     return { success: true, data: undefined };

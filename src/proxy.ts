@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
+import {
+  REFERRAL_QUERY_PARAM,
+  REFERRAL_COOKIE_NAME,
+  REFERRAL_COOKIE_MAX_AGE_SECONDS,
+  normalizeRef,
+} from "@/lib/referrals";
 
 const publicPrefixes = [
   "/sign-in",
@@ -19,17 +25,37 @@ export async function proxy(request: NextRequest) {
     publicPrefixes.some((route) => pathname.startsWith(route));
   const isApiRoute = pathname.startsWith("/api");
 
-  if (isPublicRoute || isApiRoute) {
-    return NextResponse.next();
-  }
-
   const sessionCookie = getSessionCookie(request);
+  const isAuthenticated = !!sessionCookie;
 
-  if (!sessionCookie) {
-    return NextResponse.redirect(new URL("/sign-in", request.url));
+  // Determine response
+  let response: NextResponse;
+  if (isPublicRoute || isApiRoute) {
+    response = NextResponse.next();
+  } else if (!isAuthenticated) {
+    response = NextResponse.redirect(new URL("/sign-in", request.url));
+  } else {
+    response = NextResponse.next();
   }
 
-  return NextResponse.next();
+  // Set referral cookie if applicable (first-touch, unauthenticated only)
+  const ref = request.nextUrl.searchParams.get(REFERRAL_QUERY_PARAM);
+  const hasRefCookie = request.cookies.has(REFERRAL_COOKIE_NAME);
+
+  if (ref && !hasRefCookie && !isAuthenticated) {
+    const normalized = normalizeRef(ref);
+    if (normalized) {
+      response.cookies.set(REFERRAL_COOKIE_NAME, normalized, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: REFERRAL_COOKIE_MAX_AGE_SECONDS,
+      });
+    }
+  }
+
+  return response;
 }
 
 export const config = {

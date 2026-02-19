@@ -57,8 +57,9 @@ import {
   setUserBorderSelection,
   getUserUnlockedBorders,
 } from "@/actions/borders";
+import { getMyReferralSummary } from "@/actions/referrals";
 import { BorderedAvatar } from "@/components/bordered-avatar";
-import { Lock } from "lucide-react";
+import { Lock, Link2, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
 function getInitials(name?: string | null): string {
@@ -132,6 +133,13 @@ export default function SettingsPage() {
   const [selectedBorder, setSelectedBorder] = useState("none");
   const [unlockedBorders, setUnlockedBorders] = useState<string[]>([]);
   const [borderLoading, setBorderLoading] = useState(false);
+
+  // Referral state
+  const [referralLink, setReferralLink] = useState("");
+  const [invitedCount, setInvitedCount] = useState(0);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Sync state when session loads, but only if user hasn't started editing
   useEffect(() => {
@@ -240,6 +248,21 @@ export default function SettingsPage() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
+  // Load referral data
+  const loadReferralData = useCallback(() => {
+    if (!user) return;
+    setReferralLoading(true);
+    getMyReferralSummary().then((res) => {
+      if (res.success) {
+        setReferralLink(res.data.referralLink);
+        setInvitedCount(res.data.invitedCount);
+      }
+      setReferralLoading(false);
+    });
+  }, [user?.id]);
+
+  useEffect(() => { loadReferralData(); }, [loadReferralData]);
+
   async function handleBorderSelect(borderId: string) {
     const prev = selectedBorder;
     setSelectedBorder(borderId); // optimistic
@@ -275,10 +298,11 @@ export default function SettingsPage() {
     }
   }
 
-  // Cleanup debounce timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     };
   }, []);
 
@@ -364,6 +388,7 @@ export default function SettingsPage() {
       if (error) throw new Error(error.message ?? "Failed to save changes");
       setDirty(false);
       setSaveMessage({ type: "success", text: "Profile updated!" });
+      if (updates.username) loadReferralData();
     } catch (err) {
       setSaveMessage({
         type: "error",
@@ -741,6 +766,68 @@ export default function SettingsPage() {
                     {privacyMessage.text}
                   </p>
                 </>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Referrals */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Referrals
+          </h2>
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              {referralLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : referralLink ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <p className="text-sm font-medium">Your referral link</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={referralLink}
+                      className="text-sm bg-muted/50"
+                      onFocus={(e) => e.target.select()}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      aria-label={linkCopied ? "Copied" : "Copy referral link"}
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(referralLink);
+                          setLinkCopied(true);
+                          if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+                          copyTimeoutRef.current = setTimeout(() => setLinkCopied(false), 2000);
+                        } catch {
+                          toast.error("Failed to copy link");
+                        }
+                      }}
+                    >
+                      {linkCopied ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {invitedCount === 0
+                      ? "No one has signed up with your link yet."
+                      : `${invitedCount} ${invitedCount === 1 ? "person" : "people"} signed up with your link.`}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Set a username above to get your referral link.
+                </p>
               )}
             </CardContent>
           </Card>

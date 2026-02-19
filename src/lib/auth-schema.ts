@@ -19,6 +19,7 @@ export const user = pgTable("user", {
   banReason: text("ban_reason"),
   deletedAt: timestamp("deleted_at"),
   university: text("university"),
+  inviterId: text("inviter_id"), // FK to user.id — constraint in migration (self-ref avoids .references())
 });
 
 export const session = pgTable(
