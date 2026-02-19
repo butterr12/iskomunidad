@@ -38,6 +38,11 @@ export function ModerationRow({ post, onApprove, onReject }: ModerationRowProps)
             {post.body && (
               <p className="text-sm text-muted-foreground line-clamp-2">{post.body}</p>
             )}
+            {post.rejectionReason && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                AI flag: {post.rejectionReason}
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 gap-2">
             <Button size="sm" variant="outline" className="text-green-600" onClick={() => onApprove(post.id)}>

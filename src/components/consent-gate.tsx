@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import {
@@ -358,7 +358,6 @@ export function ConsentGate({ session, children }: ConsentGateProps) {
   const [completedGateIds, setCompletedGateIds] = useState<Set<string>>(
     new Set(),
   );
-  const initialCountRef = useRef(0);
 
   const { data, isLoading } = useQuery({
     queryKey: ["consent-status"],
@@ -383,21 +382,19 @@ export function ConsentGate({ session, children }: ConsentGateProps) {
     university: liveSession?.user?.university ?? undefined,
   };
 
-  const neededGates = ONBOARDING_GATES.filter(
-    (g) => g.isNeeded(ctx) && !completedGateIds.has(g.id),
+  // All gates the user needs (regardless of local completion state)
+  const allNeededGates = ONBOARDING_GATES.filter((g) => g.isNeeded(ctx));
+  // Gates still remaining (excluding locally-completed ones)
+  const neededGates = allNeededGates.filter(
+    (g) => !completedGateIds.has(g.id),
   );
-
-  // Capture the initial gate count on first evaluation
-  if (initialCountRef.current === 0 && neededGates.length > 0) {
-    initialCountRef.current = neededGates.length;
-  }
 
   // All gates cleared — render children
   if (neededGates.length === 0) return <>{children}</>;
 
   const currentGate = neededGates[0];
   const StepComponent = currentGate.component;
-  const totalSteps = Math.max(initialCountRef.current, neededGates.length);
+  const totalSteps = allNeededGates.length;
   const currentStepIndex = totalSteps - neededGates.length;
 
   function handleComplete() {

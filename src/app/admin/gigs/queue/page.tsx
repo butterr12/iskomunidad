@@ -22,6 +22,7 @@ interface AdminGigRow {
   category: string;
   urgency: string;
   compensation: string;
+  rejectionReason?: string | null;
 }
 
 const DRAFT_GIGS_QUERY_KEY = ["admin-gigs", "draft"] as const;
@@ -110,6 +111,11 @@ export default function GigsQueuePage() {
                   {gig.description && (
                     <p className="line-clamp-2 text-sm text-muted-foreground">
                       {gig.description}
+                    </p>
+                  )}
+                  {gig.rejectionReason && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      AI flag: {gig.rejectionReason}
                     </p>
                   )}
                 </div>

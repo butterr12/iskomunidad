@@ -21,6 +21,7 @@ interface AdminEventRow {
   organizer: string;
   startDate: string;
   locationId: string | null;
+  rejectionReason?: string | null;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -102,6 +103,11 @@ export default function EventsQueuePage() {
                   {event.description && (
                     <p className="line-clamp-2 text-sm text-muted-foreground">
                       {event.description}
+                    </p>
+                  )}
+                  {event.rejectionReason && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      AI flag: {event.rejectionReason}
                     </p>
                   )}
                 </div>

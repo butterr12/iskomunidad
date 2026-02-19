@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Search, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -33,8 +34,15 @@ export function ComposeDialog({ open, onOpenChange }: ComposeDialogProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [results, setResults] = useState<UserSearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
+
+  // Reset state when dialog closes (via event handler, not effect)
+  function handleOpenChange(newOpen: boolean) {
+    if (!newOpen) {
+      setQuery("");
+      setDebouncedQuery("");
+    }
+    onOpenChange(newOpen);
+  }
 
   // Debounce query
   useEffect(() => {
@@ -43,35 +51,17 @@ export function ComposeDialog({ open, onOpenChange }: ComposeDialogProps) {
   }, [query]);
 
   // Search on debounced value
-  useEffect(() => {
-    if (!debouncedQuery.trim()) {
-      setResults([]);
-      return;
-    }
+  const { data: results = [], isLoading: loading } = useQuery<UserSearchResult[]>({
+    queryKey: ["user-search", debouncedQuery],
+    queryFn: async () => {
+      const res = await searchUsers(debouncedQuery);
+      return res.success ? res.data : [];
+    },
+    enabled: !!debouncedQuery.trim(),
+  });
 
-    let cancelled = false;
-    setLoading(true);
-
-    searchUsers(debouncedQuery).then((res) => {
-      if (cancelled) return;
-      setResults(res.success ? res.data : []);
-      setLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedQuery]);
-
-  // Reset state when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setQuery("");
-      setDebouncedQuery("");
-      setResults([]);
-      setLoading(false);
-    }
-  }, [open]);
+  // Clear stale results when query is empty
+  const displayResults = debouncedQuery.trim() ? results : [];
 
   function handleSelect(userId: string) {
     router.push(`/messages?with=${userId}`);
@@ -79,7 +69,7 @@ export function ComposeDialog({ open, onOpenChange }: ComposeDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>New Message</DialogTitle>
@@ -102,15 +92,15 @@ export function ComposeDialog({ open, onOpenChange }: ComposeDialogProps) {
             </div>
           )}
 
-          {!loading && debouncedQuery.trim() && results.length === 0 && (
+          {!loading && debouncedQuery.trim() && displayResults.length === 0 && (
             <div className="flex items-center justify-center py-8">
               <p className="text-sm text-muted-foreground">No users found</p>
             </div>
           )}
 
-          {!loading && results.length > 0 && (
+          {!loading && displayResults.length > 0 && (
             <div className="divide-y">
-              {results.map((u) => (
+              {displayResults.map((u) => (
                 <button
                   key={u.id}
                   onClick={() => handleSelect(u.id)}

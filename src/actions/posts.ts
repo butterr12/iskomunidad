@@ -282,6 +282,7 @@ export async function getPostById(
     success: true,
     data: {
       ...row,
+      rejectionReason: (isAdmin || row.status === "rejected") ? row.rejectionReason : undefined,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       author: row.user.name,
@@ -319,7 +320,7 @@ export async function createPost(
 
   if (mode === "ai") {
     const result = await moderateContent({ type: "post", title: parsed.data.title, body: parsed.data.body });
-    status = result.approved ? "approved" : "rejected";
+    status = result.approved ? "approved" : "draft";
     rejectionReason = result.reason;
   } else {
     status = mode === "auto" ? "approved" : "draft";
@@ -355,7 +356,7 @@ export async function createPost(
     });
   } else if (mode === "ai") {
     await createNotification({
-      type: status === "approved" ? "post_approved" : "post_rejected",
+      type: status === "approved" ? "post_approved" : "post_pending",
       targetId: created.id,
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
@@ -363,16 +364,11 @@ export async function createPost(
     });
     await createUserNotification({
       userId: session.user.id,
-      type: status === "approved" ? "post_approved" : "post_rejected",
+      type: status === "approved" ? "post_approved" : "post_pending",
       contentType: "post",
       targetId: created.id,
       targetTitle: parsed.data.title,
-      reason: rejectionReason,
     });
-  }
-
-  if (status === "rejected") {
-    return { success: false, error: `Your post was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
   return { success: true, data: { id: created.id, status } };

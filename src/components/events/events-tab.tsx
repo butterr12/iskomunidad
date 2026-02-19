@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Plus, CalendarDays, Users, Search, X } from "lucide-react";
@@ -47,7 +47,8 @@ export function EventsTab() {
   const searchParams = useSearchParams();
   const eventParam = searchParams.get("event");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
-  const [selectedEvent, setSelectedEvent] = useState<CampusEvent | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [urlParamDismissed, setUrlParamDismissed] = useState(false);
   const [tab, setTab] = useState<"all" | "mine">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateEvent, setShowCreateEvent] = useState(false);
@@ -88,27 +89,23 @@ export function EventsTab() {
     );
   }, [events, searchQuery]);
 
+  // Derive selected event from ID — auto-selects from ?event= URL param,
+  // user clicks override, and RSVP updates flow through the query cache.
+  const effectiveSelectedId = selectedEventId ?? (urlParamDismissed ? null : eventParam);
+  const selectedEvent = effectiveSelectedId
+    ? events.find((e) => e.id === effectiveSelectedId) ?? null
+    : null;
+
   const handleRsvpChange = async (eventId: string, status: RsvpStatus) => {
     await rsvpToEvent(eventId, status);
     queryClient.setQueryData<CampusEvent[]>(["approved-events"], (old) =>
       old?.map((e) => (e.id === eventId ? { ...e, rsvpStatus: status } : e)),
     );
-    if (selectedEvent?.id === eventId) {
-      setSelectedEvent((prev) => (prev ? { ...prev, rsvpStatus: status } : prev));
-    }
   };
 
   const handleSelectEvent = (event: CampusEvent) => {
-    const latest = events.find((e) => e.id === event.id) ?? event;
-    setSelectedEvent(latest);
+    setSelectedEventId(event.id);
   };
-
-  // Auto-select event from ?event= param
-  useEffect(() => {
-    if (!eventParam || selectedEvent || events.length === 0) return;
-    const found = events.find((e) => e.id === eventParam);
-    if (found) handleSelectEvent(found);
-  }, [eventParam, events.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
@@ -181,7 +178,7 @@ export function EventsTab() {
           {selectedEvent ? (
             <EventDetail
               event={selectedEvent}
-              onBack={() => setSelectedEvent(null)}
+              onBack={() => { setSelectedEventId(null); setUrlParamDismissed(true); }}
               onRsvpChange={handleRsvpChange}
             />
           ) : tab === "mine" ? (

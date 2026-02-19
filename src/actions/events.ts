@@ -177,6 +177,7 @@ export async function getEventById(
     success: true,
     data: {
       ...row,
+      rejectionReason: (isAdmin || row.status === "rejected") ? row.rejectionReason : undefined,
       startDate: row.startDate.toISOString(),
       endDate: row.endDate.toISOString(),
       createdAt: row.createdAt.toISOString(),
@@ -208,7 +209,7 @@ export async function createEvent(
 
   if (mode === "ai") {
     const result = await moderateContent({ type: "event", title: parsed.data.title, body: parsed.data.description });
-    status = result.approved ? "approved" : "rejected";
+    status = result.approved ? "approved" : "draft";
     rejectionReason = result.reason;
   } else {
     status = mode === "auto" ? "approved" : "draft";
@@ -248,7 +249,7 @@ export async function createEvent(
     });
   } else if (mode === "ai") {
     await createNotification({
-      type: status === "approved" ? "event_approved" : "event_rejected",
+      type: status === "approved" ? "event_approved" : "event_pending",
       targetId: created.id,
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
@@ -256,16 +257,11 @@ export async function createEvent(
     });
     await createUserNotification({
       userId: session.user.id,
-      type: status === "approved" ? "event_approved" : "event_rejected",
+      type: status === "approved" ? "event_approved" : "event_pending",
       contentType: "event",
       targetId: created.id,
       targetTitle: parsed.data.title,
-      reason: rejectionReason,
     });
-  }
-
-  if (status === "rejected") {
-    return { success: false, error: `Your event was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
   return { success: true, data: { id: created.id, status } };
@@ -389,16 +385,18 @@ export async function updateEvent(
     const title = parsed.data.title ?? existing.title;
     const description = parsed.data.description ?? existing.description;
     const result = await moderateContent({ type: "event", title, body: description });
-    status = result.approved ? "approved" : "rejected";
+    status = result.approved ? "approved" : "draft";
     rejectionReason = result.reason;
     updateData.status = status;
     updateData.rejectionReason = rejectionReason ?? null;
   } else if (mode === "auto") {
     status = "approved";
     updateData.status = status;
+    updateData.rejectionReason = null;
   } else {
     status = "draft";
     updateData.status = status;
+    updateData.rejectionReason = null;
   }
 
   await db.update(campusEvent).set(updateData).where(eq(campusEvent.id, id));
@@ -421,7 +419,7 @@ export async function updateEvent(
     });
   } else if (mode === "ai") {
     await createNotification({
-      type: status === "approved" ? "event_approved" : "event_rejected",
+      type: status === "approved" ? "event_approved" : "event_pending",
       targetId: id,
       targetTitle: updatedTitle,
       authorHandle: session.user.username ?? session.user.name,
@@ -429,16 +427,11 @@ export async function updateEvent(
     });
     await createUserNotification({
       userId: session.user.id,
-      type: status === "approved" ? "event_approved" : "event_rejected",
+      type: status === "approved" ? "event_approved" : "event_pending",
       contentType: "event",
       targetId: id,
       targetTitle: updatedTitle,
-      reason: rejectionReason,
     });
-  }
-
-  if (status === "rejected") {
-    return { success: false, error: `Your event was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
   return {
@@ -477,6 +470,7 @@ export async function getUserEvents(): Promise<ActionResult<unknown[]>> {
     success: true,
     data: rows.map((r) => ({
       ...r,
+      rejectionReason: r.status === "rejected" ? r.rejectionReason : undefined,
       startDate: r.startDate.toISOString(),
       endDate: r.endDate.toISOString(),
       createdAt: r.createdAt.toISOString(),

@@ -83,7 +83,7 @@ export async function moderateContent(
       messages: [
         {
           role: "system",
-          content: `You are a content moderator for a Philippine university campus community platform. Review the following ${input.type} content and determine if it should be approved or rejected.
+          content: `You are a content moderator for a Philippine university campus community platform. Review the following ${input.type} content and determine if it should be approved or flagged for manual review.
 
 ${guidelines}
 

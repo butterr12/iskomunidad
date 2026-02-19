@@ -103,7 +103,7 @@ export async function createGig(
 
   if (mode === "ai") {
     const result = await moderateContent({ type: "gig", title: parsed.data.title, body: parsed.data.description });
-    status = result.approved ? "approved" : "rejected";
+    status = result.approved ? "approved" : "draft";
     rejectionReason = result.reason;
   } else {
     status = mode === "auto" ? "approved" : "draft";
@@ -151,7 +151,7 @@ export async function createGig(
     });
   } else if (mode === "ai") {
     await createNotification({
-      type: status === "approved" ? "gig_approved" : "gig_rejected",
+      type: status === "approved" ? "gig_approved" : "gig_pending",
       targetId: created.id,
       targetTitle: parsed.data.title,
       authorHandle: session.user.username ?? session.user.name,
@@ -159,16 +159,11 @@ export async function createGig(
     });
     await createUserNotification({
       userId: session.user.id,
-      type: status === "approved" ? "gig_approved" : "gig_rejected",
+      type: status === "approved" ? "gig_approved" : "gig_pending",
       contentType: "gig",
       targetId: created.id,
       targetTitle: parsed.data.title,
-      reason: rejectionReason,
     });
-  }
-
-  if (status === "rejected") {
-    return { success: false, error: `Your gig was not approved: ${rejectionReason ?? "content policy violation"}` };
   }
 
   return { success: true, data: { id: created.id, status } };

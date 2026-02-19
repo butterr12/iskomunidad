@@ -35,7 +35,7 @@ const APPROVAL_MODES: { value: ApprovalMode; label: string; description: string 
   {
     value: "ai",
     label: "AI moderation",
-    description: "AI screens content — approves clean content, rejects violations",
+    description: "AI screens content — approves clean content, flags violations for admin review",
   },
 ];
 
