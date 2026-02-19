@@ -1,8 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, Plus, Share, X } from "lucide-react";
+import { Download, Plus, Share } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { BeforeInstallPromptEvent } from "@/types/pwa";
 
@@ -78,35 +86,18 @@ export function PwaInstallPrompt() {
     setOpen(false);
   }, []);
 
-  if (!isMobile || !open) return null;
+  if (!isMobile) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999]">
-      {/* Overlay */}
-      <button
-        type="button"
-        aria-label="Dismiss install prompt"
-        className="absolute inset-0 bg-black/50 animate-in fade-in duration-200"
-        onClick={handleDismiss}
-      />
-
-      {/* Bottom sheet */}
-      <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-background p-6 shadow-2xl animate-in slide-in-from-bottom duration-300 safe-bottom">
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="absolute top-4 right-4 rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <X className="size-5" />
-        </button>
-
-        <div className="flex flex-col gap-1 text-center mb-4">
-          <h2 className="text-lg font-semibold">Get the iskomunidad App</h2>
-          <p className="text-sm text-muted-foreground">
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleDismiss(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader className="text-center sm:text-center">
+          <DialogTitle>Get the iskomunidad App</DialogTitle>
+          <DialogDescription>
             Install iskomunidad on your device for faster access and a better
             experience.
-          </p>
-        </div>
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="flex flex-col gap-3">
           {isIOSDevice ? (
@@ -123,26 +114,26 @@ export function PwaInstallPrompt() {
               Install App
             </Button>
           )}
-
-          <div className="flex items-center justify-center gap-4">
-            <button
-              type="button"
-              onClick={handleDismiss}
-              className="text-muted-foreground hover:text-foreground py-2 text-xs transition-colors"
-            >
-              Not now
-            </button>
-            <span className="text-muted-foreground/40 text-xs">|</span>
-            <button
-              type="button"
-              onClick={handleDismissPermanently}
-              className="text-muted-foreground hover:text-foreground py-2 text-xs transition-colors"
-            >
-              Don&apos;t show again
-            </button>
-          </div>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="flex-row justify-center gap-4 sm:justify-center">
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="text-muted-foreground hover:text-foreground py-2 text-xs transition-colors"
+          >
+            Not now
+          </button>
+          <span className="text-muted-foreground/40 text-xs leading-[2.25]">|</span>
+          <button
+            type="button"
+            onClick={handleDismissPermanently}
+            className="text-muted-foreground hover:text-foreground py-2 text-xs transition-colors"
+          >
+            Don&apos;t show again
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

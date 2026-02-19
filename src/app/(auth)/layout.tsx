@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 
 export default function AuthLayout({
   children,
@@ -18,7 +17,6 @@ export default function AuthLayout({
         </Link>
         {children}
       </div>
-      <PwaInstallPrompt />
     </div>
   );
 }
