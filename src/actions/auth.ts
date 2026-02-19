@@ -10,6 +10,7 @@ import { LEGAL_VERSIONS } from "@/lib/legal";
 import type { ActionResult } from "./_helpers";
 import { getClientIp, getSession, rateLimit } from "./_helpers";
 import { syncCampusFlair } from "@/lib/flair-service";
+import { UP_CAMPUSES } from "@/lib/constants";
 
 const createAccountSchema = z.object({
   name: z.string().min(1),
@@ -173,17 +174,6 @@ export async function recordConsent(
 }
 
 // ─── UP University Selection ─────────────────────────────────────────────────
-
-export const UP_CAMPUSES = [
-  { value: "up-diliman", label: "UP Diliman" },
-  { value: "up-manila", label: "UP Manila" },
-  { value: "up-los-banos", label: "UP Los Baños" },
-  { value: "up-visayas", label: "UP Visayas" },
-  { value: "up-mindanao", label: "UP Mindanao" },
-  { value: "up-baguio", label: "UP Baguio" },
-  { value: "up-cebu", label: "UP Cebu" },
-  { value: "up-open-university", label: "UP Open University" },
-] as const;
 
 const validCampusValues = UP_CAMPUSES.map((c) => c.value) as readonly string[];
 

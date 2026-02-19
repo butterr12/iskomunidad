@@ -7,8 +7,8 @@ import {
   checkConsentStatus,
   recordConsent,
   setUserUniversity,
-  UP_CAMPUSES,
 } from "@/actions/auth";
+import { UP_CAMPUSES } from "@/lib/constants";
 import { updateUser, useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
