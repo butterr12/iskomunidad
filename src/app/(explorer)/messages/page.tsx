@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ export default function MessagesPage() {
   const [activeConversation, setActiveConversation] =
     useState<ConversationPreview | null>(null);
   const [initializing, setInitializing] = useState(false);
+  const hasRestoredChatRef = useRef(false);
 
   // Update URL when active conversation changes
   const selectConversation = useCallback(
@@ -61,11 +62,15 @@ export default function MessagesPage() {
     [conversationsData?.messages, conversationsData?.requests],
   );
 
-  // Restore conversation from ?chat= param on load
+  // Restore conversation from ?chat= param on initial load only
   useEffect(() => {
+    if (hasRestoredChatRef.current) return;
     if (!chatId || activeConversation || allConversations.length === 0) return;
     const found = allConversations.find((c) => c.id === chatId);
-    if (found) setActiveConversation(found);
+    if (found) {
+      setActiveConversation(found);
+      hasRestoredChatRef.current = true;
+    }
   }, [chatId, activeConversation, allConversations]);
 
   // Handle ?with= param — auto-create or find conversation
