@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Inbox, Check, X, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,12 +48,16 @@ export default function GigsQueuePage() {
   };
 
   const handleApprove = async (id: string) => {
-    await adminApproveGig(id);
+    const result = await adminApproveGig(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Gig published");
     await refreshDrafts();
   };
 
   const handleReject = async (id: string, reason: string) => {
-    await adminRejectGig(id, reason);
+    const result = await adminRejectGig(id, reason);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Gig declined");
     await refreshDrafts();
   };
 
@@ -127,7 +132,7 @@ export default function GigsQueuePage() {
                     onClick={() => handleApprove(gig.id)}
                   >
                     <Check className="mr-1 h-4 w-4" />
-                    Approve
+                    Publish
                   </Button>
                   <Button
                     size="sm"
@@ -138,7 +143,7 @@ export default function GigsQueuePage() {
                     }
                   >
                     <X className="mr-1 h-4 w-4" />
-                    Reject
+                    Decline
                   </Button>
                 </div>
               </CardContent>
@@ -150,7 +155,7 @@ export default function GigsQueuePage() {
       {rejectTarget && (
         <RejectDialog
           open={!!rejectTarget}
-          postTitle={rejectTarget.title}
+          itemTitle={rejectTarget.title}
           onClose={() => setRejectTarget(null)}
           onConfirm={(reason) => {
             void handleReject(rejectTarget.id, reason);

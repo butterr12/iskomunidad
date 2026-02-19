@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Inbox, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { ModerationRow } from "@/components/admin/moderation-row";
 import {
   adminGetAllPosts,
@@ -29,12 +30,16 @@ export default function ModerationQueuePage() {
   };
 
   const handleApprove = async (id: string) => {
-    await adminApprovePost(id);
+    const result = await adminApprovePost(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Post published");
     await refreshDrafts();
   };
 
   const handleReject = async (id: string, reason: string) => {
-    await adminRejectPost(id, reason);
+    const result = await adminRejectPost(id, reason);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Post declined");
     await refreshDrafts();
   };
 

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X, Trash2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -46,9 +47,9 @@ const STATUS_BADGE: Record<
   ModerationStatus,
   { variant: "default" | "secondary" | "destructive"; label: string }
 > = {
-  draft: { variant: "secondary", label: "Draft" },
-  approved: { variant: "default", label: "Approved" },
-  rejected: { variant: "destructive", label: "Rejected" },
+  draft: { variant: "secondary", label: "Pending" },
+  approved: { variant: "default", label: "Published" },
+  rejected: { variant: "destructive", label: "Declined" },
 };
 
 const GIGS_QUERY_KEY = ["admin-gigs"] as const;
@@ -85,17 +86,23 @@ export default function AllGigsPage() {
   };
 
   const handleApprove = async (id: string) => {
-    await adminApproveGig(id);
+    const result = await adminApproveGig(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Gig published");
     await refreshGigs();
   };
 
   const handleReject = async (id: string, reason: string) => {
-    await adminRejectGig(id, reason);
+    const result = await adminRejectGig(id, reason);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Gig declined");
     await refreshGigs();
   };
 
   const handleDelete = async (id: string) => {
-    await adminDeleteGig(id);
+    const result = await adminDeleteGig(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Gig deleted");
     await refreshGigs();
   };
 
@@ -112,9 +119,9 @@ export default function AllGigsPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
-          <TabsTrigger value="draft">Draft ({counts.draft})</TabsTrigger>
-          <TabsTrigger value="approved">Approved ({counts.approved})</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected ({counts.rejected})</TabsTrigger>
+          <TabsTrigger value="draft">Pending ({counts.draft})</TabsTrigger>
+          <TabsTrigger value="approved">Published ({counts.approved})</TabsTrigger>
+          <TabsTrigger value="rejected">Declined ({counts.rejected})</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -197,25 +204,25 @@ export default function AllGigsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {status !== "approved" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-green-600"
-                            onClick={() => handleApprove(gig.id)}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {status !== "rejected" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-red-600"
-                            onClick={() => setRejectTarget(gig)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                        {status === "draft" && (
+                          <>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-green-600"
+                              onClick={() => handleApprove(gig.id)}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-red-600"
+                              onClick={() => setRejectTarget(gig)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                         <Button
                           size="icon"
@@ -238,7 +245,7 @@ export default function AllGigsPage() {
       {rejectTarget && (
         <RejectDialog
           open={!!rejectTarget}
-          postTitle={rejectTarget.title}
+          itemTitle={rejectTarget.title}
           onClose={() => setRejectTarget(null)}
           onConfirm={(reason) => {
             void handleReject(rejectTarget.id, reason);

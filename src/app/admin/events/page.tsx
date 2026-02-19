@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X, Trash2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -39,9 +40,9 @@ const STATUS_BADGE: Record<
   ModerationStatus,
   { variant: "default" | "secondary" | "destructive"; label: string }
 > = {
-  draft: { variant: "secondary", label: "Draft" },
-  approved: { variant: "default", label: "Approved" },
-  rejected: { variant: "destructive", label: "Rejected" },
+  draft: { variant: "secondary", label: "Pending" },
+  approved: { variant: "default", label: "Published" },
+  rejected: { variant: "destructive", label: "Declined" },
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -86,17 +87,23 @@ export default function AllEventsPage() {
   };
 
   const handleApprove = async (id: string) => {
-    await adminApproveEvent(id);
+    const result = await adminApproveEvent(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Event published");
     await refreshEvents();
   };
 
   const handleReject = async (id: string, reason: string) => {
-    await adminRejectEvent(id, reason);
+    const result = await adminRejectEvent(id, reason);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Event declined");
     await refreshEvents();
   };
 
   const handleDelete = async (id: string) => {
-    await adminDeleteEvent(id);
+    const result = await adminDeleteEvent(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Event deleted");
     await refreshEvents();
   };
 
@@ -113,9 +120,9 @@ export default function AllEventsPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
-          <TabsTrigger value="draft">Draft ({counts.draft})</TabsTrigger>
-          <TabsTrigger value="approved">Approved ({counts.approved})</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected ({counts.rejected})</TabsTrigger>
+          <TabsTrigger value="draft">Pending ({counts.draft})</TabsTrigger>
+          <TabsTrigger value="approved">Published ({counts.approved})</TabsTrigger>
+          <TabsTrigger value="rejected">Declined ({counts.rejected})</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -181,25 +188,25 @@ export default function AllEventsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {status !== "approved" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-green-600"
-                            onClick={() => handleApprove(event.id)}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {status !== "rejected" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-red-600"
-                            onClick={() => setRejectTarget(event)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                        {status === "draft" && (
+                          <>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-green-600"
+                              onClick={() => handleApprove(event.id)}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-red-600"
+                              onClick={() => setRejectTarget(event)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                         <Button
                           size="icon"
@@ -222,7 +229,7 @@ export default function AllEventsPage() {
       {rejectTarget && (
         <RejectDialog
           open={!!rejectTarget}
-          postTitle={rejectTarget.title}
+          itemTitle={rejectTarget.title}
           onClose={() => setRejectTarget(null)}
           onConfirm={(reason) => {
             void handleReject(rejectTarget.id, reason);

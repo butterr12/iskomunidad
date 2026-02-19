@@ -15,13 +15,32 @@ import { Label } from "@/components/ui/label";
 
 interface RejectDialogProps {
   open: boolean;
-  postTitle: string;
+  itemTitle: string;
   onClose: () => void;
   onConfirm: (reason: string) => void;
+  /** @deprecated Use itemTitle instead */
+  postTitle?: string;
+  title?: string;
+  description?: string;
+  confirmLabel?: string;
+  reasonLabel?: string;
+  reasonPlaceholder?: string;
 }
 
-export function RejectDialog({ open, postTitle, onClose, onConfirm }: RejectDialogProps) {
+export function RejectDialog({
+  open,
+  itemTitle,
+  postTitle,
+  onClose,
+  onConfirm,
+  title = "Decline",
+  description,
+  confirmLabel = "Decline",
+  reasonLabel = "Reason",
+  reasonPlaceholder = "Enter reason for declining...",
+}: RejectDialogProps) {
   const [reason, setReason] = useState("");
+  const resolvedTitle = itemTitle ?? postTitle ?? "";
 
   const handleConfirm = () => {
     if (reason.trim()) {
@@ -39,16 +58,16 @@ export function RejectDialog({ open, postTitle, onClose, onConfirm }: RejectDial
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Reject Post</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Rejecting &quot;{postTitle}&quot;. Please provide a reason.
+            {description ?? `Declining "${resolvedTitle}". Please provide a reason.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <Label htmlFor="reason">Reason</Label>
+          <Label htmlFor="reason">{reasonLabel}</Label>
           <Textarea
             id="reason"
-            placeholder="Enter rejection reason..."
+            placeholder={reasonPlaceholder}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
@@ -59,7 +78,7 @@ export function RejectDialog({ open, postTitle, onClose, onConfirm }: RejectDial
             Cancel
           </Button>
           <Button variant="destructive" onClick={handleConfirm} disabled={!reason.trim()}>
-            Reject
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

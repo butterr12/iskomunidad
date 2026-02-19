@@ -29,9 +29,9 @@ interface PostTableProps {
 }
 
 const STATUS_BADGE: Record<PostStatus, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
-  draft: { variant: "secondary", label: "Draft" },
-  approved: { variant: "default", label: "Approved" },
-  rejected: { variant: "destructive", label: "Rejected" },
+  draft: { variant: "secondary", label: "Pending" },
+  approved: { variant: "default", label: "Published" },
+  rejected: { variant: "destructive", label: "Declined" },
 };
 
 export function PostTable({ posts, onApprove, onReject, onDelete }: PostTableProps) {
@@ -57,9 +57,9 @@ export function PostTable({ posts, onApprove, onReject, onDelete }: PostTablePro
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
-          <TabsTrigger value="draft">Draft ({counts.draft})</TabsTrigger>
-          <TabsTrigger value="approved">Approved ({counts.approved})</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected ({counts.rejected})</TabsTrigger>
+          <TabsTrigger value="draft">Pending ({counts.draft})</TabsTrigger>
+          <TabsTrigger value="approved">Published ({counts.approved})</TabsTrigger>
+          <TabsTrigger value="rejected">Declined ({counts.rejected})</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -108,15 +108,15 @@ export function PostTable({ posts, onApprove, onReject, onDelete }: PostTablePro
                     <TableCell className="text-muted-foreground">{formatRelativeTime(post.createdAt)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {status !== "approved" && (
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => onApprove(post.id)}>
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {status !== "rejected" && (
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => setRejectTarget(post)}>
-                            <X className="h-4 w-4" />
-                          </Button>
+                        {status === "draft" && (
+                          <>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => onApprove(post.id)}>
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => setRejectTarget(post)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                         <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => onDelete(post.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -134,7 +134,7 @@ export function PostTable({ posts, onApprove, onReject, onDelete }: PostTablePro
       {rejectTarget && (
         <RejectDialog
           open={!!rejectTarget}
-          postTitle={rejectTarget.title}
+          itemTitle={rejectTarget.title}
           onClose={() => setRejectTarget(null)}
           onConfirm={(reason) => {
             onReject(rejectTarget.id, reason);

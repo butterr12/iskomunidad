@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Clock, CheckCircle, XCircle, Bell, BellDot, Calendar, MapPin, Loader2 } from "lucide-react";
+import { FileText, Clock, CheckCircle, XCircle, Bell, BellDot, Calendar, MapPin, Briefcase, Loader2 } from "lucide-react";
 import { StatsCard } from "@/components/admin/stats-card";
 import { adminGetDashboardStats } from "@/actions/admin";
 
@@ -35,8 +35,8 @@ export default function AdminDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard title="Total Posts" value={stats.posts.total} icon={FileText} />
           <StatsCard title="Pending Review" value={stats.posts.draft} icon={Clock} className="text-amber-500" />
-          <StatsCard title="Approved" value={stats.posts.approved} icon={CheckCircle} className="text-green-500" />
-          <StatsCard title="Rejected" value={stats.posts.rejected} icon={XCircle} className="text-red-500" />
+          <StatsCard title="Published" value={stats.posts.approved} icon={CheckCircle} className="text-green-500" />
+          <StatsCard title="Declined" value={stats.posts.rejected} icon={XCircle} className="text-red-500" />
         </div>
       </div>
 
@@ -45,8 +45,18 @@ export default function AdminDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard title="Total Events" value={stats.events.total} icon={Calendar} />
           <StatsCard title="Pending Review" value={stats.events.draft} icon={Clock} className="text-amber-500" />
-          <StatsCard title="Approved" value={stats.events.approved} icon={CheckCircle} className="text-green-500" />
-          <StatsCard title="Rejected" value={stats.events.rejected} icon={XCircle} className="text-red-500" />
+          <StatsCard title="Published" value={stats.events.approved} icon={CheckCircle} className="text-green-500" />
+          <StatsCard title="Declined" value={stats.events.rejected} icon={XCircle} className="text-red-500" />
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium text-muted-foreground mb-3">Gigs</h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatsCard title="Total Gigs" value={stats.gigs.total} icon={Briefcase} />
+          <StatsCard title="Pending Review" value={stats.gigs.draft} icon={Clock} className="text-amber-500" />
+          <StatsCard title="Published" value={stats.gigs.approved} icon={CheckCircle} className="text-green-500" />
+          <StatsCard title="Declined" value={stats.gigs.rejected} icon={XCircle} className="text-red-500" />
         </div>
       </div>
 

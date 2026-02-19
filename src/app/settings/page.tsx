@@ -798,16 +798,21 @@ export default function SettingsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="shrink-0"
+                      className="shrink-0 gap-1.5"
                       aria-label={linkCopied ? "Copied" : "Copy referral link"}
                       onClick={async () => {
+                        if (!navigator.clipboard?.writeText) {
+                          toast.error("Clipboard copy is not available in this browser.");
+                          return;
+                        }
                         try {
                           await navigator.clipboard.writeText(referralLink);
                           setLinkCopied(true);
+                          toast.success("Referral link copied.");
                           if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
                           copyTimeoutRef.current = setTimeout(() => setLinkCopied(false), 2000);
                         } catch {
-                          toast.error("Failed to copy link");
+                          toast.error("Failed to copy referral link. Please copy it manually.");
                         }
                       }}
                     >
@@ -816,6 +821,7 @@ export default function SettingsPage() {
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}
+                      <span>{linkCopied ? "Copied" : "Copy"}</span>
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">

@@ -121,7 +121,10 @@ export default function LocationsQueuePage() {
       {rejectTarget && (
         <RejectDialog
           open={!!rejectTarget}
-          postTitle={rejectTarget.title}
+          itemTitle={rejectTarget.title}
+          title="Reject Location"
+          confirmLabel="Reject"
+          reasonPlaceholder="Enter rejection reason..."
           onClose={() => setRejectTarget(null)}
           onConfirm={(reason) => {
             void handleReject(rejectTarget.id, reason);

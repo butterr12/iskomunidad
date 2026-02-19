@@ -47,11 +47,11 @@ export function ModerationRow({ post, onApprove, onReject }: ModerationRowProps)
           <div className="flex shrink-0 gap-2">
             <Button size="sm" variant="outline" className="text-green-600" onClick={() => onApprove(post.id)}>
               <Check className="mr-1 h-4 w-4" />
-              Approve
+              Publish
             </Button>
             <Button size="sm" variant="outline" className="text-red-600" onClick={() => setRejectOpen(true)}>
               <X className="mr-1 h-4 w-4" />
-              Reject
+              Decline
             </Button>
           </div>
         </CardContent>
@@ -59,7 +59,7 @@ export function ModerationRow({ post, onApprove, onReject }: ModerationRowProps)
 
       <RejectDialog
         open={rejectOpen}
-        postTitle={post.title}
+        itemTitle={post.title}
         onClose={() => setRejectOpen(false)}
         onConfirm={(reason) => {
           onReject(post.id, reason);

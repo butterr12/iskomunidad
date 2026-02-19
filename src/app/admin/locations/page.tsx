@@ -199,7 +199,10 @@ export default function AllLocationsPage() {
       {rejectTarget && (
         <RejectDialog
           open={!!rejectTarget}
-          postTitle={rejectTarget.name}
+          itemTitle={rejectTarget.name}
+          title="Reject Location"
+          confirmLabel="Reject"
+          reasonPlaceholder="Enter rejection reason..."
           onClose={() => setRejectTarget(null)}
           onConfirm={(reason) => {
             void handleReject(rejectTarget.id, reason);

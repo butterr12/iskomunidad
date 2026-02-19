@@ -13,7 +13,7 @@ import {
   user,
   session as authSession,
 } from "@/lib/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   type ActionResult,
   type ApprovalMode,
@@ -145,13 +145,21 @@ export async function adminApprovePost(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
+  const [existing] = await db
+    .select({ status: communityPost.status })
+    .from(communityPost)
+    .where(eq(communityPost.id, id));
+  if (!existing) return { success: false, error: "Post not found" };
+  if (existing.status !== "draft")
+    return { success: false, error: "Post is no longer pending" };
+
   const [post] = await db
     .update(communityPost)
     .set({ status: "approved", rejectionReason: null })
-    .where(eq(communityPost.id, id))
+    .where(and(eq(communityPost.id, id), eq(communityPost.status, "draft")))
     .returning({ title: communityPost.title, userId: communityPost.userId });
 
-  if (!post) return { success: false, error: "Post not found" };
+  if (!post) return { success: false, error: "Post was modified by another admin" };
 
   const postUser = await db.query.user.findFirst({
     where: eq(user.id, post.userId),
@@ -187,13 +195,21 @@ export async function adminRejectPost(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
+  const [existing] = await db
+    .select({ status: communityPost.status })
+    .from(communityPost)
+    .where(eq(communityPost.id, id));
+  if (!existing) return { success: false, error: "Post not found" };
+  if (existing.status !== "draft")
+    return { success: false, error: "Post is no longer pending" };
+
   const [post] = await db
     .update(communityPost)
     .set({ status: "rejected", rejectionReason: parsed.data.reason })
-    .where(eq(communityPost.id, id))
+    .where(and(eq(communityPost.id, id), eq(communityPost.status, "draft")))
     .returning({ title: communityPost.title, userId: communityPost.userId });
 
-  if (!post) return { success: false, error: "Post not found" };
+  if (!post) return { success: false, error: "Post was modified by another admin" };
 
   const postUser = await db.query.user.findFirst({
     where: eq(user.id, post.userId),
@@ -294,16 +310,24 @@ export async function adminApproveEvent(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
+  const [existing] = await db
+    .select({ status: campusEvent.status })
+    .from(campusEvent)
+    .where(eq(campusEvent.id, id));
+  if (!existing) return { success: false, error: "Event not found" };
+  if (existing.status !== "draft")
+    return { success: false, error: "Event is no longer pending" };
+
   const [event] = await db
     .update(campusEvent)
     .set({ status: "approved", rejectionReason: null })
-    .where(eq(campusEvent.id, id))
+    .where(and(eq(campusEvent.id, id), eq(campusEvent.status, "draft")))
     .returning({
       title: campusEvent.title,
       userId: campusEvent.userId,
     });
 
-  if (!event) return { success: false, error: "Event not found" };
+  if (!event) return { success: false, error: "Event was modified by another admin" };
 
   const eventUser = await db.query.user.findFirst({
     where: eq(user.id, event.userId),
@@ -339,16 +363,24 @@ export async function adminRejectEvent(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
+  const [existing] = await db
+    .select({ status: campusEvent.status })
+    .from(campusEvent)
+    .where(eq(campusEvent.id, id));
+  if (!existing) return { success: false, error: "Event not found" };
+  if (existing.status !== "draft")
+    return { success: false, error: "Event is no longer pending" };
+
   const [event] = await db
     .update(campusEvent)
     .set({ status: "rejected", rejectionReason: parsed.data.reason })
-    .where(eq(campusEvent.id, id))
+    .where(and(eq(campusEvent.id, id), eq(campusEvent.status, "draft")))
     .returning({
       title: campusEvent.title,
       userId: campusEvent.userId,
     });
 
-  if (!event) return { success: false, error: "Event not found" };
+  if (!event) return { success: false, error: "Event was modified by another admin" };
 
   const eventUser = await db.query.user.findFirst({
     where: eq(user.id, event.userId),
@@ -626,16 +658,24 @@ export async function adminApproveGig(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
+  const [existing] = await db
+    .select({ status: gigListing.status })
+    .from(gigListing)
+    .where(eq(gigListing.id, id));
+  if (!existing) return { success: false, error: "Gig not found" };
+  if (existing.status !== "draft")
+    return { success: false, error: "Gig is no longer pending" };
+
   const [gig] = await db
     .update(gigListing)
     .set({ status: "approved", rejectionReason: null })
-    .where(eq(gigListing.id, id))
+    .where(and(eq(gigListing.id, id), eq(gigListing.status, "draft")))
     .returning({
       title: gigListing.title,
       userId: gigListing.userId,
     });
 
-  if (!gig) return { success: false, error: "Gig not found" };
+  if (!gig) return { success: false, error: "Gig was modified by another admin" };
 
   const gigUser = await db.query.user.findFirst({
     where: eq(user.id, gig.userId),
@@ -671,16 +711,24 @@ export async function adminRejectGig(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
+  const [existing] = await db
+    .select({ status: gigListing.status })
+    .from(gigListing)
+    .where(eq(gigListing.id, id));
+  if (!existing) return { success: false, error: "Gig not found" };
+  if (existing.status !== "draft")
+    return { success: false, error: "Gig is no longer pending" };
+
   const [gig] = await db
     .update(gigListing)
     .set({ status: "rejected", rejectionReason: parsed.data.reason })
-    .where(eq(gigListing.id, id))
+    .where(and(eq(gigListing.id, id), eq(gigListing.status, "draft")))
     .returning({
       title: gigListing.title,
       userId: gigListing.userId,
     });
 
-  if (!gig) return { success: false, error: "Gig not found" };
+  if (!gig) return { success: false, error: "Gig was modified by another admin" };
 
   const gigUser = await db.query.user.findFirst({
     where: eq(user.id, gig.userId),

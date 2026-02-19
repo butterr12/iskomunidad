@@ -32,15 +32,15 @@ interface NotificationTableProps {
 function getNotificationBadge(type: string): { variant: "default" | "destructive" | "secondary"; label: string } {
   switch (type) {
     case "post_approved":
-      return { variant: "default", label: "Post Approved" };
+      return { variant: "default", label: "Post Published" };
     case "post_rejected":
-      return { variant: "destructive", label: "Post Rejected" };
+      return { variant: "destructive", label: "Post Declined" };
     case "post_pending":
       return { variant: "secondary", label: "Post Pending" };
     case "event_approved":
-      return { variant: "default", label: "Event Approved" };
+      return { variant: "default", label: "Event Published" };
     case "event_rejected":
-      return { variant: "destructive", label: "Event Rejected" };
+      return { variant: "destructive", label: "Event Declined" };
     case "event_pending":
       return { variant: "secondary", label: "Event Pending" };
     case "landmark_approved":
@@ -50,9 +50,9 @@ function getNotificationBadge(type: string): { variant: "default" | "destructive
     case "landmark_pending":
       return { variant: "secondary", label: "Location Pending" };
     case "gig_approved":
-      return { variant: "default", label: "Gig Approved" };
+      return { variant: "default", label: "Gig Published" };
     case "gig_rejected":
-      return { variant: "destructive", label: "Gig Rejected" };
+      return { variant: "destructive", label: "Gig Declined" };
     case "gig_pending":
       return { variant: "secondary", label: "Gig Pending" };
     default:

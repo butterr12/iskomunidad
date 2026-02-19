@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { PostTable } from "@/components/admin/post-table";
 import {
   adminGetAllPosts,
@@ -30,17 +31,23 @@ export default function AllPostsPage() {
   };
 
   const handleApprove = async (id: string) => {
-    await adminApprovePost(id);
+    const result = await adminApprovePost(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Post published");
     await refreshPosts();
   };
 
   const handleReject = async (id: string, reason: string) => {
-    await adminRejectPost(id, reason);
+    const result = await adminRejectPost(id, reason);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Post declined");
     await refreshPosts();
   };
 
   const handleDelete = async (id: string) => {
-    await adminDeletePost(id);
+    const result = await adminDeletePost(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Post deleted");
     await refreshPosts();
   };
 
