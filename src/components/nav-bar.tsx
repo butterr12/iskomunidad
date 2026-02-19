@@ -22,6 +22,7 @@ import {
   CalendarDays,
   Hammer,
   MessageSquare,
+  LayoutGrid,
   Settings,
   LogOut,
   Shield,
@@ -34,13 +35,23 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { useSocket } from "@/components/providers/socket-provider";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import { getUserBorderSelectionById } from "@/actions/borders";
+import { MoreSheet } from "@/components/more-sheet";
 import type { BorderDefinition } from "@/lib/profile-borders";
 
-const tabs = [
+/** Desktop: all 5 original tabs */
+const allDesktopTabs = [
   { label: "Map", href: "/map", icon: MapPin },
   { label: "Community", href: "/community", icon: Users },
   { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Events", href: "/events", icon: CalendarDays },
+  { label: "Gigs", href: "/gigs", icon: Hammer },
+] as const;
+
+/** Mobile bottom nav: 4 core tabs + More button */
+const coreTabs = [
+  { label: "Map", href: "/map", icon: MapPin },
+  { label: "Community", href: "/community", icon: Users },
+  { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Gigs", href: "/gigs", icon: Hammer },
 ] as const;
 
@@ -61,6 +72,7 @@ export function NavBar() {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
   const { unreadCount } = useSocket();
 
@@ -78,6 +90,8 @@ export function NavBar() {
     });
     return () => { cancelled = true; };
   }, [user?.id]);
+
+  const isMoreActive = ["/events", "/settings"].some((p) => pathname.startsWith(p));
 
   const toggleTheme = () => {
     setTheme(resolvedTheme === "dark" ? "light" : "dark");
@@ -101,7 +115,7 @@ export function NavBar() {
           </button>
 
           <nav className="flex items-center gap-1">
-            {tabs.map((t) => (
+            {allDesktopTabs.map((t) => (
               <Button
                 key={t.href}
                 variant={pathname === t.href ? "default" : "ghost"}
@@ -167,7 +181,7 @@ export function NavBar() {
       {/* Mobile: bottom tab bar */}
       <nav data-mobile-nav className="fixed bottom-0 left-0 right-0 z-[1000] sm:hidden border-t bg-background/95 backdrop-blur-sm safe-bottom">
         <div className="flex h-14 items-center justify-around">
-          {tabs.map((t) => (
+          {coreTabs.map((t) => (
             <Link
               key={t.href}
               href={t.href}
@@ -187,6 +201,18 @@ export function NavBar() {
               {t.label}
             </Link>
           ))}
+          <button
+            aria-expanded={moreSheetOpen}
+            aria-label="More navigation options"
+            onClick={() => setMoreSheetOpen(true)}
+            className={cn(
+              "relative flex flex-1 flex-col items-center gap-0.5 py-1 text-[11px] font-medium transition-colors",
+              isMoreActive ? "text-primary" : "text-muted-foreground"
+            )}
+          >
+            <LayoutGrid className={cn("h-5 w-5", isMoreActive && "text-primary")} />
+            More
+          </button>
         </div>
       </nav>
 
@@ -273,6 +299,9 @@ export function NavBar() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* More Sheet (mobile) */}
+      <MoreSheet open={moreSheetOpen} onOpenChange={setMoreSheetOpen} pathname={pathname} />
     </>
   );
 }

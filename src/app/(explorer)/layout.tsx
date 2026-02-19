@@ -40,7 +40,7 @@ function ExplorerSkeleton() {
       {/* Bottom bar skeleton (mobile) */}
       <div className="sm:hidden border-t bg-background/95">
         <div className="flex h-14 items-center justify-around">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex flex-col items-center gap-1">
               <Skeleton className="h-5 w-5 rounded" />
               <Skeleton className="h-3 w-10 rounded" />
