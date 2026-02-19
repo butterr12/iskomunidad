@@ -70,6 +70,8 @@ export function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadOlderRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const hasInitialAutoScrollRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const typingIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -112,14 +114,39 @@ export function ChatPanel({
     };
   }, []);
 
-  // Auto-scroll on new messages
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // Auto-scroll to latest message (instant on first paint, smooth afterwards)
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+  }, []);
+
+  // Track whether the user is near the bottom so we only autoscroll when appropriate.
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const updateStickiness = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      shouldStickToBottomRef.current = distanceFromBottom < 120;
+    };
+
+    updateStickiness();
+    container.addEventListener("scroll", updateStickiness, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", updateStickiness);
+    };
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [allMessages.length, optimisticMessages.length, scrollToBottom]);
+    if (isLoading) return;
+    const hasDisplayMessages = allMessages.length > 0 || optimisticMessages.length > 0;
+    if (!hasDisplayMessages) return;
+    if (!shouldStickToBottomRef.current && hasInitialAutoScrollRef.current) return;
+
+    scrollToBottom(hasInitialAutoScrollRef.current ? "smooth" : "auto");
+    hasInitialAutoScrollRef.current = true;
+  }, [isLoading, allMessages.length, optimisticMessages.length, scrollToBottom]);
 
   // Join conversation room
   useEffect(() => {
@@ -368,6 +395,8 @@ export function ChatPanel({
     const body = messageText.trim();
     if (!body && !imageFile) return;
 
+    shouldStickToBottomRef.current = true;
+
     const tempId = crypto.randomUUID();
     const now = new Date().toISOString();
 
@@ -488,7 +517,7 @@ export function ChatPanel({
       {/* Messages */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto py-3"
+        className="min-h-0 flex-1 overflow-y-auto py-3"
       >
         {hasNextPage && (
           <div ref={loadOlderRef} className="flex justify-center py-2">

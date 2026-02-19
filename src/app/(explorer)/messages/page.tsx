@@ -30,6 +30,8 @@ export default function MessagesPage() {
   // Update URL when active conversation changes
   const selectConversation = useCallback(
     (conv: ConversationPreview | null) => {
+      // Prevent race: clearing chat locally can happen before URL loses ?chat=.
+      if (!conv) hasRestoredChatRef.current = true;
       setActiveConversation(conv);
       const params = new URLSearchParams(searchParams.toString());
       if (conv) {
@@ -140,7 +142,12 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex flex-1 min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
+    <div
+      className={cn(
+        "flex flex-1 min-h-0 pt-12 sm:pt-14",
+        activeConversation ? "pb-0" : "pb-safe-nav sm:pb-0",
+      )}
+    >
       {/* Sidebar — conversation list */}
       <div
         className={cn(
