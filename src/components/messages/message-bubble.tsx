@@ -53,7 +53,7 @@ export function MessageBubble({
       )}
     >
       {showAvatar ? (
-        <Avatar size="sm" className="mt-1 shrink-0">
+        <Avatar size="sm" className="mb-1 shrink-0">
           <AvatarImage
             src={message.sender?.image ?? undefined}
             alt={message.sender?.name ?? "User"}
@@ -63,7 +63,7 @@ export function MessageBubble({
           </AvatarFallback>
         </Avatar>
       ) : (
-        <div className="w-8 shrink-0" />
+        <div className="w-6 shrink-0" />
       )}
 
       <div className={cn("flex max-w-[70%] flex-col gap-1", isOwn ? "items-end" : "items-start")}>

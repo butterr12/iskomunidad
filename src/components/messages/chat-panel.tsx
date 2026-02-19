@@ -497,8 +497,8 @@ export function ChatPanel({
 
           return displayMessages.map((msg, i) => {
             const isOwn = msg.senderId === userId;
-            const prevMsg = i > 0 ? displayMessages[i - 1] : null;
-            const showAvatar = !prevMsg || prevMsg.senderId !== msg.senderId;
+            const nextMsg = i < displayMessages.length - 1 ? displayMessages[i + 1] : null;
+            const showAvatar = !nextMsg || nextMsg.senderId !== msg.senderId;
             const isOptimistic = "_optimistic" in msg;
             const optimisticMsg = isOptimistic ? (msg as OptimisticMessage) : null;
             return (
