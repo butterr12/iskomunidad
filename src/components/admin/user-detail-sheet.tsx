@@ -27,8 +27,10 @@ import {
   X,
 } from "lucide-react";
 import { adminGetUserDetail, adminGetUserFlairs, adminGrantFlair, adminRevokeFlair } from "@/actions/admin";
+import { adminGetUserUnlockedBorders, adminGrantBorder, adminRevokeBorder, getUserBorderSelectionById } from "@/actions/borders";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { USER_FLAIR_CATALOG, getProvisionedFlairIds } from "@/lib/user-flairs";
+import { PROFILE_BORDER_CATALOG, type BorderDefinition } from "@/lib/profile-borders";
 
 interface AdminUser {
   id: string;
@@ -125,6 +127,55 @@ export function UserDetailSheet({
   const ownedFlairIds = new Set(userFlairs.map((f) => f.id));
   const grantableFlairs = USER_FLAIR_CATALOG.filter(
     (f) => getProvisionedFlairIds().includes(f.id) && !ownedFlairIds.has(f.id),
+  );
+
+  // ─── Borders ──────────────────────────────────────────────────────────────
+  const { data: unlockedBorders = [] } = useQuery({
+    queryKey: ["admin-user-borders", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const res = await adminGetUserUnlockedBorders(userId);
+      return res.success ? res.data : [];
+    },
+    enabled: !!userId,
+  });
+
+  const { data: selectedBorder = null } = useQuery({
+    queryKey: ["admin-user-selected-border", userId],
+    queryFn: async () => {
+      if (!userId) return null;
+      const res = await getUserBorderSelectionById(userId);
+      return res.success ? res.data : null;
+    },
+    enabled: !!userId,
+  });
+
+  const borderGrantMutation = useMutation({
+    mutationFn: async (borderId: string) => {
+      if (!userId) throw new Error("No user");
+      const res = await adminGrantBorder(userId, borderId);
+      if (!res.success) throw new Error(res.error);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-user-borders", userId] });
+    },
+  });
+
+  const borderRevokeMutation = useMutation({
+    mutationFn: async (borderId: string) => {
+      if (!userId) throw new Error("No user");
+      const res = await adminRevokeBorder(userId, borderId);
+      if (!res.success) throw new Error(res.error);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-user-borders", userId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-user-selected-border", userId] });
+    },
+  });
+
+  const unlockedBorderIds = new Set(unlockedBorders.map((b) => b.id));
+  const grantableBorders = PROFILE_BORDER_CATALOG.filter(
+    (b) => b.tier !== "basic" && !unlockedBorderIds.has(b.id),
   );
 
   const user = data?.user;
@@ -277,6 +328,78 @@ export function UserDetailSheet({
               {(grantMutation.isError || revokeMutation.isError) && (
                 <p className="text-xs text-red-500">
                   {(grantMutation.error ?? revokeMutation.error)?.message}
+                </p>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Borders */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Borders</p>
+              {selectedBorder && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Selected:</span>
+                  <span
+                    className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                    style={{ background: selectedBorder.color }}
+                  >
+                    {selectedBorder.label}
+                  </span>
+                </div>
+              )}
+              {unlockedBorders.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {unlockedBorders.map((border) => (
+                    <span
+                      key={border.id}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                      style={{ background: border.color }}
+                    >
+                      {border.label}
+                      {border.tier !== "basic" && (
+                        <button
+                          type="button"
+                          className="ml-0.5 hover:opacity-80"
+                          disabled={borderRevokeMutation.isPending}
+                          onClick={() => borderRevokeMutation.mutate(border.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No unlocked borders</p>
+              )}
+              {grantableBorders.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <select
+                    className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        borderGrantMutation.mutate(e.target.value);
+                        e.target.value = "";
+                      }
+                    }}
+                    disabled={borderGrantMutation.isPending}
+                  >
+                    <option value="" disabled>
+                      Grant a border...
+                    </option>
+                    {grantableBorders.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.label} ({b.tier})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {(borderGrantMutation.isError || borderRevokeMutation.isError) && (
+                <p className="text-xs text-red-500">
+                  {(borderGrantMutation.error ?? borderRevokeMutation.error)?.message}
                 </p>
               )}
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Shield, Ban, CheckCircle, Trash2, RotateCcw, Eye, Check, X, Search } from "lucide-react";
+import { Eye, Check, X, Search } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -15,8 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BanDialog } from "./ban-dialog";
-import { ConfirmDialog } from "./confirm-dialog";
 
 export interface AdminUser {
   id: string;
@@ -37,11 +35,6 @@ export interface AdminUser {
 interface UserTableProps {
   users: AdminUser[];
   currentUserId: string;
-  onUpdateRole: (id: string, role: "user" | "admin") => void;
-  onBan: (id: string, reason: string) => void;
-  onUnban: (id: string) => void;
-  onSoftDelete: (id: string) => void;
-  onRestore: (id: string) => void;
   onViewDetail: (id: string) => void;
 }
 
@@ -59,24 +52,10 @@ const ROLE_BADGE: Record<string, "default" | "secondary"> = {
 export function UserTable({
   users,
   currentUserId,
-  onUpdateRole,
-  onBan,
-  onUnban,
-  onSoftDelete,
-  onRestore,
   onViewDetail,
 }: UserTableProps) {
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
-  const [banTarget, setBanTarget] = useState<AdminUser | null>(null);
-  const [confirmState, setConfirmState] = useState<{
-    open: boolean;
-    title: string;
-    description: string;
-    confirmLabel: string;
-    variant: "default" | "destructive";
-    onConfirm: () => void;
-  }>({ open: false, title: "", description: "", confirmLabel: "", variant: "default", onConfirm: () => {} });
 
   const counts = useMemo(() => {
     const c = { all: users.length, active: 0, banned: 0, deleted: 0 };
@@ -103,64 +82,6 @@ export function UserTable({
     }
     return result;
   }, [users, tab, search]);
-
-  const handleRoleToggle = (u: AdminUser) => {
-    const newRole = u.role === "admin" ? "user" : "admin";
-    const action = newRole === "admin" ? "Promote" : "Demote";
-    setConfirmState({
-      open: true,
-      title: `${action} User`,
-      description: `Are you sure you want to ${action.toLowerCase()} "${u.name}" to ${newRole}?`,
-      confirmLabel: action,
-      variant: "default",
-      onConfirm: () => {
-        onUpdateRole(u.id, newRole);
-        setConfirmState((s) => ({ ...s, open: false }));
-      },
-    });
-  };
-
-  const handleSoftDelete = (u: AdminUser) => {
-    setConfirmState({
-      open: true,
-      title: "Delete User",
-      description: `Are you sure you want to soft-delete "${u.name}"? They can be restored later.`,
-      confirmLabel: "Delete",
-      variant: "destructive",
-      onConfirm: () => {
-        onSoftDelete(u.id);
-        setConfirmState((s) => ({ ...s, open: false }));
-      },
-    });
-  };
-
-  const handleRestore = (u: AdminUser) => {
-    setConfirmState({
-      open: true,
-      title: "Restore User",
-      description: `Are you sure you want to restore "${u.name}"?`,
-      confirmLabel: "Restore",
-      variant: "default",
-      onConfirm: () => {
-        onRestore(u.id);
-        setConfirmState((s) => ({ ...s, open: false }));
-      },
-    });
-  };
-
-  const handleUnban = (u: AdminUser) => {
-    setConfirmState({
-      open: true,
-      title: "Unban User",
-      description: `Are you sure you want to unban "${u.name}"?`,
-      confirmLabel: "Unban",
-      variant: "default",
-      onConfirm: () => {
-        onUnban(u.id);
-        setConfirmState((s) => ({ ...s, open: false }));
-      },
-    });
-  };
 
   return (
     <div className="space-y-4">
@@ -209,7 +130,6 @@ export function UserTable({
               filtered.map((u) => {
                 const status = u.status ?? "active";
                 const badge = STATUS_BADGE[status] ?? STATUS_BADGE.active;
-                const isSelf = u.id === currentUserId;
 
                 return (
                   <TableRow key={u.id}>
@@ -241,72 +161,14 @@ export function UserTable({
                       {new Date(u.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {!isSelf && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            title={u.role === "admin" ? "Demote to user" : "Promote to admin"}
-                            onClick={() => handleRoleToggle(u)}
-                          >
-                            <Shield className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!isSelf && status === "active" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-red-600"
-                            title="Ban user"
-                            onClick={() => setBanTarget(u)}
-                          >
-                            <Ban className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!isSelf && status === "banned" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-green-600"
-                            title="Unban user"
-                            onClick={() => handleUnban(u)}
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!isSelf && status !== "deleted" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-red-600"
-                            title="Soft delete"
-                            onClick={() => handleSoftDelete(u)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!isSelf && status === "deleted" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-green-600"
-                            title="Restore user"
-                            onClick={() => handleRestore(u)}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          title="View details"
-                          onClick={() => onViewDetail(u.id)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onViewDetail(u.id)}
+                      >
+                        <Eye className="mr-1 h-4 w-4" />
+                        Manage
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -315,28 +177,6 @@ export function UserTable({
           </TableBody>
         </Table>
       </div>
-
-      {banTarget && (
-        <BanDialog
-          open={!!banTarget}
-          userName={banTarget.name}
-          onClose={() => setBanTarget(null)}
-          onConfirm={(reason) => {
-            onBan(banTarget.id, reason);
-            setBanTarget(null);
-          }}
-        />
-      )}
-
-      <ConfirmDialog
-        open={confirmState.open}
-        title={confirmState.title}
-        description={confirmState.description}
-        confirmLabel={confirmState.confirmLabel}
-        variant={confirmState.variant}
-        onClose={() => setConfirmState((s) => ({ ...s, open: false }))}
-        onConfirm={confirmState.onConfirm}
-      />
     </div>
   );
 }

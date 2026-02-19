@@ -77,11 +77,6 @@ export default function UsersPage() {
       <UserTable
         users={users}
         currentUserId={currentUser?.id ?? ""}
-        onUpdateRole={handleUpdateRole}
-        onBan={handleBan}
-        onUnban={handleUnban}
-        onSoftDelete={handleSoftDelete}
-        onRestore={handleRestore}
         onViewDetail={(id) => setSelectedUserId(id)}
       />
 

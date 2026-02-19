@@ -120,6 +120,27 @@ export async function getUserUnlockedBorders(): Promise<
 
 // ─── Admin actions ──────────────────────────────────────────────────────────
 
+/** Admin: get unlocked border definitions for a user */
+export async function adminGetUserUnlockedBorders(
+  userId: string,
+): Promise<ActionResult<BorderDefinition[]>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Admin access required" };
+
+  try {
+    const rows = await db.query.userUnlockedBorder.findMany({
+      where: eq(userUnlockedBorder.userId, userId),
+      columns: { borderId: true },
+    });
+    const borders = rows
+      .map((r) => PROFILE_BORDER_CATALOG.find((b) => b.id === r.borderId))
+      .filter((b): b is BorderDefinition => !!b);
+    return { success: true, data: borders };
+  } catch {
+    return { success: false, error: "Failed to load unlocked borders" };
+  }
+}
+
 /** Admin: grant a border unlock to a user */
 export async function adminGrantBorder(
   userId: string,
