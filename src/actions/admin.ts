@@ -33,7 +33,7 @@ import {
   revokeFlair,
   getUserFlairsFromDb,
 } from "@/lib/flair-service";
-import { getFlairById, getBasicFlairIds } from "@/lib/user-flairs";
+import { getFlairById } from "@/lib/user-flairs";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -1222,10 +1222,6 @@ export async function adminGrantFlair(
   const def = getFlairById(flairId);
   if (!def) return { success: false, error: "Unknown flair" };
 
-  if (getBasicFlairIds().includes(flairId)) {
-    return { success: false, error: "Basic flairs are auto-granted and cannot be manually assigned" };
-  }
-
   await grantFlair(userId, flairId, "admin");
   return { success: true, data: undefined };
 }
@@ -1236,10 +1232,6 @@ export async function adminRevokeFlair(
 ): Promise<ActionResult<void>> {
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
-
-  if (getBasicFlairIds().includes(flairId)) {
-    return { success: false, error: "Basic flairs cannot be revoked" };
-  }
 
   await revokeFlair(userId, flairId);
   return { success: true, data: undefined };

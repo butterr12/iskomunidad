@@ -26,9 +26,9 @@ export const USER_FLAIR_CATALOG: FlairDefinition[] = [
   { id: "org-leader", label: "Org Leader", shortLabel: "Leader", category: "role", color: "#f59e0b", tier: "provisioned" },
   { id: "moderator", label: "Moderator", shortLabel: "Mod", category: "role", color: "#8b5cf6", tier: "provisioned" },
   { id: "alumni", label: "Alumni", shortLabel: "Alumni", category: "role", color: "#6b7280", tier: "provisioned" },
-  // Interests — basic (everyone gets these)
-  { id: "dev", label: "Developer", shortLabel: "Dev", category: "interest", color: "#06b6d4", tier: "basic" },
-  { id: "creative", label: "Creative", shortLabel: "Creative", category: "interest", color: "#ec4899", tier: "basic" },
+  // Interests — provisioned
+  { id: "dev", label: "Developer", shortLabel: "Dev", category: "interest", color: "#06b6d4", tier: "provisioned" },
+  { id: "creative", label: "Creative", shortLabel: "Creative", category: "interest", color: "#ec4899", tier: "provisioned" },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
