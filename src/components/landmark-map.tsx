@@ -137,7 +137,7 @@ function ClusterCollage({
   onSelectPin,
   onExpandCluster,
 }: {
-  items: { pinId: string; photoUrl: string | null }[];
+  items: { pinId: string; photoUrl: string }[];
   remainingCount: number;
   onSelectPin: (pinId: string) => void;
   onExpandCluster: () => void;
@@ -145,6 +145,8 @@ function ClusterCollage({
   const [hovered, setHovered] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const showExpanded = expanded;
+  const isOnlyPlus = items.length === 0 && remainingCount > 0;
+  const plusSlotOffset = isOnlyPlus ? 0 : items.length;
 
   const handleContainerClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-cluster-slot]")) return;
@@ -162,20 +164,19 @@ function ClusterCollage({
       if (pinId) onSelectPin(pinId);
       return;
     }
-    // Fourth slot (+x)
     if (!expanded) setExpanded(true);
     else onExpandCluster();
   };
 
   const offsets = showExpanded || hovered ? FAN_OFFSETS : STACK_OFFSETS;
-  const zIndexes = showExpanded || hovered
-    ? [2, 3, 4, 1]
-    : [1, 2, 3, 0];
+  const zIndexes = showExpanded || hovered ? [2, 3, 4, 1] : [1, 2, 3, 0];
+  const hoverScale = isOnlyPlus ? (hovered ? 1.1 : 1) : (showExpanded || hovered ? 1.05 : 1);
+  const plusOffset = isOnlyPlus ? { x: 0, y: 0, rotate: 0 } : offsets[plusSlotOffset];
 
   return (
     <div
       role="group"
-      aria-label={`${items.filter((i) => i.pinId).length + remainingCount} landmarks`}
+      aria-label={`${items.length + remainingCount} landmarks`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => {
         setHovered(false);
@@ -187,12 +188,11 @@ function ClusterCollage({
     >
       {items.map((item, i) => (
         <button
-          key={item.pinId ? item.pinId : `empty-${i}`}
+          key={item.pinId}
           type="button"
           data-cluster-slot
-          onClick={(e) => handleSlotClick(e, i, item.pinId || undefined)}
-          disabled={!item.pinId}
-          className="absolute rounded-full border-2 border-white overflow-hidden dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary disabled:pointer-events-none disabled:opacity-70"
+          onClick={(e) => handleSlotClick(e, i, item.pinId)}
+          className="absolute rounded-full border-2 border-white overflow-hidden dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary"
           style={{
             width: thumbSize,
             height: thumbSize,
@@ -204,21 +204,12 @@ function ClusterCollage({
               : "0 1px 4px rgba(0,0,0,0.15)",
           }}
         >
-          {item.photoUrl ? (
-            <img
-              src={item.photoUrl}
-              alt=""
-              draggable={false}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted-foreground">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
-            </div>
-          )}
+          <img
+            src={item.photoUrl}
+            alt=""
+            draggable={false}
+            className="w-full h-full object-cover"
+          />
         </button>
       ))}
       {remainingCount > 0 && (
@@ -230,10 +221,10 @@ function ClusterCollage({
           style={{
             width: thumbSize,
             height: thumbSize,
-            transform: `translate(${offsets[3].x}px, ${offsets[3].y}px) rotate(${offsets[3].rotate}deg) scale(${showExpanded || hovered ? 1.05 : 1})`,
+            transform: `translate(${plusOffset.x}px, ${plusOffset.y}px) rotate(${plusOffset.rotate}deg) scale(${hoverScale})`,
             transition: "transform 300ms cubic-bezier(.4,0,.2,1), box-shadow 300ms ease",
-            zIndex: zIndexes[3],
-            boxShadow: showExpanded || hovered
+            zIndex: isOnlyPlus ? zIndexes[0] : zIndexes[plusSlotOffset],
+            boxShadow: hovered
               ? "0 4px 14px rgba(0,0,0,0.25)"
               : "0 1px 4px rgba(0,0,0,0.15)",
           }}
@@ -402,20 +393,15 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
           const clusterId = Number(props.cluster_id);
           const count = Number(props.point_count);
           const leaves = supercluster ? supercluster.getLeaves(clusterId, count) : [];
-          const withPhotos: { pinId: string; photoUrl: string | null }[] = leaves.map((leaf) => {
-            const pinId = String((leaf.properties as Record<string, unknown>).pinId ?? "");
-            return { pinId, photoUrl: pinPhotoMap[pinId] ?? null };
-          });
-          const sorted = [...withPhotos].sort((a, b) => {
-            const aHas = a.photoUrl ? 1 : 0;
-            const bHas = b.photoUrl ? 1 : 0;
-            return bHas - aHas;
-          });
-          const items = sorted.slice(0, 3);
-          while (items.length < 3) {
-            items.push({ pinId: "", photoUrl: null });
-          }
-          const remainingCount = Math.max(0, count - 3);
+          const withPhotos: { pinId: string; photoUrl: string | null }[] = leaves
+            .map((leaf) => {
+              const pinId = String((leaf.properties as Record<string, unknown>).pinId ?? "");
+              return { pinId, photoUrl: pinPhotoMap[pinId] ?? null };
+            })
+            .filter((item): item is { pinId: string; photoUrl: string } => !!item.photoUrl);
+          const items = withPhotos.slice(0, 3);
+          const remainingCount = count - items.length;
+
           return (
             <Marker key={`cluster-${clusterId}`} latitude={lat} longitude={lng} anchor="center">
               <ClusterCollage
