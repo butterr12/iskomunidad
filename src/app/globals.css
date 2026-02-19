@@ -123,7 +123,6 @@
   }
   html {
     height: 100%;
-    height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
   }
@@ -158,11 +157,13 @@
     }
   }
 
-  /* Hide bottom nav and its padding when chat panel is active */
-  html[data-chat-active] [data-mobile-nav] {
+  /* Hide bottom nav and its padding when chat panel is active or keyboard is open */
+  html[data-chat-active] [data-mobile-nav],
+  html[data-keyboard-open] [data-mobile-nav] {
     display: none !important;
   }
-  html[data-chat-active] .pb-safe-nav {
+  html[data-chat-active] .pb-safe-nav,
+  html[data-keyboard-open] .pb-safe-nav {
     padding-bottom: 0;
   }
 }

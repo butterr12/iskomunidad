@@ -8,6 +8,7 @@ import { ConsentGate } from "@/components/consent-gate";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { SocketProvider } from "@/components/providers/socket-provider";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 
 function ExplorerSkeleton() {
   return (
@@ -55,6 +56,7 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const signingOut = useRef(false);
+  useVirtualKeyboard();
 
   const isInactive = !isPending && !!session?.user?.status && session.user.status !== "active";
 
