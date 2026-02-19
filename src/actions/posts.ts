@@ -520,7 +520,7 @@ export async function createComment(
         userId: parentComment.userId,
         type: "comment_replied",
         contentType: "post",
-        targetId: created.id,
+        targetId: parsed.data.postId,
         targetTitle: post.title,
         actor,
       });
@@ -530,7 +530,7 @@ export async function createComment(
         userId: post.userId,
         type: "post_commented",
         contentType: "post",
-        targetId: created.id,
+        targetId: parsed.data.postId,
         targetTitle: post.title,
         actor,
       });
@@ -540,7 +540,7 @@ export async function createComment(
       userId: post.userId,
       type: "post_commented",
       contentType: "post",
-      targetId: created.id,
+      targetId: parsed.data.postId,
       targetTitle: post.title,
       actor,
     });
@@ -575,6 +575,7 @@ export async function voteOnComment(
     where: eq(postComment.id, commentId),
     columns: {
       userId: true,
+      postId: true,
     },
     with: {
       post: {
@@ -644,7 +645,7 @@ export async function voteOnComment(
       userId: comment.userId,
       type: "comment_upvoted",
       contentType: "post",
-      targetId: commentId,
+      targetId: comment.postId,
       targetTitle: comment.post.title,
       actor: getActorLabel(session.user),
     });

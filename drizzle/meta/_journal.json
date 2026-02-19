@@ -92,6 +92,20 @@
       "when": 1771507801470,
       "tag": "0012_faulty_starfox",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1771517042963,
+      "tag": "0013_last_microchip",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1771517079288,
+      "tag": "0014_clear_living_mummy",
+      "breakpoints": true
     }
   ]
 }

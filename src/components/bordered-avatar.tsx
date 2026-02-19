@@ -38,6 +38,73 @@ export function BorderedAvatar({
 
   const ringWidth = getRingWidth(avatarSize);
 
+  // Feedback Loop: gradient border + pulsing rays around the circle
+  if (border.id === "feedback-loop") {
+    const outerSize = avatarSize + ringWidth * 2;
+    const center = outerSize / 2;
+    const rayStart = center + 1;
+    const rayEnd = center + Math.max(4, outerSize * 0.15);
+    const rayCount = 12;
+    return (
+      <div
+        className="relative rounded-full shrink-0"
+        style={{ width: outerSize, height: outerSize }}
+      >
+        {/* Gradient border layer */}
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{ background: border.color }}
+        />
+        {/* Inner mask */}
+        <div
+          className="absolute rounded-full bg-background"
+          style={{
+            top: ringWidth,
+            left: ringWidth,
+            right: ringWidth,
+            bottom: ringWidth,
+          }}
+        />
+        {/* Avatar content */}
+        <div
+          className="relative rounded-full"
+          style={{ padding: ringWidth }}
+        >
+          {children}
+        </div>
+        {/* Rays radiating from the circle border */}
+        <svg
+          className="absolute inset-0 pointer-events-none"
+          width={outerSize}
+          height={outerSize}
+          viewBox={`0 0 ${outerSize} ${outerSize}`}
+          overflow="visible"
+        >
+          {Array.from({ length: rayCount }).map((_, i) => {
+            const angle = (i * 360 / rayCount) * (Math.PI / 180);
+            const x1 = center + Math.cos(angle) * rayStart;
+            const y1 = center - Math.sin(angle) * rayStart;
+            const x2 = center + Math.cos(angle) * rayEnd;
+            const y2 = center - Math.sin(angle) * rayEnd;
+            return (
+              <line
+                key={i}
+                x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke="#eab308"
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                style={{
+                  animation: "feedback-rays 3s ease-in-out infinite",
+                  animationDelay: `${(i / rayCount) * 3}s`,
+                }}
+              />
+            );
+          })}
+        </svg>
+      </div>
+    );
+  }
+
   // Animated border (e.g. "Early Joiner" conic-gradient spinning)
   if (border.type === "animated") {
     const outerSize = avatarSize + ringWidth * 2;

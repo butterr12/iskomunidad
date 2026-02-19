@@ -537,6 +537,180 @@ export const userFlair = pgTable(
   ],
 );
 
+// ─── Campus Match: Preference ───────────────────────────────────────────────
+
+export const cmPreference = pgTable("cm_preference", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  allowAnonQueue: boolean("allow_anon_queue").notNull().default(true),
+  defaultAlias: text("default_alias"),
+  lastScope: text("last_scope"),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ─── Campus Match: Queue Entry ──────────────────────────────────────────────
+
+export const cmQueueEntry = pgTable(
+  "cm_queue_entry",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    alias: text("alias").notNull(),
+    scope: text("scope").notNull(),
+    heartbeatAt: timestamp("heartbeat_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("cm_queue_entry_user_idx").on(table.userId),
+    index("cm_queue_entry_scope_idx").on(table.scope),
+    index("cm_queue_entry_heartbeat_idx").on(table.heartbeatAt),
+  ],
+);
+
+// ─── Campus Match: Session ──────────────────────────────────────────────────
+
+export const cmSession = pgTable("cm_session", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  status: text("status").notNull().default("active"),
+  endedReason: text("ended_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  endedAt: timestamp("ended_at"),
+});
+
+// ─── Campus Match: Session Participant ──────────────────────────────────────
+
+export const cmSessionParticipant = pgTable(
+  "cm_session_participant",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => cmSession.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    alias: text("alias").notNull(),
+    connectRequested: boolean("connect_requested").notNull().default(false),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("cm_session_participant_session_user_idx").on(
+      table.sessionId,
+      table.userId,
+    ),
+    index("cm_session_participant_user_idx").on(table.userId),
+  ],
+);
+
+// ─── Campus Match: Message ──────────────────────────────────────────────────
+
+export const cmMessage = pgTable(
+  "cm_message",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => cmSession.id, { onDelete: "cascade" }),
+    senderId: text("sender_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    body: text("body"),
+    imageUrl: text("image_url"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("cm_message_session_created_idx").on(
+      table.sessionId,
+      table.createdAt,
+    ),
+  ],
+);
+
+// ─── Campus Match: Report ───────────────────────────────────────────────────
+
+export const cmReport = pgTable(
+  "cm_report",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => cmSession.id, { onDelete: "cascade" }),
+    reporterId: text("reporter_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reportedUserId: text("reported_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    status: text("status").notNull().default("pending"),
+    adminNote: text("admin_note"),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewedBy: text("reviewed_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("cm_report_session_reporter_idx").on(
+      table.sessionId,
+      table.reporterId,
+    ),
+    index("cm_report_status_created_idx").on(table.status, table.createdAt),
+    index("cm_report_reported_user_idx").on(table.reportedUserId),
+  ],
+);
+
+// ─── Campus Match: Block ────────────────────────────────────────────────────
+
+export const cmBlock = pgTable(
+  "cm_block",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    blockerId: text("blocker_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    blockedId: text("blocked_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("cm_block_pair_idx").on(table.blockerId, table.blockedId),
+    index("cm_block_blocker_idx").on(table.blockerId),
+    index("cm_block_blocked_idx").on(table.blockedId),
+  ],
+);
+
+// ─── Campus Match: Rematch Cooldown ─────────────────────────────────────────
+
+export const cmRematchCooldown = pgTable(
+  "cm_rematch_cooldown",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userIdLow: text("user_id_low")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    userIdHigh: text("user_id_high")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("cm_rematch_cooldown_pair_idx").on(
+      table.userIdLow,
+      table.userIdHigh,
+    ),
+    index("cm_rematch_cooldown_expires_idx").on(table.expiresAt),
+  ],
+);
+
 // ─── Relations ─────────────────────────────────────────────────────────────────
 
 export const userRelations = relations(user, ({ many, one }) => ({
@@ -572,6 +746,17 @@ export const userRelations = relations(user, ({ many, one }) => ({
   }),
   unlockedBorders: many(userUnlockedBorder),
   flairs: many(userFlair),
+  cmPreference: one(cmPreference, {
+    fields: [user.id],
+    references: [cmPreference.userId],
+  }),
+  cmQueueEntries: many(cmQueueEntry),
+  cmSessionParticipants: many(cmSessionParticipant),
+  cmSentMessages: many(cmMessage),
+  cmReportsFiled: many(cmReport, { relationName: "reporter" }),
+  cmReportsReceived: many(cmReport, { relationName: "reportedUser" }),
+  cmBlocksInitiated: many(cmBlock, { relationName: "blocker" }),
+  cmBlocksReceived: many(cmBlock, { relationName: "blocked" }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -853,3 +1038,101 @@ export const userFlairRelations = relations(userFlair, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+// ─── Campus Match Relations ─────────────────────────────────────────────────
+
+export const cmPreferenceRelations = relations(cmPreference, ({ one }) => ({
+  user: one(user, {
+    fields: [cmPreference.userId],
+    references: [user.id],
+  }),
+}));
+
+export const cmQueueEntryRelations = relations(cmQueueEntry, ({ one }) => ({
+  user: one(user, {
+    fields: [cmQueueEntry.userId],
+    references: [user.id],
+  }),
+}));
+
+export const cmSessionRelations = relations(cmSession, ({ many }) => ({
+  participants: many(cmSessionParticipant),
+  messages: many(cmMessage),
+  reports: many(cmReport),
+}));
+
+export const cmSessionParticipantRelations = relations(
+  cmSessionParticipant,
+  ({ one }) => ({
+    session: one(cmSession, {
+      fields: [cmSessionParticipant.sessionId],
+      references: [cmSession.id],
+    }),
+    user: one(user, {
+      fields: [cmSessionParticipant.userId],
+      references: [user.id],
+    }),
+  }),
+);
+
+export const cmMessageRelations = relations(cmMessage, ({ one }) => ({
+  session: one(cmSession, {
+    fields: [cmMessage.sessionId],
+    references: [cmSession.id],
+  }),
+  sender: one(user, {
+    fields: [cmMessage.senderId],
+    references: [user.id],
+  }),
+}));
+
+export const cmReportRelations = relations(cmReport, ({ one }) => ({
+  session: one(cmSession, {
+    fields: [cmReport.sessionId],
+    references: [cmSession.id],
+  }),
+  reporter: one(user, {
+    fields: [cmReport.reporterId],
+    references: [user.id],
+    relationName: "reporter",
+  }),
+  reportedUser: one(user, {
+    fields: [cmReport.reportedUserId],
+    references: [user.id],
+    relationName: "reportedUser",
+  }),
+  reviewer: one(user, {
+    fields: [cmReport.reviewedBy],
+    references: [user.id],
+    relationName: "reviewer",
+  }),
+}));
+
+export const cmBlockRelations = relations(cmBlock, ({ one }) => ({
+  blocker: one(user, {
+    fields: [cmBlock.blockerId],
+    references: [user.id],
+    relationName: "blocker",
+  }),
+  blocked: one(user, {
+    fields: [cmBlock.blockedId],
+    references: [user.id],
+    relationName: "blocked",
+  }),
+}));
+
+export const cmRematchCooldownRelations = relations(
+  cmRematchCooldown,
+  ({ one }) => ({
+    userLow: one(user, {
+      fields: [cmRematchCooldown.userIdLow],
+      references: [user.id],
+      relationName: "cooldownUserLow",
+    }),
+    userHigh: one(user, {
+      fields: [cmRematchCooldown.userIdHigh],
+      references: [user.id],
+      relationName: "cooldownUserHigh",
+    }),
+  }),
+);

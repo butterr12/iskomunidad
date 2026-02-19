@@ -158,6 +158,24 @@ export async function getCustomModerationRules(): Promise<string> {
   return "";
 }
 
+// ─── Campus Match kill switch ─────────────────────────────────────────────────
+
+export async function getCampusMatchEnabled(): Promise<boolean> {
+  const row = await db.query.adminSetting.findFirst({
+    where: eq(adminSetting.key, "campusMatchEnabled"),
+  });
+  if (row && typeof row.value === "boolean") return row.value;
+  return true; // default: enabled
+}
+
+export async function requireCampusMatch(): Promise<ActionResult<never> | null> {
+  const enabled = await getCampusMatchEnabled();
+  if (!enabled) return { success: false, error: "Campus Match is currently disabled" };
+  return null;
+}
+
+// ─── Notification helpers ─────────────────────────────────────────────────────
+
 export async function createNotification(data: {
   type: string;
   targetId: string;

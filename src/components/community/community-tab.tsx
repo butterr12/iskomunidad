@@ -222,12 +222,28 @@ export function CommunityTab() {
     }
   };
 
-  // Auto-select post from ?post= param
+  // Auto-select post from ?post= param (e.g. notification deep-link)
+  const deepLinkAttempted = useRef<string | null>(null);
   useEffect(() => {
-    if (!postParam || selectedPost || posts.length === 0) return;
+    if (!postParam || selectedPost) return;
     const found = posts.find((p) => p.id === postParam);
-    if (found) void handleSelectPost(found);
-  }, [postParam, posts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (found) {
+      void handleSelectPost(found);
+      return;
+    }
+    // Post not in loaded pages — fetch it directly (once per postParam)
+    if (!isLoading && deepLinkAttempted.current !== postParam) {
+      deepLinkAttempted.current = postParam;
+      void (async () => {
+        const res = await getPostById(postParam);
+        if (res.success) {
+          const data = res.data as CommunityPost & { comments?: PostComment[] };
+          setSelectedPost(data);
+          setComments(data.comments ?? []);
+        }
+      })();
+    }
+  }, [postParam, posts.length, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreatePost = async (data: {
     title: string;
