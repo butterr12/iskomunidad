@@ -8,8 +8,8 @@
 // ─── Tier definitions ────────────────────────────────────────────────────────
 
 const TIERS = {
-  /** Signup, login, magic link, password reset — strictest */
-  auth: { windowMs: 15 * 60 * 1000, max: 10 },
+  /** Signup, login, magic link, password reset — strict but allows a few retries */
+  auth: { windowMs: 15 * 60 * 1000, max: 20 },
   /** Posts, comments, events, gigs, messages */
   create: { windowMs: 60 * 1000, max: 20 },
   /** File uploads */

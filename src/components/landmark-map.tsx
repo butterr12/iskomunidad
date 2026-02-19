@@ -129,65 +129,119 @@ const FAN_OFFSETS = [
   { x: 28, y: 28, rotate: 0 },
 ];
 
+const thumbSize = 44;
+
 function ClusterCollage({
-  photos,
-  count,
-  onClick,
+  items,
+  remainingCount,
+  onSelectPin,
+  onExpandCluster,
 }: {
-  photos: string[];
-  count: number;
-  onClick: () => void;
+  items: { pinId: string; photoUrl: string | null }[];
+  remainingCount: number;
+  onSelectPin: (pinId: string) => void;
+  onExpandCluster: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const images = photos.slice(0, 4);
-  const thumbSize = 44;
+  const [expanded, setExpanded] = useState(false);
+  const showExpanded = expanded;
+
+  const handleContainerClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("[data-cluster-slot]")) return;
+    if (!expanded) setExpanded(true);
+    else onExpandCluster();
+  };
+
+  const handleSlotClick = (e: React.MouseEvent, index: number, pinId?: string) => {
+    e.stopPropagation();
+    if (index < 3) {
+      if (!expanded) {
+        setExpanded(true);
+        return;
+      }
+      if (pinId) onSelectPin(pinId);
+      return;
+    }
+    // Fourth slot (+x)
+    if (!expanded) setExpanded(true);
+    else onExpandCluster();
+  };
+
+  const offsets = showExpanded || hovered ? FAN_OFFSETS : STACK_OFFSETS;
+  const zIndexes = showExpanded || hovered
+    ? [2, 3, 4, 1]
+    : [1, 2, 3, 0];
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
+      role="group"
+      aria-label={`${items.filter((i) => i.pinId).length + remainingCount} landmarks`}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => {
+        setHovered(false);
+        setExpanded(false);
+      }}
+      onClick={handleContainerClick}
       className="relative flex cursor-pointer items-center justify-center"
       style={{ width: 80, height: 80 }}
-      title={`${count} landmarks`}
     >
-      {images.map((url, i) => {
-        const off = hovered ? FAN_OFFSETS[i] : STACK_OFFSETS[i];
-        return (
-          <img
-            key={i}
-            src={url}
-            alt=""
-            draggable={false}
-            className="absolute rounded-full border-2 border-white object-cover dark:border-neutral-800"
-            style={{
-              width: thumbSize,
-              height: thumbSize,
-              transform: `translate(${off.x}px, ${off.y}px) rotate(${off.rotate}deg) scale(${hovered ? 1.05 : 1})`,
-              transition: "transform 300ms cubic-bezier(.4,0,.2,1), box-shadow 300ms ease",
-              zIndex: hovered ? 4 - i : i,
-              boxShadow: hovered
-                ? "0 4px 14px rgba(0,0,0,0.25)"
-                : "0 1px 4px rgba(0,0,0,0.15)",
-            }}
-          />
-        );
-      })}
-
-      {/* Count badge */}
-      <span
-        className="absolute rounded-full bg-foreground px-1.5 py-0.5 text-[9px] font-bold text-background shadow-md"
-        style={{
-          bottom: hovered ? -2 : 4,
-          right: hovered ? -2 : 4,
-          transition: "bottom 300ms ease, right 300ms ease",
-          zIndex: 10,
-        }}
-      >
-        {count}
-      </span>
-    </button>
+      {items.map((item, i) => (
+        <button
+          key={item.pinId ? item.pinId : `empty-${i}`}
+          type="button"
+          data-cluster-slot
+          onClick={(e) => handleSlotClick(e, i, item.pinId || undefined)}
+          disabled={!item.pinId}
+          className="absolute rounded-full border-2 border-white overflow-hidden dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary disabled:pointer-events-none disabled:opacity-70"
+          style={{
+            width: thumbSize,
+            height: thumbSize,
+            transform: `translate(${offsets[i].x}px, ${offsets[i].y}px) rotate(${offsets[i].rotate}deg) scale(${showExpanded || hovered ? 1.05 : 1})`,
+            transition: "transform 300ms cubic-bezier(.4,0,.2,1), box-shadow 300ms ease",
+            zIndex: zIndexes[i],
+            boxShadow: showExpanded || hovered
+              ? "0 4px 14px rgba(0,0,0,0.25)"
+              : "0 1px 4px rgba(0,0,0,0.15)",
+          }}
+        >
+          {item.photoUrl ? (
+            <img
+              src={item.photoUrl}
+              alt=""
+              draggable={false}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-muted flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted-foreground">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+            </div>
+          )}
+        </button>
+      ))}
+      {remainingCount > 0 && (
+        <button
+          type="button"
+          data-cluster-slot
+          onClick={(e) => handleSlotClick(e, 3)}
+          className="absolute rounded-full border-2 border-white flex items-center justify-center bg-muted text-foreground font-bold text-sm dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary"
+          style={{
+            width: thumbSize,
+            height: thumbSize,
+            transform: `translate(${offsets[3].x}px, ${offsets[3].y}px) rotate(${offsets[3].rotate}deg) scale(${showExpanded || hovered ? 1.05 : 1})`,
+            transition: "transform 300ms cubic-bezier(.4,0,.2,1), box-shadow 300ms ease",
+            zIndex: zIndexes[3],
+            boxShadow: showExpanded || hovered
+              ? "0 4px 14px rgba(0,0,0,0.25)"
+              : "0 1px 4px rgba(0,0,0,0.15)",
+          }}
+        >
+          +{remainingCount}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -265,9 +319,11 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
   });
 
   const MIN_VISIBLE_PINS = 12;
+  const ZOOM_EXPAND_THRESHOLD = 14;
 
   const clusters = useMemo(() => {
     if (!supercluster) return rawClusters;
+    if (viewport.zoom <= ZOOM_EXPAND_THRESHOLD) return rawClusters;
 
     const individualPins = rawClusters.filter(
       (f) => !(f.properties as Record<string, unknown>).cluster
@@ -300,7 +356,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     }
 
     return result;
-  }, [rawClusters, supercluster]);
+  }, [rawClusters, supercluster, viewport.zoom]);
 
   const handleClusterClick = useCallback(
     (clusterId: number, lat: number, lng: number) => {
@@ -346,19 +402,27 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
           const clusterId = Number(props.cluster_id);
           const count = Number(props.point_count);
           const leaves = supercluster ? supercluster.getLeaves(clusterId, count) : [];
-          const clusterPhotos: string[] = [];
-          for (const leaf of leaves) {
-            if (clusterPhotos.length >= 4) break;
-            const leafId = String((leaf.properties as Record<string, unknown>).pinId ?? "");
-            const url = pinPhotoMap[leafId];
-            if (url) clusterPhotos.push(url);
+          const withPhotos: { pinId: string; photoUrl: string | null }[] = leaves.map((leaf) => {
+            const pinId = String((leaf.properties as Record<string, unknown>).pinId ?? "");
+            return { pinId, photoUrl: pinPhotoMap[pinId] ?? null };
+          });
+          const sorted = [...withPhotos].sort((a, b) => {
+            const aHas = a.photoUrl ? 1 : 0;
+            const bHas = b.photoUrl ? 1 : 0;
+            return bHas - aHas;
+          });
+          const items = sorted.slice(0, 3);
+          while (items.length < 3) {
+            items.push({ pinId: "", photoUrl: null });
           }
+          const remainingCount = Math.max(0, count - 3);
           return (
             <Marker key={`cluster-${clusterId}`} latitude={lat} longitude={lng} anchor="center">
               <ClusterCollage
-                photos={clusterPhotos}
-                count={count}
-                onClick={() => handleClusterClick(clusterId, lat, lng)}
+                items={items}
+                remainingCount={remainingCount}
+                onSelectPin={onSelectLandmark}
+                onExpandCluster={() => handleClusterClick(clusterId, lat, lng)}
               />
             </Marker>
           );
