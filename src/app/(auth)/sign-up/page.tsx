@@ -75,7 +75,7 @@ export default function SignUpPage() {
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
         <CardDescription>
-          Enter your details below to create your account
+          Pick a username to get started
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -86,29 +86,45 @@ export default function SignUpPage() {
             </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="username">Username</Label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                @
+              </span>
+              <Input
+                id="username"
+                type="text"
+                placeholder="username"
+                className="pl-7"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <Label htmlFor="name">Display Name</Label>
+              <p className="text-xs text-muted-foreground">
+                Doesn&apos;t have to be your real name
+              </p>
+            </div>
             <Input
               id="name"
               type="text"
-              placeholder="John Doe"
+              placeholder="Tambay sa Sunken Garden"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              type="text"
-              placeholder="johndoe"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <p className="text-xs text-muted-foreground">
+                Use your school email to get your campus flair!
+              </p>
+            </div>
             <Input
               id="email"
               type="email"
