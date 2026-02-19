@@ -29,6 +29,8 @@ export const USER_FLAIR_CATALOG: FlairDefinition[] = [
   // Interests — provisioned
   { id: "dev", label: "Developer", shortLabel: "Dev", category: "interest", color: "#06b6d4", tier: "provisioned" },
   { id: "creative", label: "Creative", shortLabel: "Creative", category: "interest", color: "#ec4899", tier: "provisioned" },
+  // Achievements — provisioned
+  { id: "noted", label: "Noted.", shortLabel: "Noted.", category: "achievement", color: "#d97706", tier: "provisioned" },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

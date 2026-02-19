@@ -29,6 +29,7 @@ export const PROFILE_BORDER_CATALOG: BorderDefinition[] = [
 
   // ─── Exclusive (special unlocks) ────────────────────────────────────────────
   { id: "early-joiner", label: "Early Joiner", tier: "exclusive", type: "animated", color: "conic-gradient(from 0deg, #f59e0b, #ef4444, #8b5cf6, #3b82f6, #10b981, #f59e0b)" },
+  { id: "feedback-loop", label: "Feedback Loop", tier: "exclusive", type: "animated", color: "conic-gradient(from 0deg, #d97706, #06b6d4, #3b82f6, #d97706)" },
 ];
 
 export function getBorderById(id: string): BorderDefinition | null {
