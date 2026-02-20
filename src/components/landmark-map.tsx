@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useCallback, useMemo, useEffect } from "react";
+import { createContext, useContext, useRef, useState, useCallback, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Map, {
   Marker,
   NavigationControl,
@@ -10,8 +11,36 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import useSupercluster from "use-supercluster";
 import type { BBox } from "geojson";
 import { useTheme } from "next-themes";
-import type { LandmarkPin, LandmarkCategory } from "@/lib/landmarks";
+import { MapPin } from "lucide-react";
+import type { LandmarkPin, LandmarkCategory, Landmark } from "@/lib/landmarks";
 import { applyMapTheme, MAP_THEME_FILTER, type MapThemeMode } from "@/lib/map-theme";
+import { getLandmarkById } from "@/actions/landmarks";
+
+const PREVIEW_HEIGHT_ESTIMATE = 220;
+
+const MapContainerContext = createContext<{ getContainer: () => HTMLElement | null } | null>(null);
+
+function usePreviewPlacement(anchorRef: React.RefObject<HTMLElement | null>, isHovered: boolean): "above" | "below" {
+  const ctx = useContext(MapContainerContext);
+  const [placement, setPlacement] = useState<"above" | "below">("below");
+
+  useEffect(() => {
+    if (!isHovered || !ctx) return;
+    const id = requestAnimationFrame(() => {
+      if (!anchorRef.current) return;
+      const container = ctx.getContainer();
+      if (!container) return;
+      const anchorRect = anchorRef.current.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const spaceBelow = containerRect.bottom - anchorRect.bottom;
+      const spaceAbove = anchorRect.top - containerRect.top;
+      setPlacement(spaceBelow >= PREVIEW_HEIGHT_ESTIMATE || spaceBelow >= spaceAbove ? "below" : "above");
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isHovered, ctx]);
+
+  return placement;
+}
 
 const UP_DILIMAN = { latitude: 14.6538, longitude: 121.0685 };
 
@@ -21,34 +50,144 @@ const categoryColors: Record<LandmarkCategory, string> = {
   event: "#16a34a",
 };
 
+const categoryLabels: Record<LandmarkCategory, string> = {
+  attraction: "Attraction",
+  community: "Community",
+  event: "Event",
+};
+
+function useLandmarkPreview(pinId: string, onPreviewHoverChange?: (id: string | null) => void) {
+  const [hovered, setHovered] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const placement = usePreviewPlacement(anchorRef, hovered);
+
+  const { data: landmark, isLoading } = useQuery({
+    queryKey: ["landmark-preview", pinId],
+    queryFn: async () => {
+      const res = await getLandmarkById(pinId);
+      return res.success ? (res.data as Landmark) : null;
+    },
+    enabled: hovered,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const handleMouseEnter = useCallback(() => {
+    setHovered(true);
+    onPreviewHoverChange?.(pinId);
+  }, [pinId, onPreviewHoverChange]);
+
+  const handleMouseLeave = useCallback(() => {
+    setHovered(false);
+    onPreviewHoverChange?.(null);
+  }, [onPreviewHoverChange]);
+
+  return { hovered, anchorRef, placement, landmark: landmark ?? null, isLoading, handleMouseEnter, handleMouseLeave };
+}
+
+function PlacePreview({
+  landmark,
+  pinId,
+  isLoading,
+  placement,
+}: {
+  landmark: Landmark | null;
+  pinId: string;
+  isLoading?: boolean;
+  placement: "above" | "below";
+}) {
+  const placementClass =
+    placement === "below"
+      ? "top-full left-1/2 -translate-x-1/2 mt-2"
+      : "bottom-full left-1/2 -translate-x-1/2 mb-2";
+  const previewClass = `absolute ${placementClass} w-64 max-w-[min(64rem,80vw)] rounded-lg bg-card shadow-xl border overflow-hidden z-50 pointer-events-none`;
+
+  if (isLoading) {
+    return (
+      <div className={previewClass}>
+        <div className="w-full h-28 bg-muted animate-pulse" />
+        <div className="p-3">
+          <div className="h-4 bg-muted rounded mb-2 animate-pulse" />
+          <div className="h-3 bg-muted rounded w-2/3 animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!landmark) return null;
+
+  const mainPhoto = landmark.photos?.[0]?.resolvedUrl;
+
+  return (
+    <div className={previewClass}>
+      {mainPhoto && (
+        <div className="w-full h-28 bg-muted">
+          <img
+            src={mainPhoto}
+            alt={landmark.name}
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+        </div>
+      )}
+      <div className="p-3">
+        <h3 className="font-semibold text-sm mb-1 line-clamp-1">{landmark.name}</h3>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+          <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">
+            {categoryLabels[landmark.category]}
+          </span>
+          {landmark.address && (
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              <MapPin className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{landmark.address}</span>
+            </div>
+          )}
+        </div>
+        {landmark.description && (
+          <p className="text-xs text-muted-foreground line-clamp-2">{landmark.description}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MarkerPin({
   color,
   selected,
   label,
   photoUrl,
+  pinId,
+  onPreviewHoverChange,
 }: {
   color: string;
   selected?: boolean;
   label: string;
   photoUrl?: string | null;
+  pinId: string;
+  onPreviewHoverChange?: (id: string | null) => void;
 }) {
+  const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
+    useLandmarkPreview(pinId, onPreviewHoverChange);
   const size = selected ? 52 : 44;
   const lineH = selected ? 28 : 22;
 
   return (
     <div
+      ref={anchorRef}
       className="group relative flex flex-col items-center"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         transition: "transform 200ms ease-out",
       }}
     >
-      {/* Hover label */}
-      <div
-        className="pointer-events-none absolute whitespace-nowrap rounded-md bg-card px-2 py-1 text-[10px] font-medium text-card-foreground shadow-lg border opacity-0 transition-opacity group-hover:opacity-100 z-20"
-        style={{ bottom: size + lineH + 6 }}
-      >
-        {label}
-      </div>
+      {hovered && (
+        <PlacePreview
+          landmark={landmark ?? null}
+          pinId={pinId}
+          isLoading={isLoading}
+          placement={placement}
+        />
+      )}
 
       {/* Circle image */}
       <div
@@ -129,65 +268,161 @@ const FAN_OFFSETS = [
   { x: 28, y: 28, rotate: 0 },
 ];
 
-function ClusterCollage({
-  photos,
-  count,
-  onClick,
+const ZOOM_EXPAND_THRESHOLD = 14;
+const thumbSize = 44;
+
+function ClusterImageSlot({
+  pinId,
+  photoUrl,
+  index,
+  offsets,
+  zIndexes,
+  showExpanded,
+  onSlotClick,
+  onPreviewHoverChange,
 }: {
-  photos: string[];
-  count: number;
-  onClick: () => void;
+  pinId: string;
+  photoUrl: string;
+  index: number;
+  offsets: typeof STACK_OFFSETS;
+  zIndexes: number[];
+  showExpanded: boolean;
+  onSlotClick: (e: React.MouseEvent) => void;
+  onPreviewHoverChange?: (id: string | null) => void;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const images = photos.slice(0, 4);
-  const thumbSize = 44;
+  const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
+    useLandmarkPreview(pinId, onPreviewHoverChange);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="relative flex cursor-pointer items-center justify-center"
-      style={{ width: 80, height: 80 }}
-      title={`${count} landmarks`}
-    >
-      {images.map((url, i) => {
-        const off = hovered ? FAN_OFFSETS[i] : STACK_OFFSETS[i];
-        return (
-          <img
-            key={i}
-            src={url}
-            alt=""
-            draggable={false}
-            className="absolute rounded-full border-2 border-white object-cover dark:border-neutral-800"
-            style={{
-              width: thumbSize,
-              height: thumbSize,
-              transform: `translate(${off.x}px, ${off.y}px) rotate(${off.rotate}deg) scale(${hovered ? 1.05 : 1})`,
-              transition: "transform 300ms cubic-bezier(.4,0,.2,1), box-shadow 300ms ease",
-              zIndex: hovered ? 4 - i : i,
-              boxShadow: hovered
-                ? "0 4px 14px rgba(0,0,0,0.25)"
-                : "0 1px 4px rgba(0,0,0,0.15)",
-            }}
-          />
-        );
-      })}
-
-      {/* Count badge */}
-      <span
-        className="absolute rounded-full bg-foreground px-1.5 py-0.5 text-[9px] font-bold text-background shadow-md"
+    <div ref={anchorRef} className="absolute inset-0">
+      {hovered && (
+        <PlacePreview
+          landmark={landmark ?? null}
+          pinId={pinId}
+          isLoading={isLoading}
+          placement={placement}
+        />
+      )}
+      <button
+        type="button"
+        data-cluster-slot
+        onClick={onSlotClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className="absolute rounded-full border-2 border-white overflow-hidden dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary"
         style={{
-          bottom: hovered ? -2 : 4,
-          right: hovered ? -2 : 4,
-          transition: "bottom 300ms ease, right 300ms ease",
-          zIndex: 10,
+          width: thumbSize,
+          height: thumbSize,
+          transform: `translate(${offsets[index].x}px, ${offsets[index].y}px) rotate(${offsets[index].rotate}deg) scale(${showExpanded ? 1.05 : 1})`,
+          transition: "transform 300ms cubic-bezier(.4,0,.2,1), box-shadow 300ms ease",
+          zIndex: zIndexes[index],
+          boxShadow: showExpanded
+            ? "0 4px 14px rgba(0,0,0,0.25)"
+            : "0 1px 4px rgba(0,0,0,0.15)",
         }}
       >
-        {count}
-      </span>
-    </button>
+        <img
+          src={photoUrl}
+          alt=""
+          draggable={false}
+          className="w-full h-full object-cover"
+        />
+      </button>
+    </div>
+  );
+}
+
+function ClusterCollage({
+  items,
+  remainingCount,
+  onSelectPin,
+  onExpandCluster,
+  onPreviewHoverChange,
+}: {
+  items: { pinId: string; photoUrl: string }[];
+  remainingCount: number;
+  onSelectPin: (pinId: string) => void;
+  onExpandCluster: () => void;
+  onPreviewHoverChange?: (id: string | null) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const showExpanded = expanded;
+  const isOnlyPlus = items.length === 0 && remainingCount > 0;
+  const plusSlotOffset = isOnlyPlus ? 0 : items.length;
+
+  const handleContainerClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("[data-cluster-slot]")) return;
+    if (!expanded) setExpanded(true);
+    else onExpandCluster();
+  };
+
+  const handleSlotClick = (e: React.MouseEvent, index: number, pinId?: string) => {
+    e.stopPropagation();
+    if (index < 3) {
+      if (!expanded) {
+        setExpanded(true);
+        return;
+      }
+      if (pinId) onSelectPin(pinId);
+      return;
+    }
+    if (!expanded) setExpanded(true);
+    else onExpandCluster();
+  };
+
+  const offsets = showExpanded || hovered ? FAN_OFFSETS : STACK_OFFSETS;
+  const zIndexes = showExpanded || hovered ? [2, 3, 4, 1] : [1, 2, 3, 0];
+  const hoverScale = isOnlyPlus ? (hovered ? 1.1 : 1) : (showExpanded || hovered ? 1.05 : 1);
+  const plusOffset = isOnlyPlus ? { x: 0, y: 0, rotate: 0 } : offsets[plusSlotOffset];
+
+  return (
+    <div
+      role="group"
+      aria-label={`${items.length + remainingCount} landmarks`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false);
+        setExpanded(false);
+      }}
+      onClick={handleContainerClick}
+      className="relative flex cursor-pointer items-center justify-center"
+      style={{ width: 80, height: 80 }}
+    >
+      {items.map((item, i) => (
+        <ClusterImageSlot
+          key={item.pinId}
+          pinId={item.pinId}
+          photoUrl={item.photoUrl}
+          index={i}
+          offsets={offsets}
+          zIndexes={zIndexes}
+          showExpanded={showExpanded || hovered}
+          onSlotClick={(e) => handleSlotClick(e, i, item.pinId)}
+          onPreviewHoverChange={onPreviewHoverChange}
+        />
+      ))}
+      {remainingCount > 0 && (
+        <button
+          type="button"
+          data-cluster-slot
+          onClick={(e) => handleSlotClick(e, 3)}
+          className="absolute left-0 top-0 rounded-full border-2 border-white flex items-center justify-center bg-muted text-foreground font-bold text-sm dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary"
+          style={{
+            width: thumbSize,
+            height: thumbSize,
+            transform: `translate(${plusOffset.x}px, ${plusOffset.y}px) rotate(${plusOffset.rotate}deg) scale(${hoverScale})`,
+            transition: "transform 300ms cubic-bezier(.4,0,.2,1), box-shadow 300ms ease",
+            zIndex: isOnlyPlus ? zIndexes[0] : zIndexes[plusSlotOffset],
+            boxShadow: hovered
+              ? "0 4px 14px rgba(0,0,0,0.25)"
+              : "0 1px 4px rgba(0,0,0,0.15)",
+          }}
+        >
+          +{remainingCount}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -201,6 +436,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const { resolvedTheme } = useTheme();
   const [viewport, setViewport] = useState({ zoom: 15, bounds: null as mapboxgl.LngLatBounds | null });
+  const [hoveredPreviewPinId, setHoveredPreviewPinId] = useState<string | null>(null);
   const mapMode: MapThemeMode = resolvedTheme === "dark" ? "dark" : "light";
 
   const pinNameMap = useMemo(() => {
@@ -268,6 +504,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
 
   const clusters = useMemo(() => {
     if (!supercluster) return rawClusters;
+    if (viewport.zoom <= ZOOM_EXPAND_THRESHOLD) return rawClusters;
 
     const individualPins = rawClusters.filter(
       (f) => !(f.properties as Record<string, unknown>).cluster
@@ -300,7 +537,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     }
 
     return result;
-  }, [rawClusters, supercluster]);
+  }, [rawClusters, supercluster, viewport.zoom]);
 
   const handleClusterClick = useCallback(
     (clusterId: number, lat: number, lng: number) => {
@@ -312,11 +549,17 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     [supercluster],
   );
 
+  const mapContainerContextValue = useMemo(
+    () => ({ getContainer: () => mapRef.current?.getContainer() ?? null }),
+    [],
+  );
+
   return (
-    <Map
-      ref={(ref) => {
-        mapRef.current = ref?.getMap() ?? null;
-      }}
+    <MapContainerContext.Provider value={mapContainerContextValue}>
+      <Map
+        ref={(ref) => {
+          mapRef.current = ref?.getMap() ?? null;
+        }}
       initialViewState={{
         ...UP_DILIMAN,
         zoom: 15,
@@ -346,19 +589,32 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
           const clusterId = Number(props.cluster_id);
           const count = Number(props.point_count);
           const leaves = supercluster ? supercluster.getLeaves(clusterId, count) : [];
-          const clusterPhotos: string[] = [];
-          for (const leaf of leaves) {
-            if (clusterPhotos.length >= 4) break;
-            const leafId = String((leaf.properties as Record<string, unknown>).pinId ?? "");
-            const url = pinPhotoMap[leafId];
-            if (url) clusterPhotos.push(url);
-          }
+          const withPhotos = leaves
+            .map((leaf) => {
+              const pinId = String((leaf.properties as Record<string, unknown>).pinId ?? "");
+              return { pinId, photoUrl: pinPhotoMap[pinId] ?? null };
+            })
+            .filter((item): item is { pinId: string; photoUrl: string } => !!item.photoUrl);
+          const items = withPhotos.slice(0, 3);
+          const remainingCount = count - items.length;
+
+          const clusterPinIds = items.map((i) => i.pinId);
+          const isClusterShowingPreview = hoveredPreviewPinId !== null && clusterPinIds.includes(hoveredPreviewPinId);
+
           return (
-            <Marker key={`cluster-${clusterId}`} latitude={lat} longitude={lng} anchor="center">
+            <Marker
+              key={`cluster-${clusterId}`}
+              latitude={lat}
+              longitude={lng}
+              anchor="center"
+              style={{ zIndex: isClusterShowingPreview ? 9999 : 1, willChange: "transform" }}
+            >
               <ClusterCollage
-                photos={clusterPhotos}
-                count={count}
-                onClick={() => handleClusterClick(clusterId, lat, lng)}
+                items={items}
+                remainingCount={remainingCount}
+                onSelectPin={onSelectLandmark}
+                onExpandCluster={() => handleClusterClick(clusterId, lat, lng)}
+                onPreviewHoverChange={setHoveredPreviewPinId}
               />
             </Marker>
           );
@@ -366,6 +622,9 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
 
         const pinId = String(props.pinId);
         const category = props.category as LandmarkCategory;
+
+        const isShowingPreview = hoveredPreviewPinId === pinId;
+        const markerZ = isShowingPreview ? 9999 : selectedId === pinId ? 10 : 1;
 
         return (
           <Marker
@@ -377,17 +636,20 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
               e.originalEvent.stopPropagation();
               onSelectLandmark(pinId);
             }}
-            style={{ cursor: "pointer", zIndex: selectedId === pinId ? 10 : 1, willChange: "transform" }}
+            style={{ cursor: "pointer", zIndex: markerZ, willChange: "transform" }}
           >
             <MarkerPin
               color={categoryColors[category]}
               selected={selectedId === pinId}
               label={pinNameMap[pinId] ?? ""}
               photoUrl={pinPhotoMap[pinId]}
+              pinId={pinId}
+              onPreviewHoverChange={setHoveredPreviewPinId}
             />
           </Marker>
         );
       })}
     </Map>
+    </MapContainerContext.Provider>
   );
 }

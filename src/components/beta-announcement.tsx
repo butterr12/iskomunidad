@@ -31,7 +31,7 @@ export function BetaAnnouncement() {
               community. Thanks!
             </span>
             <span className="block text-right text-muted-foreground">
-              &mdash; Krisha &amp; Lesmon
+              &mdash; Krisha &amp; <span className="group inline-block"><span>Lesmon</span><span className="inline-block ml-1 group-hover:drop-shadow-[0_0_12px_rgba(255,215,0,0.9)] hover:drop-shadow-[0_0_12px_rgba(255,215,0,0.9)] transition-all duration-300">🌻</span></span>
             </span>
           </DialogDescription>
         </DialogHeader>
