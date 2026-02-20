@@ -32,8 +32,6 @@ import {
 import { toast } from "sonner";
 import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
-import { getUserBorderSelection } from "@/actions/borders";
-import type { BorderDefinition } from "@/lib/profile-borders";
 import type { CommunityPost, VoteDirection } from "@/lib/posts";
 
 function getInitials(name?: string | null): string {
@@ -112,14 +110,6 @@ export default function ProfilePageClient() {
       return res.success ? (res.data as CommunityPost[]) : [];
     },
     enabled: !!profile?.id,
-  });
-
-  const { data: profileBorder = null } = useQuery<BorderDefinition | null>({
-    queryKey: ["user-border", username],
-    queryFn: async () => {
-      const res = await getUserBorderSelection(username);
-      return res.success ? res.data : null;
-    },
   });
 
   async function handleFollow() {
@@ -212,7 +202,7 @@ export default function ProfilePageClient() {
         <div className="mx-auto max-w-2xl">
           {/* Profile header */}
           <div className="flex flex-col items-center gap-3 px-4 pt-6 pb-4">
-            <BorderedAvatar border={profileBorder} avatarSize={80}>
+            <BorderedAvatar border={profile.border} avatarSize={80}>
               <Avatar className="size-20">
                 <AvatarImage src={profile.image ?? undefined} alt={profile.name} />
                 <AvatarFallback className="text-2xl">

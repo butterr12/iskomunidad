@@ -6,6 +6,7 @@ import {
   userPrivacySetting,
   communityPost,
   postVote,
+  userSelectedBorder,
 } from "@/lib/schema";
 import { user } from "@/lib/auth-schema";
 import { eq, and, count, ilike, or, ne } from "drizzle-orm";
@@ -14,7 +15,9 @@ import {
   getSession,
   getOptionalSession,
   createUserNotification,
+  guardAction,
 } from "./_helpers";
+import { getBorderById, type BorderDefinition } from "@/lib/profile-borders";
 
 function getActorLabel(u: { username?: string | null; name?: string | null }): string {
   return u.username ? `@${u.username}` : (u.name ?? "Someone");
@@ -27,6 +30,9 @@ export async function followUser(
 ): Promise<ActionResult<void>> {
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const followLimited = await guardAction("follow.toggle", { userId: session.user.id });
+  if (followLimited) return followLimited;
 
   if (session.user.id === targetId) {
     return { success: false, error: "You cannot follow yourself" };
@@ -272,6 +278,7 @@ export type UserProfile = {
   createdAt: string;
   followerCount: number;
   followingCount: number;
+  border: BorderDefinition | null;
 };
 
 export async function getUserProfile(
@@ -291,8 +298,14 @@ export async function getUserProfile(
 
   if (!row) return { success: false, error: "User not found" };
 
-  const countsRes = await getFollowCounts(row.id);
+  const [countsRes, borderRow] = await Promise.all([
+    getFollowCounts(row.id),
+    db.query.userSelectedBorder.findFirst({
+      where: eq(userSelectedBorder.userId, row.id),
+    }),
+  ]);
   const counts = countsRes.success ? countsRes.data : { followerCount: 0, followingCount: 0 };
+  const border = borderRow ? getBorderById(borderRow.borderId) : null;
 
   return {
     success: true,
@@ -300,6 +313,7 @@ export async function getUserProfile(
       ...row,
       createdAt: row.createdAt.toISOString(),
       ...counts,
+      border,
     },
   };
 }

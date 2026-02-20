@@ -34,9 +34,19 @@ export function BorderedAvatar({
         ? getBorderById(borderId)
         : null;
 
-  if (!border) return <>{children}</>;
-
   const ringWidth = getRingWidth(avatarSize);
+
+  // No border selected — still reserve space with transparent padding
+  if (!border) {
+    return (
+      <div
+        className="rounded-full shrink-0"
+        style={{ padding: ringWidth }}
+      >
+        {children}
+      </div>
+    );
+  }
 
   // Feedback Loop: gradient border + pulsing rays around the circle
   if (border.id === "feedback-loop") {
