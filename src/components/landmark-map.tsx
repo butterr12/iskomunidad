@@ -166,6 +166,7 @@ function MarkerPin({
   onPreviewHoverChange?: (id: string | null) => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
     useLandmarkPreview(pinId, onPreviewHoverChange);
   const size = selected ? 52 : 44;
@@ -203,14 +204,23 @@ function MarkerPin({
         }}
       >
         {showPhoto ? (
-          <img
-            src={photoUrl}
-            alt={label}
-            className="rounded-full object-cover"
-            style={{ width: size - 4, height: size - 4 }}
-            draggable={false}
-            onError={() => setImgFailed(true)}
-          />
+          <>
+            {!imgLoaded && (
+              <div
+                className="absolute rounded-full bg-white/60 animate-pulse"
+                style={{ width: size - 4, height: size - 4 }}
+              />
+            )}
+            <img
+              src={photoUrl}
+              alt={label}
+              className="rounded-full object-cover transition-opacity duration-300"
+              style={{ width: size - 4, height: size - 4, opacity: imgLoaded ? 1 : 0 }}
+              draggable={false}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgFailed(true)}
+            />
+          </>
         ) : (
           <div
             className="flex items-center justify-center rounded-full bg-white/90"
@@ -295,6 +305,7 @@ function ClusterImageSlot({
   onPreviewHoverChange?: (id: string | null) => void;
   onImgError?: (pinId: string) => void;
 }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
   const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
     useLandmarkPreview(pinId, onPreviewHoverChange);
 
@@ -326,11 +337,16 @@ function ClusterImageSlot({
             : "0 1px 4px rgba(0,0,0,0.15)",
         }}
       >
+        {!imgLoaded && (
+          <div className="absolute inset-0 bg-muted animate-pulse rounded-full" />
+        )}
         <img
           src={photoUrl}
           alt=""
           draggable={false}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover transition-opacity duration-300"
+          style={{ opacity: imgLoaded ? 1 : 0 }}
+          onLoad={() => setImgLoaded(true)}
           onError={() => onImgError?.(pinId)}
         />
       </button>
