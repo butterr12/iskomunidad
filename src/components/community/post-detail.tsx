@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,10 +90,10 @@ export function PostDetail({
         </div>
 
         {/* Full body */}
-        {post.type === "text" && post.body && (
+        {post.body && (
           <p className="text-sm leading-relaxed">{post.body}</p>
         )}
-        {post.type === "link" && post.linkUrl && (
+        {post.linkUrl && (
           <a
             href={post.linkUrl}
             target="_blank"
@@ -104,12 +105,29 @@ export function PostDetail({
             <span className="truncate">{post.linkUrl}</span>
           </a>
         )}
-        {post.type === "image" && (
-          <div
-            className="flex h-48 items-center justify-center rounded-lg text-6xl"
-            style={{ backgroundColor: post.imageColor ?? "#e5e7eb" }}
-          >
-            {post.imageEmoji ?? "🖼️"}
+        {post.imageKeys && post.imageKeys.length > 0 && (
+          <div className={`grid gap-2 ${
+            post.imageKeys.length === 1 ? "grid-cols-1" : "grid-cols-2"
+          }`}>
+            {post.imageKeys.map((key, i) => (
+              <div
+                key={key}
+                className={`relative overflow-hidden rounded-lg ${
+                  post.imageKeys!.length === 1 ? "aspect-video" :
+                  post.imageKeys!.length === 3 && i === 0 ? "row-span-2 aspect-square" :
+                  "aspect-square"
+                }`}
+              >
+                <Image
+                  src={`/api/photos/${key}`}
+                  alt={`Post image ${i + 1}`}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 640px) 100vw, 600px"
+                  className="object-cover"
+                />
+              </div>
+            ))}
           </div>
         )}
 

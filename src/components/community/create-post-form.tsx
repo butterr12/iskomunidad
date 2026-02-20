@@ -14,16 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { POST_FLAIRS, FLAIR_COLORS, type PostFlair, type PostType } from "@/lib/posts";
-
-const POST_TYPES: { value: PostType; label: string }[] = [
-  { value: "text", label: "Text" },
-  { value: "link", label: "Link" },
-  { value: "image", label: "Image" },
-];
-
-const EMOJI_OPTIONS = ["🎓", "📚", "🏫", "🎉", "💡", "🔥", "❤️", "😂", "🤔", "📢", "🛒", "⚡"];
-const COLOR_OPTIONS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ec4899", "#ef4444", "#06b6d4", "#f97316"];
+import { PhotoUpload, type UploadedPhoto } from "@/components/admin/photo-upload";
+import { POST_FLAIRS, FLAIR_COLORS, type PostFlair } from "@/lib/posts";
 
 interface CreatePostFormProps {
   open: boolean;
@@ -32,22 +24,18 @@ interface CreatePostFormProps {
   onSubmit: (data: {
     title: string;
     flair: string;
-    type: PostType;
     body?: string;
     linkUrl?: string;
-    imageEmoji?: string;
-    imageColor?: string;
+    imageKeys?: string[];
   }) => Promise<{ success: boolean }>;
 }
 
 export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: CreatePostFormProps) {
   const [title, setTitle] = useState("");
   const [flair, setFlair] = useState<PostFlair | "">("");
-  const [type, setType] = useState<PostType>("text");
   const [body, setBody] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
-  const [imageEmoji, setImageEmoji] = useState("🎓");
-  const [imageColor, setImageColor] = useState("#3b82f6");
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = title.trim() && flair && !submitting;
@@ -58,11 +46,9 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
   function reset() {
     setTitle("");
     setFlair("");
-    setType("text");
     setBody("");
     setLinkUrl("");
-    setImageEmoji("🎓");
-    setImageColor("#3b82f6");
+    setPhotos([]);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -70,14 +56,13 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
     if (!canSubmit) return;
     setSubmitting(true);
     try {
+      const imageKeys = photos.map((p) => p.key);
       const result = await onSubmit({
         title: title.trim(),
         flair,
-        type,
-        body: type === "text" ? body.trim() || undefined : undefined,
-        linkUrl: type === "link" ? linkUrl.trim() || undefined : undefined,
-        imageEmoji: type === "image" ? imageEmoji : undefined,
-        imageColor: type === "image" ? imageColor : undefined,
+        body: body.trim() || undefined,
+        linkUrl: linkUrl.trim() || undefined,
+        imageKeys: imageKeys.length > 0 ? imageKeys : undefined,
       });
       if (result.success) {
         reset();
@@ -137,102 +122,45 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
             </div>
           </div>
 
-          {/* Post type toggle */}
+          {/* Body */}
           <div className="flex flex-col gap-1.5">
-            <p className="text-sm font-medium">Type</p>
-            <div className="flex gap-1">
-              {POST_TYPES.map((t) => (
-                <Button
-                  key={t.value}
-                  type="button"
-                  variant={type === t.value ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setType(t.value)}
-                >
-                  {t.label}
-                </Button>
-              ))}
-            </div>
+            <label htmlFor="post-body" className="text-sm font-medium">
+              Body <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <Textarea
+              id="post-body"
+              placeholder="Write your post..."
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={4}
+            />
           </div>
 
-          {/* Type-specific fields */}
-          {type === "text" && (
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="post-body" className="text-sm font-medium">
-                Body
-              </label>
-              <Textarea
-                id="post-body"
-                placeholder="Write your post..."
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={4}
-              />
-            </div>
-          )}
+          {/* Link URL */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="post-link" className="text-sm font-medium">
+              Link <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <Input
+              id="post-link"
+              type="url"
+              placeholder="https://..."
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+            />
+          </div>
 
-          {type === "link" && (
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="post-link" className="text-sm font-medium">
-                URL
-              </label>
-              <Input
-                id="post-link"
-                type="url"
-                placeholder="https://..."
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-              />
-            </div>
-          )}
-
-          {type === "image" && (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <p className="text-sm font-medium">Emoji</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {EMOJI_OPTIONS.map((e) => (
-                    <button
-                      key={e}
-                      type="button"
-                      onClick={() => setImageEmoji(e)}
-                      className={`flex h-9 w-9 items-center justify-center rounded-md border text-lg transition-colors ${
-                        imageEmoji === e
-                          ? "border-primary bg-primary/10"
-                          : "border-input hover:bg-accent"
-                      }`}
-                    >
-                      {e}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <p className="text-sm font-medium">Background Color</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {COLOR_OPTIONS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setImageColor(c)}
-                      className={`h-8 w-8 rounded-full border-2 transition-transform ${
-                        imageColor === c ? "scale-110 border-foreground" : "border-transparent"
-                      }`}
-                      style={{ backgroundColor: c }}
-                    />
-                  ))}
-                </div>
-              </div>
-              {/* Preview */}
-              <div
-                className="flex h-32 items-center justify-center rounded-lg text-5xl"
-                style={{ backgroundColor: imageColor }}
-              >
-                {imageEmoji}
-              </div>
-            </div>
-          )}
-
+          {/* Images */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-sm font-medium">
+              Images <span className="text-muted-foreground font-normal">(optional)</span>
+            </p>
+            <PhotoUpload
+              photos={photos}
+              onChange={setPhotos}
+              maxPhotos={4}
+            />
+          </div>
         </form>
 
         {/* Submit button */}

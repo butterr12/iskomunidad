@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -81,21 +82,30 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
           </div>
 
           {/* Body preview */}
-          {post.type === "text" && post.body && (
+          {post.body && (
             <p className="line-clamp-2 text-sm text-muted-foreground">{post.body}</p>
           )}
-          {post.type === "link" && post.linkUrl && (
+          {post.linkUrl && (
             <div className="flex items-center gap-1 text-sm text-primary">
               <ExternalLink className="h-3 w-3 shrink-0" />
               <span className="truncate">{post.linkUrl}</span>
             </div>
           )}
-          {post.type === "image" && (
-            <div
-              className="flex h-24 items-center justify-center rounded-lg text-3xl"
-              style={{ backgroundColor: post.imageColor ?? "#e5e7eb" }}
-            >
-              {post.imageEmoji ?? "🖼️"}
+          {post.imageKeys && post.imageKeys.length > 0 && (
+            <div className="relative h-48 overflow-hidden rounded-lg">
+              <Image
+                src={`/api/photos/${post.imageKeys[0]}`}
+                alt="Post image"
+                fill
+                unoptimized
+                sizes="(max-width: 640px) 100vw, 600px"
+                className="object-cover"
+              />
+              {post.imageKeys.length > 1 && (
+                <div className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
+                  +{post.imageKeys.length - 1}
+                </div>
+              )}
             </div>
           )}
 

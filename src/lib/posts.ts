@@ -1,4 +1,3 @@
-export type PostType = "text" | "link" | "image";
 export type PostFlair = "Discussion" | "Question" | "Selling" | "Announcement" | "Meme" | "Help" | "Rant";
 export type PostStatus = "draft" | "approved" | "rejected";
 export type VoteDirection = 1 | -1 | 0;
@@ -8,7 +7,6 @@ export interface CommunityPost {
   id: string;
   title: string;
   body?: string;
-  type: PostType;
   author: string;
   authorHandle: string;
   authorImage?: string | null;
@@ -19,8 +17,7 @@ export interface CommunityPost {
   commentCount: number;
   userVote: VoteDirection;
   linkUrl?: string;
-  imageColor?: string;
-  imageEmoji?: string;
+  imageKeys?: string[];
   status?: PostStatus;
   rejectionReason?: string;
 }

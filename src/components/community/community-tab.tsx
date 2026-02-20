@@ -22,7 +22,6 @@ import {
   type CommunityPost,
   type PostComment,
   type PostFlair,
-  type PostType,
   type SortMode,
   type VoteDirection,
 } from "@/lib/posts";
@@ -256,11 +255,9 @@ export function CommunityTab() {
   const handleCreatePost = async (data: {
     title: string;
     flair: string;
-    type: PostType;
     body?: string;
     linkUrl?: string;
-    imageEmoji?: string;
-    imageColor?: string;
+    imageKeys?: string[];
   }) => {
     const res = await createPost(data);
     if (res.success) {

@@ -16,19 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PhotoUpload, type UploadedPhoto } from "@/components/admin/photo-upload";
 import { adminCreatePost } from "@/actions/admin";
 import { getApprovedLandmarks } from "@/actions/landmarks";
-import { POST_FLAIRS, FLAIR_COLORS, type PostType, type PostFlair } from "@/lib/posts";
+import { POST_FLAIRS, FLAIR_COLORS, type PostFlair } from "@/lib/posts";
 import type { Landmark } from "@/lib/landmarks";
 
 export function PostForm() {
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<PostType>("text");
   const [flair, setFlair] = useState<PostFlair>("Discussion");
   const [body, setBody] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
-  const [imageEmoji, setImageEmoji] = useState("");
-  const [imageColor, setImageColor] = useState("#3b82f6");
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [locationId, setLocationId] = useState("");
   const [created, setCreated] = useState<{ id: string; title: string; status: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -48,14 +47,13 @@ export function PostForm() {
     setError(null);
 
     try {
+      const imageKeys = photos.map((p) => p.key);
       const res = await adminCreatePost({
         title: title.trim(),
-        type,
         flair,
-        body: type === "text" ? body.trim() || undefined : undefined,
-        linkUrl: type === "link" ? linkUrl.trim() || undefined : undefined,
-        imageEmoji: type === "image" ? imageEmoji.trim() || undefined : undefined,
-        imageColor: type === "image" ? imageColor : undefined,
+        body: body.trim() || undefined,
+        linkUrl: linkUrl.trim() || undefined,
+        imageKeys: imageKeys.length > 0 ? imageKeys : undefined,
         locationId: locationId && locationId !== "none" ? locationId : undefined,
       });
 
@@ -93,7 +91,7 @@ export function PostForm() {
               setTitle("");
               setBody("");
               setLinkUrl("");
-              setImageEmoji("");
+              setPhotos([]);
             }}>
               Create Another
             </Button>
@@ -115,60 +113,34 @@ export function PostForm() {
             <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={type} onValueChange={(v) => setType(v as PostType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text">Text</SelectItem>
-                  <SelectItem value="link">Link</SelectItem>
-                  <SelectItem value="image">Image</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Flair</Label>
-              <Select value={flair} onValueChange={(v) => setFlair(v as PostFlair)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {POST_FLAIRS.map((f) => (
-                    <SelectItem key={f} value={f}>
-                      <span style={{ color: FLAIR_COLORS[f] }}>{f}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label>Flair</Label>
+            <Select value={flair} onValueChange={(v) => setFlair(v as PostFlair)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {POST_FLAIRS.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    <span style={{ color: FLAIR_COLORS[f] }}>{f}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {type === "text" && (
-            <div className="space-y-2">
-              <Label htmlFor="body">Body</Label>
-              <Textarea id="body" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="body">Body</Label>
+            <Textarea id="body" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
+          </div>
 
-          {type === "link" && (
-            <div className="space-y-2">
-              <Label htmlFor="linkUrl">Link URL</Label>
-              <Input id="linkUrl" type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="linkUrl">Link URL (optional)</Label>
+            <Input id="linkUrl" type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..." />
+          </div>
 
-          {type === "image" && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="emoji">Image Emoji</Label>
-                <Input id="emoji" value={imageEmoji} onChange={(e) => setImageEmoji(e.target.value)} placeholder="e.g. 🎉" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="color">Image Color</Label>
-                <Input id="color" type="color" value={imageColor} onChange={(e) => setImageColor(e.target.value)} />
-              </div>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Images (optional, up to 4)</Label>
+            <PhotoUpload photos={photos} onChange={setPhotos} maxPhotos={4} />
+          </div>
 
           <div className="space-y-2">
             <Label>Location (optional)</Label>

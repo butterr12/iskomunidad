@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import {
   communityPost,
+  postImage,
   postComment,
   postVote,
   commentVote,
@@ -30,12 +31,10 @@ function getActorLabel(user: { username?: string | null; name?: string | null })
 const createPostSchema = z.object({
   title: z.string().min(1).max(300),
   body: z.string().max(10000).optional(),
-  type: z.enum(["text", "link", "image"]),
   flair: z.string().min(1),
   locationId: z.string().uuid().optional(),
   linkUrl: z.string().optional(),
-  imageColor: z.string().optional(),
-  imageEmoji: z.string().optional(),
+  imageKeys: z.array(z.string()).max(4).optional(),
 });
 
 const voteSchema = z.object({
@@ -63,6 +62,7 @@ export async function getApprovedPosts(
     },
     with: {
       user: { columns: { name: true, username: true, image: true } },
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -90,6 +90,7 @@ export async function getApprovedPosts(
       author: r.user.name,
       authorHandle: r.user.username ? `@${r.user.username}` : null,
       authorImage: r.user.image,
+      imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
     })),
   };
@@ -105,6 +106,7 @@ export async function getPostsForLandmark(
       a(e(p.status, "approved"), e(p.locationId, landmarkId)),
     with: {
       user: { columns: { name: true, username: true, image: true } },
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
     },
     orderBy: (p, { desc: d }) => [d(p.score), d(p.createdAt)],
   });
@@ -126,6 +128,7 @@ export async function getPostsForLandmark(
       author: r.user.name,
       authorHandle: r.user.username ? `@${r.user.username}` : null,
       authorImage: r.user.image,
+      imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
     })),
   };
@@ -151,6 +154,7 @@ export async function getFollowingPosts(
       ),
     with: {
       user: { columns: { name: true, username: true, image: true } },
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -174,6 +178,7 @@ export async function getFollowingPosts(
       author: r.user.name,
       authorHandle: r.user.username ? `@${r.user.username}` : null,
       authorImage: r.user.image,
+      imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
     })),
   };
@@ -194,6 +199,7 @@ export async function getApprovedPostsPaginated(
     },
     with: {
       user: { columns: { name: true, username: true, image: true } },
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -225,6 +231,7 @@ export async function getApprovedPostsPaginated(
         author: r.user.name,
         authorHandle: r.user.username ? `@${r.user.username}` : null,
         authorImage: r.user.image,
+        imageKeys: r.images.map((img) => img.imageKey),
         userVote: userVotes[r.id] ?? 0,
       })),
       hasMore,
@@ -241,6 +248,7 @@ export async function getPostById(
     where: eq(communityPost.id, id),
     with: {
       user: { columns: { name: true, username: true, image: true } },
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
       comments: {
         with: {
           user: { columns: { name: true, username: true, image: true } },
@@ -288,6 +296,7 @@ export async function getPostById(
       author: row.user.name,
       authorHandle: row.user.username ? `@${row.user.username}` : null,
       authorImage: row.user.image,
+      imageKeys: row.images.map((img) => img.imageKey),
       userVote: postUserVote,
       comments: row.comments.map((c) => ({
         ...c,
@@ -329,19 +338,29 @@ export async function createPost(
     status = mode === "auto" ? "approved" : "draft";
   }
 
+  const { imageKeys, ...postData } = parsed.data;
   const [created] = await db
     .insert(communityPost)
     .values({
-      ...parsed.data,
-      locationId: parsed.data.locationId ?? null,
-      linkUrl: parsed.data.linkUrl ?? null,
-      imageColor: parsed.data.imageColor ?? null,
-      imageEmoji: parsed.data.imageEmoji ?? null,
+      ...postData,
+      type: "text",
+      locationId: postData.locationId ?? null,
+      linkUrl: postData.linkUrl ?? null,
       status,
       rejectionReason: rejectionReason ?? null,
       userId: session.user.id,
     })
     .returning({ id: communityPost.id });
+
+  if (imageKeys && imageKeys.length > 0) {
+    await db.insert(postImage).values(
+      imageKeys.map((key, i) => ({
+        postId: created.id,
+        imageKey: key,
+        order: i,
+      })),
+    );
+  }
 
   if (mode === "manual") {
     await createNotification({

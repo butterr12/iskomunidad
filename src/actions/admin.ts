@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import {
   communityPost,
+  postImage,
   campusEvent,
   landmark,
   gigListing,
@@ -44,12 +45,10 @@ const rejectSchema = z.object({
 const createPostSchema = z.object({
   title: z.string().min(1),
   body: z.string().optional(),
-  type: z.enum(["text", "link", "image"]),
   flair: z.string().min(1),
   locationId: z.string().uuid().optional(),
   linkUrl: z.string().optional(),
-  imageColor: z.string().optional(),
-  imageEmoji: z.string().optional(),
+  imageKeys: z.array(z.string()).max(4).optional(),
 });
 
 const createEventSchema = z.object({
@@ -257,18 +256,28 @@ export async function adminCreatePost(
   if (!session) return { success: false, error: "Unauthorized" };
 
   const autoApprove = await getAutoApproveSetting();
+  const { imageKeys, ...postData } = parsed.data;
   const [created] = await db
     .insert(communityPost)
     .values({
-      ...parsed.data,
-      locationId: parsed.data.locationId ?? null,
-      linkUrl: parsed.data.linkUrl ?? null,
-      imageColor: parsed.data.imageColor ?? null,
-      imageEmoji: parsed.data.imageEmoji ?? null,
+      ...postData,
+      type: "text",
+      locationId: postData.locationId ?? null,
+      linkUrl: postData.linkUrl ?? null,
       status: autoApprove ? "approved" : "draft",
       userId: session.user.id,
     })
     .returning({ id: communityPost.id });
+
+  if (imageKeys && imageKeys.length > 0) {
+    await db.insert(postImage).values(
+      imageKeys.map((key, i) => ({
+        postId: created.id,
+        imageKey: key,
+        order: i,
+      })),
+    );
+  }
 
   return { success: true, data: { id: created.id } };
 }

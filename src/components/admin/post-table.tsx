@@ -70,7 +70,7 @@ export function PostTable({ posts, onApprove, onReject, onDelete }: PostTablePro
               <TableHead>Title</TableHead>
               <TableHead>Author</TableHead>
               <TableHead>Flair</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead>Content</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Score</TableHead>
               <TableHead>Created</TableHead>
@@ -100,7 +100,7 @@ export function PostTable({ posts, onApprove, onReject, onDelete }: PostTablePro
                         {post.flair}
                       </Badge>
                     </TableCell>
-                    <TableCell className="capitalize">{post.type}</TableCell>
+                    <TableCell className="text-muted-foreground">{post.imageKeys?.length ? `${post.imageKeys.length} img` : post.linkUrl ? "link" : "text"}</TableCell>
                     <TableCell>
                       <Badge variant={badge.variant}>{badge.label}</Badge>
                     </TableCell>

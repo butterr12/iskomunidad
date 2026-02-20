@@ -88,7 +88,7 @@ export const communityPost = pgTable("community_post", {
   id: uuid("id").defaultRandom().primaryKey(),
   title: text("title").notNull(),
   body: text("body"),
-  type: text("type").notNull(), // "text" | "link" | "image"
+  type: text("type").notNull(), // "text" | "link"
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
@@ -108,6 +108,18 @@ export const communityPost = pgTable("community_post", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
+});
+
+// ─── Post Image ───────────────────────────────────────────────────────────────
+
+export const postImage = pgTable("post_image", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  postId: uuid("post_id")
+    .notNull()
+    .references(() => communityPost.id, { onDelete: "cascade" }),
+  imageKey: text("image_key").notNull(),
+  order: integer("order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // ─── Post Comment ──────────────────────────────────────────────────────────────
@@ -843,10 +855,18 @@ export const communityPostRelations = relations(
       fields: [communityPost.locationId],
       references: [landmark.id],
     }),
+    images: many(postImage),
     comments: many(postComment),
     votes: many(postVote),
   }),
 );
+
+export const postImageRelations = relations(postImage, ({ one }) => ({
+  post: one(communityPost, {
+    fields: [postImage.postId],
+    references: [communityPost.id],
+  }),
+}));
 
 export const postCommentRelations = relations(
   postComment,
