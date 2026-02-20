@@ -50,6 +50,40 @@ const categoryColors: Record<LandmarkCategory, string> = {
   event: "#16a34a",
 };
 
+const categoryLabels: Record<LandmarkCategory, string> = {
+  attraction: "Attraction",
+  community: "Community",
+  event: "Event",
+};
+
+function useLandmarkPreview(pinId: string, onPreviewHoverChange?: (id: string | null) => void) {
+  const [hovered, setHovered] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const placement = usePreviewPlacement(anchorRef, hovered);
+
+  const { data: landmark, isLoading } = useQuery({
+    queryKey: ["landmark-preview", pinId],
+    queryFn: async () => {
+      const res = await getLandmarkById(pinId);
+      return res.success ? (res.data as Landmark) : null;
+    },
+    enabled: hovered,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const handleMouseEnter = useCallback(() => {
+    setHovered(true);
+    onPreviewHoverChange?.(pinId);
+  }, [pinId, onPreviewHoverChange]);
+
+  const handleMouseLeave = useCallback(() => {
+    setHovered(false);
+    onPreviewHoverChange?.(null);
+  }, [onPreviewHoverChange]);
+
+  return { hovered, anchorRef, placement, landmark: landmark ?? null, isLoading, handleMouseEnter, handleMouseLeave };
+}
+
 function PlacePreview({
   landmark,
   pinId,
@@ -61,12 +95,6 @@ function PlacePreview({
   isLoading?: boolean;
   placement: "above" | "below";
 }) {
-  const categoryLabels: Record<LandmarkCategory, string> = {
-    attraction: "Attraction",
-    community: "Community",
-    event: "Event",
-  };
-
   const placementClass =
     placement === "below"
       ? "top-full left-1/2 -translate-x-1/2 mt-2"
@@ -137,31 +165,10 @@ function MarkerPin({
   pinId: string;
   onPreviewHoverChange?: (id: string | null) => void;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const placement = usePreviewPlacement(anchorRef, hovered);
+  const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
+    useLandmarkPreview(pinId, onPreviewHoverChange);
   const size = selected ? 52 : 44;
   const lineH = selected ? 28 : 22;
-
-  const { data: landmark, isLoading } = useQuery({
-    queryKey: ["landmark-preview", pinId],
-    queryFn: async () => {
-      const res = await getLandmarkById(pinId);
-      return res.success ? (res.data as Landmark) : null;
-    },
-    enabled: hovered,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const handleMouseEnter = useCallback(() => {
-    setHovered(true);
-    onPreviewHoverChange?.(pinId);
-  }, [pinId, onPreviewHoverChange]);
-
-  const handleMouseLeave = useCallback(() => {
-    setHovered(false);
-    onPreviewHoverChange?.(null);
-  }, [onPreviewHoverChange]);
 
   return (
     <div
@@ -261,6 +268,7 @@ const FAN_OFFSETS = [
   { x: 28, y: 28, rotate: 0 },
 ];
 
+const ZOOM_EXPAND_THRESHOLD = 14;
 const thumbSize = 44;
 
 function ClusterImageSlot({
@@ -282,30 +290,8 @@ function ClusterImageSlot({
   onSlotClick: (e: React.MouseEvent) => void;
   onPreviewHoverChange?: (id: string | null) => void;
 }) {
-  const [hovered, setHovered] = useState(false);
-
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const placement = usePreviewPlacement(anchorRef, hovered);
-
-  const handleMouseEnter = useCallback(() => {
-    setHovered(true);
-    onPreviewHoverChange?.(pinId);
-  }, [pinId, onPreviewHoverChange]);
-
-  const handleMouseLeave = useCallback(() => {
-    setHovered(false);
-    onPreviewHoverChange?.(null);
-  }, [onPreviewHoverChange]);
-
-  const { data: landmark, isLoading } = useQuery({
-    queryKey: ["landmark-preview", pinId],
-    queryFn: async () => {
-      const res = await getLandmarkById(pinId);
-      return res.success ? (res.data as Landmark) : null;
-    },
-    enabled: hovered,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
+    useLandmarkPreview(pinId, onPreviewHoverChange);
 
   return (
     <div ref={anchorRef} className="absolute inset-0">
@@ -515,7 +501,6 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
   });
 
   const MIN_VISIBLE_PINS = 12;
-  const ZOOM_EXPAND_THRESHOLD = 14;
 
   const clusters = useMemo(() => {
     if (!supercluster) return rawClusters;
@@ -604,7 +589,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
           const clusterId = Number(props.cluster_id);
           const count = Number(props.point_count);
           const leaves = supercluster ? supercluster.getLeaves(clusterId, count) : [];
-          const withPhotos: { pinId: string; photoUrl: string | null }[] = leaves
+          const withPhotos = leaves
             .map((leaf) => {
               const pinId = String((leaf.properties as Record<string, unknown>).pinId ?? "");
               return { pinId, photoUrl: pinPhotoMap[pinId] ?? null };

@@ -23,7 +23,7 @@ export function BetaAnnouncement() {
           <DialogDescription className="text-left space-y-2">
             <span className="block">
               You&apos;re one of our earliest users! This app is still in its
-              early stages; expect rough edges, missing features, and
+              early stages &mdash; expect rough edges, missing features, and
               the occasional bug.
             </span>
             <span className="block">
