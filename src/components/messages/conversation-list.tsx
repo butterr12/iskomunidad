@@ -66,12 +66,19 @@ function ConversationItem({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className={cn("text-sm truncate", conversation.unreadCount > 0 ? "font-semibold" : "font-medium")}>
-            {conversation.otherUser.name}
-          </span>
-          {conversation.otherUser.username && (
-            <UserFlairs username={conversation.otherUser.username} context="inline" max={1} />
-          )}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={cn("text-sm truncate", conversation.unreadCount > 0 ? "font-semibold" : "font-medium")}>
+              {conversation.otherUser.name}
+            </span>
+            {conversation.otherUser.username && (
+              <span className="text-[11px] text-muted-foreground shrink-0">
+                @{conversation.otherUser.username}
+              </span>
+            )}
+            {conversation.otherUser.username && (
+              <UserFlairs username={conversation.otherUser.username} context="inline" max={1} />
+            )}
+          </div>
           {conversation.lastMessage && (
             <span className="text-[11px] text-muted-foreground shrink-0">
               {formatRelativeTime(conversation.lastMessage.createdAt)}
