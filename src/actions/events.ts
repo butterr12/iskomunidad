@@ -11,7 +11,7 @@ import {
   getApprovalMode,
   createNotification,
   createUserNotification,
-  rateLimit,
+  guardAction,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 import { isoDateString } from "@/lib/validation/date";
@@ -19,10 +19,10 @@ import { isoDateString } from "@/lib/validation/date";
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const createEventSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().min(1),
+  title: z.string().min(1).max(200),
+  description: z.string().min(1).max(5000),
   category: z.enum(["academic", "cultural", "social", "sports", "org"]),
-  organizer: z.string().min(1),
+  organizer: z.string().min(1).max(200),
   startDate: isoDateString,
   endDate: isoDateString,
   locationId: z.string().uuid().optional(),
@@ -193,15 +193,18 @@ export async function getEventById(
 export async function createEvent(
   input: z.infer<typeof createEventSchema>,
 ): Promise<ActionResult<{ id: string; status: string }>> {
-  const limited = await rateLimit("create");
-  if (limited) return limited;
-
   const parsed = createEventSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const limited = await guardAction("event.create", {
+    userId: session.user.id,
+    contentBody: parsed.data.title + parsed.data.description,
+  });
+  if (limited) return limited;
 
   const mode = await getApprovalMode();
   let status: string;
@@ -277,6 +280,9 @@ export async function rsvpToEvent(
 
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const rsvpLimited = await guardAction("event.rsvp", { userId: session.user.id });
+  if (rsvpLimited) return rsvpLimited;
 
   const event = await db.query.campusEvent.findFirst({
     where: eq(campusEvent.id, eventId),

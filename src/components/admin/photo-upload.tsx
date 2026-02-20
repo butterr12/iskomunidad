@@ -4,6 +4,13 @@ import Image from "next/image";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { X, ImagePlus, Loader2 } from "lucide-react";
+import { compressImageForUpload } from "@/lib/image-compression";
+import {
+  ALLOWED_IMAGE_TYPES_LABEL,
+  IMAGE_UPLOAD_ACCEPT,
+  isAllowedImageType,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/image-upload";
 
 export interface UploadedPhoto {
   key: string;
@@ -62,7 +69,16 @@ export function PhotoUpload({
       setError(null);
       try {
         const newPhotos: UploadedPhoto[] = [];
-        for (const file of toUpload) {
+        for (const originalFile of toUpload) {
+          if (!isAllowedImageType(originalFile.type)) {
+            throw new Error(`Only ${ALLOWED_IMAGE_TYPES_LABEL} images are supported`);
+          }
+
+          const file = await compressImageForUpload(originalFile);
+          if (file.size > MAX_UPLOAD_BYTES) {
+            throw new Error("Image is still over 5MB after compression");
+          }
+
           const formData = new FormData();
           formData.append("file", file);
 
@@ -133,7 +149,7 @@ export function PhotoUpload({
           <input
             ref={inputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            accept={IMAGE_UPLOAD_ACCEPT}
             multiple
             onChange={handleFileSelect}
             className="hidden"
@@ -154,7 +170,7 @@ export function PhotoUpload({
             {uploading ? "Uploading..." : "Add Photos"}
           </Button>
           <p className="mt-1 text-xs text-muted-foreground">
-            {photos.length}/{maxPhotos} photos. Max 5MB each.
+            {photos.length}/{maxPhotos} photos. Max 5MB each, auto-compressed.
           </p>
         </div>
       )}

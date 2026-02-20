@@ -106,9 +106,23 @@ app.prepare().then(async () => {
     }
   });
 
+  // Import abuse guard for socket rate limiting
+  const { guard: abuseGuard } = await import("./src/lib/abuse/guard");
+  const { resolveIdentityFromRaw } = await import("./src/lib/abuse/identity");
+
   io.on("connection", (socket) => {
     const userId = socket.data.user?.id as string;
     if (!userId) return;
+
+    const socketIp =
+      (socket.handshake.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
+      socket.handshake.address;
+    const socketIdentity = resolveIdentityFromRaw({ userId, ip: socketIp });
+
+    async function socketGuard(action: "socket.typing" | "socket.join"): Promise<boolean> {
+      const result = await abuseGuard(action, socketIdentity);
+      return result.decision === "allow" || result.decision === "degrade_to_review";
+    }
 
     // Join personal notification room
     socket.join(`user:${userId}`);
@@ -118,6 +132,8 @@ app.prepare().then(async () => {
       if (typeof conversationId !== "string" || !VALID_UUID.test(conversationId)) {
         return;
       }
+
+      if (!(await socketGuard("socket.join"))) return;
 
       if (await isConversationParticipant_(conversationId, userId)) {
         socket.join(`conv:${conversationId}`);
@@ -138,6 +154,8 @@ app.prepare().then(async () => {
         return;
       }
 
+      if (!(await socketGuard("socket.typing"))) return;
+
       const room = `conv:${conversationId}`;
       if (!socket.rooms.has(room)) return;
       if (!(await isConversationParticipant_(conversationId, userId))) return;
@@ -154,6 +172,8 @@ app.prepare().then(async () => {
       if (typeof conversationId !== "string" || !VALID_UUID.test(conversationId)) {
         return;
       }
+
+      if (!(await socketGuard("socket.typing"))) return;
 
       const room = `conv:${conversationId}`;
       if (!socket.rooms.has(room)) return;

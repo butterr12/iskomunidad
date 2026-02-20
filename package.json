@@ -19,6 +19,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.1",
+    "ioredis": "^5.9.3",
     "lucide-react": "^0.564.0",
     "mapbox-gl": "^3.18.1",
     "next": "16.1.6",

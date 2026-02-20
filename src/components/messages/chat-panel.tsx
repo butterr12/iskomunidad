@@ -26,6 +26,13 @@ import {
 import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import { toast } from "sonner";
+import { compressImageForUpload } from "@/lib/image-compression";
+import {
+  ALLOWED_IMAGE_TYPES_LABEL,
+  IMAGE_UPLOAD_ACCEPT,
+  isAllowedImageType,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/image-upload";
 
 type OptimisticMessage = MessageData & {
   _optimistic: true;
@@ -61,6 +68,7 @@ export function ChatPanel({
   const [messageText, setMessageText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [processingImage, setProcessingImage] = useState(false);
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const optimisticMessagesRef = useRef(optimisticMessages);
   optimisticMessagesRef.current = optimisticMessages;
@@ -293,19 +301,35 @@ export function ChatPanel({
   }, [socket, conversation.id]);
 
   // Handle image selection
-  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
-      toast.error("Only JPEG, PNG, WebP, and GIF images are supported");
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    if (!isAllowedImageType(selectedFile.type)) {
+      toast.error(`Only ${ALLOWED_IMAGE_TYPES_LABEL} images are supported`);
+      e.target.value = "";
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
-      return;
+
+    setProcessingImage(true);
+    try {
+      const file = await compressImageForUpload(selectedFile);
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast.error("Image must be under 5MB");
+        return;
+      }
+
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    } catch {
+      toast.error("Could not process image");
+    } finally {
+      setProcessingImage(false);
+      e.target.value = "";
     }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
   }
 
   function clearImage() {
@@ -626,7 +650,7 @@ export function ChatPanel({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept={IMAGE_UPLOAD_ACCEPT}
               className="hidden"
               onChange={handleImageSelect}
             />
@@ -634,9 +658,14 @@ export function ChatPanel({
               variant="ghost"
               size="icon"
               className="h-9 w-9 shrink-0"
+              disabled={processingImage}
               onClick={() => fileInputRef.current?.click()}
             >
-              <ImagePlus className="h-5 w-5" />
+              {processingImage ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <ImagePlus className="h-5 w-5" />
+              )}
             </Button>
             <textarea
               ref={textareaRef}
@@ -655,7 +684,7 @@ export function ChatPanel({
               size="icon"
               className="h-9 w-9 shrink-0"
               onClick={handleSend}
-              disabled={!messageText.trim() && !imageFile}
+              disabled={processingImage || (!messageText.trim() && !imageFile)}
             >
               <Send className="h-4 w-4" />
             </Button>

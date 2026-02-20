@@ -17,6 +17,7 @@ interface ModerationInput {
 interface ModerationResult {
   approved: boolean;
   reason?: string;
+  needsReview?: boolean;
 }
 
 const PRESET_PROMPTS: Record<ModerationPreset, string> = {
@@ -105,8 +106,9 @@ Respond with JSON only: { "approved": true } or { "approved": false, "reason": "
       approved: parsed.approved,
       reason: parsed.reason,
     };
-  } catch {
+  } catch (err) {
     // On any error, default to approved so users aren't blocked by AI downtime
-    return { approved: true };
+    console.error("[ai-moderation] Error:", err);
+    return { approved: true, needsReview: true };
   }
 }

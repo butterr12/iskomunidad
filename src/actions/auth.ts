@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { user as userTable, userLegalConsent, userFlair } from "@/lib/schema";
 import { LEGAL_VERSIONS } from "@/lib/legal";
 import type { ActionResult } from "./_helpers";
-import { getClientIp, getSession, rateLimit } from "./_helpers";
+import { getClientIp, getSession, guardAction } from "./_helpers";
 import { getCampusFlairId } from "@/lib/user-flairs";
 import { UP_CAMPUSES } from "@/lib/constants";
 import { REFERRAL_COOKIE_NAME, normalizeRef } from "@/lib/referrals";
@@ -27,7 +27,7 @@ const createAccountSchema = z.object({
 export async function createAccountWithConsent(
   input: z.infer<typeof createAccountSchema>,
 ): Promise<ActionResult<void>> {
-  const limited = await rateLimit("auth");
+  const limited = await guardAction("auth.signup", { email: input.email });
   if (limited) return limited;
 
   try {

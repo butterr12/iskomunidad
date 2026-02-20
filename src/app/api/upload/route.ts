@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/actions/_helpers";
 import { uploadFile, generatePhotoKey } from "@/lib/storage";
 import { checkRateLimit, getIpFromHeaders } from "@/lib/rate-limit";
+import {
+  ALLOWED_IMAGE_TYPES_LABEL,
+  isAllowedImageType,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/image-upload";
+import { guard } from "@/lib/abuse/guard";
+import { resolveIdentityFromRaw } from "@/lib/abuse/identity";
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_FILE_SIZE = MAX_UPLOAD_BYTES;
 
 export async function POST(request: NextRequest) {
   const ip = getIpFromHeaders(request.headers);
@@ -22,6 +28,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Abuse guard (alongside existing rate limit as fallback)
+  const deviceId = request.cookies.get("ik_did")?.value;
+  const identity = resolveIdentityFromRaw({ userId: session.user.id, ip, deviceId });
+  const abuseResult = await guard("upload.image", identity);
+  if (abuseResult.decision === "deny" || abuseResult.decision === "throttle") {
+    return NextResponse.json(
+      { error: "Too many uploads. Please try again later." },
+      { status: 429 },
+    );
+  }
+
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
 
@@ -29,9 +46,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!isAllowedImageType(file.type)) {
     return NextResponse.json(
-      { error: "Invalid file type. Allowed: JPEG, PNG, WebP, GIF" },
+      { error: `Invalid file type. Allowed: ${ALLOWED_IMAGE_TYPES_LABEL}` },
       { status: 400 },
     );
   }

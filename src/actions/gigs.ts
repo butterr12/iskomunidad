@@ -11,7 +11,7 @@ import {
   getApprovalMode,
   createNotification,
   createUserNotification,
-  rateLimit,
+  guardAction,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 import { parseCompensation } from "@/lib/gigs";
@@ -20,17 +20,17 @@ import { isoDateString } from "@/lib/validation/date";
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const createGigSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().min(1),
+  title: z.string().min(1).max(200),
+  description: z.string().min(1).max(5000),
   posterCollege: z.string().optional(),
-  compensation: z.string().min(1),
+  compensation: z.string().min(1).max(200),
   category: z.string().min(1),
   tags: z.array(z.string()).default([]),
   locationId: z.string().uuid().optional(),
   locationNote: z.string().optional(),
   deadline: isoDateString.optional(),
   urgency: z.enum(["flexible", "soon", "urgent"]).default("flexible"),
-  contactMethod: z.string().min(1),
+  contactMethod: z.string().min(1).max(500),
 });
 
 const swipeSchema = z.object({
@@ -87,15 +87,18 @@ export async function getApprovedGigs(
 export async function createGig(
   input: z.infer<typeof createGigSchema>,
 ): Promise<ActionResult<{ id: string; status: string }>> {
-  const limited = await rateLimit("create");
-  if (limited) return limited;
-
   const parsed = createGigSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const limited = await guardAction("gig.create", {
+    userId: session.user.id,
+    contentBody: parsed.data.title + parsed.data.description,
+  });
+  if (limited) return limited;
 
   const mode = await getApprovalMode();
   let status: string;
@@ -179,6 +182,9 @@ export async function swipeGig(
 
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const swipeLimited = await guardAction("gig.swipe", { userId: session.user.id });
+  if (swipeLimited) return swipeLimited;
 
   const gig = await db.query.gigListing.findFirst({
     where: eq(gigListing.id, gigId),

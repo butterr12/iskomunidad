@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
+import { randomUUID } from "node:crypto";
 import {
   REFERRAL_QUERY_PARAM,
   REFERRAL_COOKIE_NAME,
@@ -53,6 +54,17 @@ export async function proxy(request: NextRequest) {
         maxAge: REFERRAL_COOKIE_MAX_AGE_SECONDS,
       });
     }
+  }
+
+  // Set device fingerprint cookie for abuse detection
+  if (!request.cookies.has("ik_did")) {
+    response.cookies.set("ik_did", randomUUID(), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60,
+    });
   }
 
   return response;

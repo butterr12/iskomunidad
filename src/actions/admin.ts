@@ -13,7 +13,7 @@ import {
   user,
   session as authSession,
 } from "@/lib/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, desc, gte } from "drizzle-orm";
 import {
   type ActionResult,
   type ApprovalMode,
@@ -1235,4 +1235,117 @@ export async function adminRevokeFlair(
 
   await revokeFlair(userId, flairId);
   return { success: true, data: undefined };
+}
+
+// ─── Abuse Monitor ──────────────────────────────────────────────────────────
+
+import { abuseEvent } from "@/lib/schema";
+import { clearUserCooldowns } from "@/lib/abuse/store-redis";
+
+export async function adminGetAbuseStats(): Promise<
+  ActionResult<{
+    total: number;
+    denied: number;
+    throttled: number;
+    shadow: number;
+    byAction: { action: string; count: number }[];
+    topOffenders: { userIdHash: string; count: number }[];
+  }>
+> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [totals] = await db
+    .select({
+      total: sql<number>`COUNT(*)`,
+      denied: sql<number>`COUNT(*) FILTER (WHERE ${abuseEvent.decision} = 'deny')`,
+      throttled: sql<number>`COUNT(*) FILTER (WHERE ${abuseEvent.decision} = 'throttle')`,
+      shadow: sql<number>`COUNT(*) FILTER (WHERE ${abuseEvent.mode} = 'shadow')`,
+    })
+    .from(abuseEvent)
+    .where(gte(abuseEvent.createdAt, since));
+
+  const byAction = await db
+    .select({
+      action: abuseEvent.action,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(abuseEvent)
+    .where(gte(abuseEvent.createdAt, since))
+    .groupBy(abuseEvent.action)
+    .orderBy(sql`COUNT(*) DESC`);
+
+  const topOffenders = await db
+    .select({
+      userIdHash: abuseEvent.userIdHash,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(abuseEvent)
+    .where(and(gte(abuseEvent.createdAt, since), sql`${abuseEvent.userIdHash} IS NOT NULL`))
+    .groupBy(abuseEvent.userIdHash)
+    .orderBy(sql`COUNT(*) DESC`)
+    .limit(10);
+
+  return {
+    success: true,
+    data: {
+      total: Number(totals.total),
+      denied: Number(totals.denied),
+      throttled: Number(totals.throttled),
+      shadow: Number(totals.shadow),
+      byAction: byAction.map((r) => ({ action: r.action, count: Number(r.count) })),
+      topOffenders: topOffenders.map((r) => ({
+        userIdHash: r.userIdHash!,
+        count: Number(r.count),
+      })),
+    },
+  };
+}
+
+export async function adminGetAbuseEvents(
+  opts?: { action?: string; decision?: string; page?: number },
+): Promise<ActionResult<{ events: unknown[]; hasMore: boolean }>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const PAGE_SIZE = 50;
+  const page = opts?.page ?? 0;
+
+  const conditions = [];
+  if (opts?.action) conditions.push(eq(abuseEvent.action, opts.action));
+  if (opts?.decision) conditions.push(eq(abuseEvent.decision, opts.decision));
+
+  const rows = await db
+    .select()
+    .from(abuseEvent)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(abuseEvent.createdAt))
+    .limit(PAGE_SIZE + 1)
+    .offset(page * PAGE_SIZE);
+
+  const hasMore = rows.length > PAGE_SIZE;
+  const pageRows = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+
+  return {
+    success: true,
+    data: {
+      events: pageRows.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      hasMore,
+    },
+  };
+}
+
+export async function adminClearAbuseCooldown(
+  userIdHash: string,
+): Promise<ActionResult<{ deleted: number }>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const deleted = await clearUserCooldowns(userIdHash);
+  return { success: true, data: { deleted } };
 }

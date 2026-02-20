@@ -6,6 +6,7 @@ import { useAdminAuth } from "@/contexts/admin-auth-context";
 import { useRouter } from "next/navigation";
 import {
   Shield,
+  ShieldAlert,
   LayoutDashboard,
   ClipboardList,
   FileText,
@@ -77,6 +78,7 @@ const navGroups: NavGroup[] = [
   {
     label: "System",
     items: [
+      { href: "/admin/abuse", label: "Abuse Monitor", shortLabel: "Abuse", icon: ShieldAlert },
       { href: "/admin/notifications", label: "Notifications", shortLabel: "Notifs", icon: Bell },
       { href: "/admin/settings", label: "Settings", shortLabel: "Settings", icon: Settings },
     ],

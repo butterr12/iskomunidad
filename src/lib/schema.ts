@@ -711,6 +711,32 @@ export const cmRematchCooldown = pgTable(
   ],
 );
 
+// ─── Abuse Event ──────────────────────────────────────────────────────────────
+
+export const abuseEvent = pgTable(
+  "abuse_event",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    action: text("action").notNull(),
+    decision: text("decision").notNull(),
+    reason: text("reason"),
+    triggeredRule: text("triggered_rule"),
+    currentCount: integer("current_count"),
+    limitValue: integer("limit_value"),
+    userIdHash: text("user_id_hash"),
+    ipHash: text("ip_hash"),
+    deviceHash: text("device_hash"),
+    mode: text("mode").notNull().default("enforce"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("abuse_event_action_created_idx").on(table.action, table.createdAt),
+    index("abuse_event_decision_created_idx").on(table.decision, table.createdAt),
+    index("abuse_event_user_id_hash_idx").on(table.userIdHash),
+    index("abuse_event_created_idx").on(table.createdAt),
+  ],
+);
+
 // ─── Relations ─────────────────────────────────────────────────────────────────
 
 export const userRelations = relations(user, ({ many, one }) => ({

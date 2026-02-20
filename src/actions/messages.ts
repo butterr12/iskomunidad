@@ -11,7 +11,7 @@ import {
 } from "@/lib/schema";
 import { user } from "@/lib/auth-schema";
 import { eq, and, desc, lt, sql, ne } from "drizzle-orm";
-import { getSession, rateLimit, type ActionResult } from "./_helpers";
+import { getSession, guardAction, type ActionResult } from "./_helpers";
 import { getIO } from "@/lib/socket-server";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -68,6 +68,9 @@ export async function getOrCreateConversation(
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
   const userId = session.user.id;
+
+  const convLimited = await guardAction("conversation.create", { userId });
+  if (convLimited) return convLimited;
 
   if (userId === targetUserId) {
     return { success: false, error: "Cannot message yourself" };
@@ -192,12 +195,12 @@ export async function sendMessage(input: {
   body?: string;
   imageUrl?: string;
 }): Promise<ActionResult<MessageData>> {
-  const limited = await rateLimit("create");
-  if (limited) return limited;
-
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
   const userId = session.user.id;
+
+  const limited = await guardAction("message.send", { userId });
+  if (limited) return limited;
 
   if (!isValidUuid(input.conversationId)) {
     return { success: false, error: "Invalid conversation ID" };

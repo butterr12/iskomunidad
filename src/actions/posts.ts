@@ -17,7 +17,7 @@ import {
   getApprovalMode,
   createNotification,
   createUserNotification,
-  rateLimit,
+  guardAction,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 
@@ -28,8 +28,8 @@ function getActorLabel(user: { username?: string | null; name?: string | null })
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const createPostSchema = z.object({
-  title: z.string().min(1),
-  body: z.string().optional(),
+  title: z.string().min(1).max(300),
+  body: z.string().max(10000).optional(),
   type: z.enum(["text", "link", "image"]),
   flair: z.string().min(1),
   locationId: z.string().uuid().optional(),
@@ -45,7 +45,7 @@ const voteSchema = z.object({
 const createCommentSchema = z.object({
   postId: z.string().uuid(),
   parentId: z.string().uuid().optional(),
-  body: z.string().min(1),
+  body: z.string().min(1).max(5000),
 });
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -304,15 +304,18 @@ export async function getPostById(
 export async function createPost(
   input: z.infer<typeof createPostSchema>,
 ): Promise<ActionResult<{ id: string; status: string }>> {
-  const limited = await rateLimit("create");
-  if (limited) return limited;
-
   const parsed = createPostSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const limited = await guardAction("post.create", {
+    userId: session.user.id,
+    contentBody: (parsed.data.title ?? "") + (parsed.data.body ?? ""),
+  });
+  if (limited) return limited;
 
   const mode = await getApprovalMode();
   let status: string;
@@ -385,6 +388,9 @@ export async function voteOnPost(
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
+  const voteLimited = await guardAction("post.vote", { userId: session.user.id });
+  if (voteLimited) return voteLimited;
+
   const post = await db.query.communityPost.findFirst({
     where: eq(communityPost.id, postId),
     columns: { status: true, userId: true, title: true },
@@ -456,15 +462,18 @@ export async function voteOnPost(
 export async function createComment(
   input: z.infer<typeof createCommentSchema>,
 ): Promise<ActionResult<unknown>> {
-  const limited = await rateLimit("create");
-  if (limited) return limited;
-
   const parsed = createCommentSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const limited = await guardAction("comment.create", {
+    userId: session.user.id,
+    contentBody: parsed.data.body,
+  });
+  if (limited) return limited;
 
   const post = await db.query.communityPost.findFirst({
     where: eq(communityPost.id, parsed.data.postId),
@@ -570,6 +579,9 @@ export async function voteOnComment(
 
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const cvLimited = await guardAction("comment.vote", { userId: session.user.id });
+  if (cvLimited) return cvLimited;
 
   const comment = await db.query.postComment.findFirst({
     where: eq(postComment.id, commentId),

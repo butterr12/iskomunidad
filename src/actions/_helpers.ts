@@ -115,6 +115,54 @@ export async function rateLimit(
   return null;
 }
 
+// ─── Abuse guard ─────────────────────────────────────────────────────────────
+
+import type { AbuseAction, GuardOptions, AbuseResult } from "@/lib/abuse/types";
+import { guard } from "@/lib/abuse/guard";
+import { resolveIdentity } from "@/lib/abuse/identity";
+
+/**
+ * Check abuse policy for the current request.
+ * Returns an error ActionResult if over the limit, or `null` if allowed.
+ *
+ * Usage in any server action:
+ *   const limited = await guardAction("post.create", { contentBody: title + body });
+ *   if (limited) return limited;
+ */
+export async function guardAction(
+  action: AbuseAction,
+  opts?: GuardOptions & { userId?: string; email?: string },
+): Promise<ActionResult<never> | null> {
+  const userId = opts?.userId;
+  const identity = opts?.identity ?? await resolveIdentity(userId, { email: opts?.email });
+  const result = await guard(action, identity, opts);
+
+  if (result.decision === "deny" || result.decision === "throttle") {
+    return { success: false, error: "Too many requests. Please try again later." };
+  }
+  return null;
+}
+
+/**
+ * Like guardAction but exposes the full decision for callers needing degrade_to_review awareness.
+ */
+export async function guardActionWithDecision(
+  action: AbuseAction,
+  opts?: GuardOptions & { userId?: string; email?: string },
+): Promise<{ limited: ActionResult<never> | null; decision: AbuseResult }> {
+  const userId = opts?.userId;
+  const identity = opts?.identity ?? await resolveIdentity(userId, { email: opts?.email });
+  const result = await guard(action, identity, opts);
+
+  if (result.decision === "deny" || result.decision === "throttle") {
+    return {
+      limited: { success: false, error: "Too many requests. Please try again later." },
+      decision: result,
+    };
+  }
+  return { limited: null, decision: result };
+}
+
 // ─── Utility helpers ──────────────────────────────────────────────────────────
 
 export type ApprovalMode = "auto" | "manual" | "ai";
