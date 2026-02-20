@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, HeartHandshake, Settings } from "lucide-react";
+import { CalendarDays, HeartHandshake, Settings, Bot, UsersRound, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -14,9 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { label: "Events", href: "/events", icon: CalendarDays, comingSoon: false },
-  { label: "Match", href: null, icon: HeartHandshake, comingSoon: true },
-  { label: "Settings", href: "/settings", icon: Settings, comingSoon: false },
+  { label: "Events", href: "/events", icon: CalendarDays, comingSoon: false, toastMessage: "" },
+  { label: "Match", href: null, icon: HeartHandshake, comingSoon: true, toastMessage: "Campus Match is coming soon! Stay tuned." },
+  { label: "Settings", href: "/settings", icon: Settings, comingSoon: false, toastMessage: "" },
+  { label: "Isko AI", href: null, icon: Bot, comingSoon: true, toastMessage: "Isko AI chatbot is coming soon! Your all-in-one uni assistant." },
+  { label: "Orgs", href: null, icon: UsersRound, comingSoon: true, toastMessage: "Orgs directory is coming soon! Discover and join student organizations." },
+  { label: "Housing", href: null, icon: Building2, comingSoon: true, toastMessage: "Housing portal & Rate My Dorm is coming soon!" },
 ];
 
 interface MoreSheetProps {
@@ -56,7 +59,7 @@ export function MoreSheet({ open, onOpenChange, pathname }: MoreSheetProps) {
                   className="more-grid-item flex flex-col items-center justify-center gap-2 rounded-xl bg-muted/60 p-4 transition-colors"
                   style={{ animationDelay: `${i * 60}ms` }}
                   onClick={() =>
-                    toast.info("Campus Match is coming soon! Stay tuned.")
+                    toast.info(item.toastMessage)
                   }
                 >
                   <div className="relative">
