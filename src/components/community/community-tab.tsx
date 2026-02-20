@@ -4,13 +4,14 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { Plus, MessageCircle, Users, Loader2 } from "lucide-react";
+import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SortToggle } from "./sort-toggle";
 import { FlairFilter } from "./flair-filter";
+import { FilterSheet } from "./filter-sheet";
 import { PostFeed } from "./post-feed";
 import { PostDetail } from "./post-detail";
 import { CreatePostForm } from "./create-post-form";
@@ -89,7 +90,14 @@ export function CommunityTab() {
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<PostComment[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Count non-default active filters for badge
+  const activeFilterCount =
+    (sortMode !== "new" ? 1 : 0) +
+    (feedMode !== "all" ? 1 : 0) +
+    (activeFlair !== null ? 1 : 0);
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
@@ -326,41 +334,23 @@ export function CommunityTab() {
 
   return (
     <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
-      {/* Sticky sub-header */}
+      {/* Sticky sub-header — single row */}
       {!selectedPost && (
         <div className="sticky top-12 sm:top-14 z-10 border-b bg-background/80 backdrop-blur-sm">
           <div className="flex items-center justify-between px-4 py-2">
             <h2 className="text-lg font-semibold">Community</h2>
-            <SortToggle sortMode={sortMode} onSortModeChange={setSortMode} />
-          </div>
-          {/* Feed mode tabs */}
-          {user && (
-            <div className="flex gap-1 px-4 pb-1.5">
-              <button
-                onClick={() => setFeedMode("all")}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  feedMode === "all"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setFeedMode("following")}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  feedMode === "following"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Following
-              </button>
-            </div>
-          )}
-          {/* Flair filter visible only on mobile */}
-          <div className="lg:hidden">
-            <FlairFilter activeFlair={activeFlair} onFlairChange={setActiveFlair} />
+            <button
+              onClick={() => setShowFilters(true)}
+              className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       )}
@@ -540,6 +530,19 @@ export function CommunityTab() {
         onOpenChange={setShowCreatePost}
         promptName={promptName}
         onSubmit={handleCreatePost}
+      />
+
+      {/* Filter sheet */}
+      <FilterSheet
+        open={showFilters}
+        onOpenChange={setShowFilters}
+        sortMode={sortMode}
+        onSortModeChange={setSortMode}
+        feedMode={feedMode}
+        onFeedModeChange={setFeedMode}
+        activeFlair={activeFlair}
+        onFlairChange={setActiveFlair}
+        showFeedMode={!!user}
       />
     </div>
   );
