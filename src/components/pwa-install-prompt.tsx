@@ -94,8 +94,8 @@ export function PwaInstallPrompt() {
         <DialogHeader className="text-center sm:text-center">
           <DialogTitle>Get the iskomunidad App</DialogTitle>
           <DialogDescription>
-            Install iskomunidad on your device for faster access and a better
-            experience.
+            Faster access to your campus community. Install in under 10
+            seconds, no app store needed.
           </DialogDescription>
         </DialogHeader>
 

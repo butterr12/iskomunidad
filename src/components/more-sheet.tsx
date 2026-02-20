@@ -31,7 +31,7 @@ export function MoreSheet({ open, onOpenChange, pathname }: MoreSheetProps) {
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="rounded-t-2xl px-6 pb-8 pt-3"
+        className="rounded-t-2xl px-6 pb-8 pt-3 gap-0"
       >
         <SheetHeader className="p-0">
           <SheetTitle className="sr-only">More</SheetTitle>
@@ -45,7 +45,7 @@ export function MoreSheet({ open, onOpenChange, pathname }: MoreSheetProps) {
           <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 items-stretch">
           {items.map((item, i) => {
             const isActive = item.href ? pathname.startsWith(item.href) : false;
 
@@ -53,7 +53,7 @@ export function MoreSheet({ open, onOpenChange, pathname }: MoreSheetProps) {
               return (
                 <button
                   key={item.label}
-                  className="more-grid-item flex flex-col items-center gap-2 rounded-xl bg-muted/60 p-4 transition-colors"
+                  className="more-grid-item flex flex-col items-center justify-center gap-2 rounded-xl bg-muted/60 p-4 transition-colors"
                   style={{ animationDelay: `${i * 60}ms` }}
                   onClick={() =>
                     toast.info("Campus Match is coming soon! Stay tuned.")
@@ -83,7 +83,7 @@ export function MoreSheet({ open, onOpenChange, pathname }: MoreSheetProps) {
                 key={item.label}
                 href={item.href ?? "#"}
                 className={cn(
-                  "more-grid-item flex flex-col items-center gap-2 rounded-xl p-4 transition-colors",
+                  "more-grid-item flex flex-col items-center justify-center gap-2 rounded-xl p-4 transition-colors",
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "bg-muted/40 hover:bg-muted"
