@@ -165,10 +165,12 @@ function MarkerPin({
   pinId: string;
   onPreviewHoverChange?: (id: string | null) => void;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
     useLandmarkPreview(pinId, onPreviewHoverChange);
   const size = selected ? 52 : 44;
   const lineH = selected ? 28 : 22;
+  const showPhoto = photoUrl && !imgFailed;
 
   return (
     <div
@@ -200,13 +202,14 @@ function MarkerPin({
           transition: "width 200ms ease-out, height 200ms ease-out",
         }}
       >
-        {photoUrl ? (
+        {showPhoto ? (
           <img
             src={photoUrl}
             alt={label}
             className="rounded-full object-cover"
             style={{ width: size - 4, height: size - 4 }}
             draggable={false}
+            onError={() => setImgFailed(true)}
           />
         ) : (
           <div
@@ -280,6 +283,7 @@ function ClusterImageSlot({
   showExpanded,
   onSlotClick,
   onPreviewHoverChange,
+  onImgError,
 }: {
   pinId: string;
   photoUrl: string;
@@ -289,6 +293,7 @@ function ClusterImageSlot({
   showExpanded: boolean;
   onSlotClick: (e: React.MouseEvent) => void;
   onPreviewHoverChange?: (id: string | null) => void;
+  onImgError?: (pinId: string) => void;
 }) {
   const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
     useLandmarkPreview(pinId, onPreviewHoverChange);
@@ -326,6 +331,7 @@ function ClusterImageSlot({
           alt=""
           draggable={false}
           className="w-full h-full object-cover"
+          onError={() => onImgError?.(pinId)}
         />
       </button>
     </div>
@@ -347,9 +353,11 @@ function ClusterCollage({
 }) {
   const [hovered, setHovered] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [failedPinIds, setFailedPinIds] = useState<Set<string>>(new Set());
+  const visibleItems = items.filter((item) => !failedPinIds.has(item.pinId));
   const showExpanded = expanded;
-  const isOnlyPlus = items.length === 0 && remainingCount > 0;
-  const plusSlotOffset = isOnlyPlus ? 0 : items.length;
+  const isOnlyPlus = visibleItems.length === 0 && remainingCount > 0;
+  const plusSlotOffset = isOnlyPlus ? 0 : visibleItems.length;
 
   const handleContainerClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-cluster-slot]")) return;
@@ -379,7 +387,7 @@ function ClusterCollage({
   return (
     <div
       role="group"
-      aria-label={`${items.length + remainingCount} landmarks`}
+      aria-label={`${visibleItems.length + remainingCount} landmarks`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => {
         setHovered(false);
@@ -389,7 +397,7 @@ function ClusterCollage({
       className="relative flex cursor-pointer items-center justify-center"
       style={{ width: 80, height: 80 }}
     >
-      {items.map((item, i) => (
+      {visibleItems.map((item, i) => (
         <ClusterImageSlot
           key={item.pinId}
           pinId={item.pinId}
@@ -400,6 +408,7 @@ function ClusterCollage({
           showExpanded={showExpanded || hovered}
           onSlotClick={(e) => handleSlotClick(e, i, item.pinId)}
           onPreviewHoverChange={onPreviewHoverChange}
+          onImgError={(id) => setFailedPinIds((prev) => new Set(prev).add(id))}
         />
       ))}
       {remainingCount > 0 && (
