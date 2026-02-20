@@ -460,7 +460,7 @@ interface LandmarkMapProps {
 export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const { resolvedTheme } = useTheme();
-  const [viewport, setViewport] = useState({ zoom: 15, bounds: null as mapboxgl.LngLatBounds | null });
+  const [zoom, setZoom] = useState(15);
   const [hoveredPreviewPinId, setHoveredPreviewPinId] = useState<string | null>(null);
   const mapMode: MapThemeMode = resolvedTheme === "dark" ? "dark" : "light";
 
@@ -480,10 +480,10 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     return photoMap;
   }, [pins]);
 
-  const updateViewport = useCallback(() => {
+  const updateZoom = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
-    setViewport({ zoom: map.getZoom(), bounds: map.getBounds() ?? null });
+    setZoom(map.getZoom());
   }, []);
 
   useEffect(() => {
@@ -509,19 +509,12 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     [pins],
   );
 
-  const mapBounds: BBox | undefined = viewport.bounds
-    ? [
-        viewport.bounds.getWest(),
-        viewport.bounds.getSouth(),
-        viewport.bounds.getEast(),
-        viewport.bounds.getNorth(),
-      ]
-    : undefined;
+  const mapBounds: BBox = [-180, -90, 180, 90];
 
   const { clusters: rawClusters, supercluster } = useSupercluster({
     points,
     bounds: mapBounds,
-    zoom: viewport.zoom,
+    zoom,
     options: { radius: 80, maxZoom: 18 },
   });
 
@@ -529,7 +522,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
 
   const clusters = useMemo(() => {
     if (!supercluster) return rawClusters;
-    if (viewport.zoom <= ZOOM_EXPAND_THRESHOLD) return rawClusters;
+    if (zoom <= ZOOM_EXPAND_THRESHOLD) return rawClusters;
 
     const individualPins = rawClusters.filter(
       (f) => !(f.properties as Record<string, unknown>).cluster
@@ -562,7 +555,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     }
 
     return result;
-  }, [rawClusters, supercluster, viewport.zoom]);
+  }, [rawClusters, supercluster, zoom]);
 
   const handleClusterClick = useCallback(
     (clusterId: number, lat: number, lng: number) => {
@@ -599,9 +592,10 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
       mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
       onLoad={(e) => {
         applyMapTheme(e.target, mapMode);
-        updateViewport();
+        updateZoom();
       }}
-      onMoveEnd={updateViewport}
+      onMove={updateZoom}
+      onMoveEnd={updateZoom}
       onClick={() => onSelectLandmark(null)}
     >
       <NavigationControl position="top-right" />
