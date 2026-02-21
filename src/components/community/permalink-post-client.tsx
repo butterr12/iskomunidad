@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -61,6 +62,7 @@ export function PermalinkPostClient({
   canonicalShareUrl,
 }: PermalinkPostClientProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [post, setPost] = useState(initialPost);
   const [comments, setComments] = useState(initialComments);
 
@@ -111,15 +113,24 @@ export function PermalinkPostClient({
       return;
     }
 
+    const wasBookmarked = post.isBookmarked;
+    const newState = !wasBookmarked;
+
+    // Optimistic update
+    setPost((prev) => ({ ...prev, isBookmarked: newState }));
+
     const res = await toggleBookmark(post.id);
     if (!res.success) {
+      // Revert on failure
+      setPost((prev) => ({ ...prev, isBookmarked: wasBookmarked }));
       toast.error(res.error);
       if (res.error === "Not authenticated") router.push(signInHref);
-      return;
+    } else {
+      // Reconcile from server truth
+      setPost((prev) => ({ ...prev, isBookmarked: res.data.isBookmarked }));
+      toast.success(res.data.isBookmarked ? "Post saved" : "Post unsaved");
+      queryClient.invalidateQueries({ queryKey: ["saved-posts"] });
     }
-
-    setPost((prev) => ({ ...prev, isBookmarked: res.data.isBookmarked }));
-    toast.success(res.data.isBookmarked ? "Post saved" : "Post unsaved");
   };
 
   const handleVotePost = async (direction: VoteDirection) => {
