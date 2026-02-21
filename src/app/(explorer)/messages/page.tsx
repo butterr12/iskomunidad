@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getOrCreateConversation,
   getConversations,
@@ -13,12 +13,14 @@ import { ConversationList } from "@/components/messages/conversation-list";
 import { ChatPanel } from "@/components/messages/chat-panel";
 import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function MessagesPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const withUserId = searchParams.get("with");
   const chatId = searchParams.get("chat");
 
@@ -79,6 +81,13 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!withUserId || !session?.user || initializing) return;
 
+    function cleanWithParam() {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("with");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+
     async function openConversation() {
       setInitializing(true);
       try {
@@ -99,12 +108,33 @@ export default function MessagesPage() {
               const freshFound = allFresh.find(
                 (c) => c.id === res.data.conversationId,
               );
-              if (freshFound) selectConversation(freshFound);
+              if (freshFound) {
+                selectConversation(freshFound);
+              } else {
+                // Race: conversation created but not yet visible in list.
+                // Use a minimal placeholder that the sync effect will replace.
+                void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+                selectConversation({
+                  id: res.data.conversationId,
+                  isRequest: res.data.isRequest,
+                  updatedAt: new Date().toISOString(),
+                  otherUser: { id: withUserId!, name: "", username: null, image: null },
+                  lastMessage: null,
+                  unreadCount: 0,
+                  requestStatus: res.data.isRequest ? "pending" : undefined,
+                  requestFromUserId: res.data.isRequest ? session!.user.id : undefined,
+                  requestToUserId: res.data.isRequest ? withUserId! : undefined,
+                });
+              }
             }
           }
+        } else {
+          toast.error(res.error);
+          cleanWithParam();
         }
       } catch {
-        // Failed to open conversation — don't leave page stuck
+        toast.error("Failed to open conversation");
+        cleanWithParam();
       } finally {
         setInitializing(false);
       }

@@ -251,14 +251,12 @@ export function ChatPanel({
     socket.on("typing", handleTyping);
     socket.on("message_read", handleMessageRead);
     socket.on("conversation_deleted", handleConversationDeleted);
-    socket.on("request_deleted", handleConversationDeleted);
 
     return () => {
       socket.off("new_message", handleNewMessage);
       socket.off("typing", handleTyping);
       socket.off("message_read", handleMessageRead);
       socket.off("conversation_deleted", handleConversationDeleted);
-      socket.off("request_deleted", handleConversationDeleted);
     };
   }, [socket, conversation.id, conversation.otherUser.name, userId, queryClient, data, onBack]);
 
@@ -375,6 +373,7 @@ export function ChatPanel({
             m._tempId === om._tempId ? { ...m, _status: "failed" as const } : m,
           ),
         );
+        toast.error("Failed to upload image");
         return;
       }
     }
@@ -392,6 +391,7 @@ export function ChatPanel({
             m._tempId === om._tempId ? { ...m, _status: "failed" as const } : m,
           ),
         );
+        toast.error(res.error ?? "Failed to send message");
       } else {
         // Insert confirmed message into cache before removing optimistic to avoid flash
         queryClient.setQueryData(
@@ -427,6 +427,7 @@ export function ChatPanel({
           m._tempId === om._tempId ? { ...m, _status: "failed" as const } : m,
         ),
       );
+      toast.error("Failed to send message");
     }
   }
 

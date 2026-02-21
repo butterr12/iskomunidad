@@ -148,10 +148,33 @@ export async function getOrCreateConversation(
       .limit(1);
 
     if (existing.length > 0) {
-      return {
-        conversationId: existing[0].conversationId,
-        isRequest: existing[0].isRequest,
-      };
+      const candidate = existing[0];
+
+      // If this is a request conversation, verify the request is still usable.
+      // Declined/withdrawn requests are hidden by getConversations, so
+      // returning their conversationId creates a dead-end the user can never
+      // see. Skip them and fall through to create a new conversation.
+      if (candidate.isRequest) {
+        const [req] = await tx
+          .select({ status: messageRequest.status })
+          .from(messageRequest)
+          .where(eq(messageRequest.conversationId, candidate.conversationId))
+          .limit(1);
+
+        if (!req || req.status === "declined" || req.status === "withdrawn") {
+          // Fall through to create a new conversation.
+        } else {
+          return {
+            conversationId: candidate.conversationId,
+            isRequest: candidate.isRequest,
+          };
+        }
+      } else {
+        return {
+          conversationId: candidate.conversationId,
+          isRequest: candidate.isRequest,
+        };
+      }
     }
 
     // Privacy setting applies only when opening a brand-new conversation.
@@ -1025,11 +1048,8 @@ export async function deleteMessageRequest(
     return { success: false, error: result.error ?? "Unable to delete request" };
   }
 
-  emitConversationRoomEvent(
-    "request_deleted",
-    conversationId,
-    result.participantUserIds,
-  );
+  // Single canonical event — conversation_deleted covers both ChatPanel (onBack)
+  // and SocketProvider (invalidateQueries). No need to also emit request_deleted.
   emitConversationRoomEvent(
     "conversation_deleted",
     conversationId,
