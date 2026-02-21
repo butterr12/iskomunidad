@@ -19,6 +19,7 @@ import {
   type PostComment,
   type VoteDirection,
 } from "@/lib/posts";
+import { isSafeUrl } from "@/lib/validation/url";
 
 interface PostDetailProps {
   post: CommunityPost;
@@ -99,7 +100,7 @@ export function PostDetail({
             <MentionText text={post.body} />
           </p>
         )}
-        {post.linkUrl && (
+        {post.linkUrl && isSafeUrl(post.linkUrl) && (
           <a
             href={post.linkUrl}
             target="_blank"

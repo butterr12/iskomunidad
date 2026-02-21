@@ -24,6 +24,7 @@ import {
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 import { extractMentionUsernames } from "@/lib/mentions";
+import { safeLinkUrl } from "@/lib/validation/url";
 
 function getActorLabel(user: { username?: string | null; name?: string | null }): string {
   return user.username ? `@${user.username}` : (user.name ?? "Someone");
@@ -90,7 +91,7 @@ const createPostSchema = z.object({
   body: z.string().max(10000).optional(),
   flair: z.string().min(1),
   locationId: z.string().uuid().optional(),
-  linkUrl: z.string().optional(),
+  linkUrl: safeLinkUrl,
   imageKeys: z.array(z.string()).max(4).optional(),
 });
 

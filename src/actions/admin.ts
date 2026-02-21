@@ -29,6 +29,7 @@ import {
 } from "./_helpers";
 import { parseCompensation } from "@/lib/gigs";
 import { isoDateString } from "@/lib/validation/date";
+import { safeLinkUrl } from "@/lib/validation/url";
 import {
   grantFlair,
   revokeFlair,
@@ -48,7 +49,7 @@ const createPostSchema = z.object({
   body: z.string().optional(),
   flair: z.string().min(1),
   locationId: z.string().uuid().optional(),
-  linkUrl: z.string().optional(),
+  linkUrl: safeLinkUrl,
   imageKeys: z.array(z.string()).max(4).optional(),
 });
 

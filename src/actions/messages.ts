@@ -77,7 +77,7 @@ export async function getOrCreateConversation(
   }
 
   const targetUser = await db.query.user.findFirst({
-    where: eq(user.id, targetUserId),
+    where: and(eq(user.id, targetUserId), eq(user.status, "active")),
     columns: { id: true },
   });
   if (!targetUser) {

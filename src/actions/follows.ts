@@ -39,9 +39,9 @@ export async function followUser(
     return { success: false, error: "You cannot follow yourself" };
   }
 
-  // Check target exists
+  // Check target exists and is active
   const target = await db.query.user.findFirst({
-    where: eq(user.id, targetId),
+    where: and(eq(user.id, targetId), eq(user.status, "active")),
     columns: { id: true, name: true, username: true },
   });
   if (!target) return { success: false, error: "User not found" };
@@ -120,7 +120,7 @@ export async function getFollowers(
     })
     .from(userFollow)
     .innerJoin(user, eq(userFollow.followerId, user.id))
-    .where(eq(userFollow.followingId, userId))
+    .where(and(eq(userFollow.followingId, userId), eq(user.status, "active")))
     .orderBy(userFollow.createdAt);
 
   return { success: true, data: rows };
@@ -140,7 +140,7 @@ export async function getFollowing(
     })
     .from(userFollow)
     .innerJoin(user, eq(userFollow.followingId, user.id))
-    .where(eq(userFollow.followerId, userId))
+    .where(and(eq(userFollow.followerId, userId), eq(user.status, "active")))
     .orderBy(userFollow.createdAt);
 
   return { success: true, data: rows };
@@ -163,6 +163,12 @@ export async function getFollowStatus(
   if (session.user.id === targetId) {
     return { success: true, data: { isFollowing: false, isFollowedBy: false, isMutual: false } };
   }
+
+  const target = await db.query.user.findFirst({
+    where: and(eq(user.id, targetId), eq(user.status, "active")),
+    columns: { id: true },
+  });
+  if (!target) return { success: false, error: "User not found" };
 
   const [following, followedBy] = await Promise.all([
     db.query.userFollow.findFirst({
@@ -289,7 +295,7 @@ export async function getUserProfile(
   username: string,
 ): Promise<ActionResult<UserProfile>> {
   const row = await db.query.user.findFirst({
-    where: eq(user.username, username.toLowerCase()),
+    where: and(eq(user.username, username.toLowerCase()), eq(user.status, "active")),
     columns: {
       id: true,
       name: true,
