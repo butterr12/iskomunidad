@@ -36,6 +36,7 @@ async function getPostForOg(postId: string) {
     ),
     columns: {
       title: true,
+      body: true,
       flair: true,
       score: true,
       commentCount: true,
@@ -55,6 +56,13 @@ function getTitleSize(title: string): number {
 function truncateTitle(title: string, maxChars = 120): string {
   if (title.length <= maxChars) return title;
   return title.slice(0, maxChars - 3).trimEnd() + "...";
+}
+
+function truncateBody(body: string | null, maxChars = 160): string | null {
+  if (!body?.trim()) return null;
+  const cleaned = body.trim();
+  if (cleaned.length <= maxChars) return cleaned;
+  return cleaned.slice(0, maxChars - 3).trimEnd() + "...";
 }
 
 export async function GET(request: NextRequest) {
@@ -80,6 +88,7 @@ export async function GET(request: NextRequest) {
     const flairColor = FLAIR_COLORS[flair] ?? "#8b1a1a";
     const titleSize = getTitleSize(post.title);
     const displayTitle = truncateTitle(post.title);
+    const displayBody = truncateBody(post.body);
     const authorName = post.user?.name ?? "Anonymous";
     const authorHandle = post.user?.username
       ? `@${post.user.username}`
@@ -93,40 +102,13 @@ export async function GET(request: NextRequest) {
             height: "630px",
             display: "flex",
             flexDirection: "column",
-            background:
-              "linear-gradient(145deg, #0f0808 0%, #1a0d0d 50%, #0d0d14 100%)",
+            background: "#111010",
             padding: "48px",
             position: "relative",
             overflow: "hidden",
             fontFamily: "Satoshi",
           }}
         >
-          {/* Flair-colored glow circle */}
-          <div
-            style={{
-              position: "absolute",
-              top: "-60px",
-              right: "-60px",
-              width: "320px",
-              height: "320px",
-              borderRadius: "50%",
-              background: flairColor,
-              opacity: 0.08,
-            }}
-          />
-          {/* Brand accent circle */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: "-30px",
-              left: "80px",
-              width: "140px",
-              height: "140px",
-              borderRadius: "50%",
-              background: "#8b1a1a",
-              opacity: 0.06,
-            }}
-          />
           {/* Subtle border */}
           <div
             style={{
@@ -184,6 +166,23 @@ export async function GET(request: NextRequest) {
             >
               {displayTitle}
             </div>
+
+            {/* Post body */}
+            {displayBody && (
+              <div
+                style={{
+                  display: "flex",
+                  marginTop: "16px",
+                  fontSize: "22px",
+                  fontFamily: "Satoshi",
+                  fontWeight: 700,
+                  color: "#888888",
+                  lineHeight: 1.4,
+                }}
+              >
+                {displayBody}
+              </div>
+            )}
 
             {/* Separator */}
             <div
@@ -311,48 +310,19 @@ export async function GET(request: NextRequest) {
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              justifyContent: "flex-end",
               marginTop: "auto",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-              }}
-            >
-              <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-                <rect
-                  x="16"
-                  y="2"
-                  width="8"
-                  height="8"
-                  rx="1"
-                  transform="rotate(45 16 2)"
-                  fill="#8b1a1a"
-                />
-                <rect x="12" y="14" width="8" height="16" rx="1" fill="#8b1a1a" />
-              </svg>
-              <span
-                style={{
-                  fontSize: "22px",
-                  fontFamily: "Cabinet Grotesk",
-                  fontWeight: 800,
-                  color: "#8b1a1a",
-                }}
-              >
-                iskomunidad
-              </span>
-            </div>
             <span
               style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "#555555",
+                fontSize: "22px",
+                fontFamily: "Cabinet Grotesk",
+                fontWeight: 800,
+                color: "#8b1a1a",
               }}
             >
-              university community
+              iskomunidad
             </span>
           </div>
         </div>
