@@ -181,6 +181,25 @@ export const commentVote = pgTable(
   ],
 );
 
+// ─── Post Bookmark ────────────────────────────────────────────────────────────
+
+export const postBookmark = pgTable(
+  "post_bookmark",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => communityPost.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("post_bookmark_user_post_idx").on(table.userId, table.postId),
+  ],
+);
+
 // ─── Campus Event ──────────────────────────────────────────────────────────────
 
 export const campusEvent = pgTable("campus_event", {
@@ -759,6 +778,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   communityPosts: many(communityPost),
   postComments: many(postComment),
   postVotes: many(postVote),
+  postBookmarks: many(postBookmark),
   commentVotes: many(commentVote),
   campusEvents: many(campusEvent),
   eventRsvps: many(eventRsvp),
@@ -858,6 +878,7 @@ export const communityPostRelations = relations(
     images: many(postImage),
     comments: many(postComment),
     votes: many(postVote),
+    bookmarks: many(postBookmark),
   }),
 );
 
@@ -907,6 +928,17 @@ export const commentVoteRelations = relations(commentVote, ({ one }) => ({
   }),
   user: one(user, {
     fields: [commentVote.userId],
+    references: [user.id],
+  }),
+}));
+
+export const postBookmarkRelations = relations(postBookmark, ({ one }) => ({
+  post: one(communityPost, {
+    fields: [postBookmark.postId],
+    references: [communityPost.id],
+  }),
+  user: one(user, {
+    fields: [postBookmark.userId],
     references: [user.id],
   }),
 }));

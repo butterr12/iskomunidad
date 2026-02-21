@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
+import { sanitizeNextPath } from "@/lib/next-path";
 
 type RouteSearchParams =
   | Promise<Record<string, string | string[] | undefined>>
@@ -24,6 +25,8 @@ export default async function ResetPasswordPage({
   const resolvedSearchParams = await getSearchParams(searchParams);
   const rawToken = resolvedSearchParams.token;
   const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;
+  const rawNext = resolvedSearchParams.next;
+  const nextPath = sanitizeNextPath(Array.isArray(rawNext) ? rawNext[0] : rawNext);
 
   return (
     <Suspense
@@ -33,7 +36,7 @@ export default async function ResetPasswordPage({
         </div>
       }
     >
-      <ResetPasswordForm token={token} />
+      <ResetPasswordForm token={token} nextPath={nextPath} />
     </Suspense>
   );
 }

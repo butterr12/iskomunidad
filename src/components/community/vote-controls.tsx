@@ -31,6 +31,7 @@ export function VoteControls({ score, userVote, onVote, size = "default" }: Vote
         variant="ghost"
         size="icon-xs"
         onClick={handleUpvote}
+        aria-label="Upvote"
         className={cn(
           "rounded-md",
           userVote === 1 ? "text-primary" : "text-muted-foreground"
@@ -52,6 +53,7 @@ export function VoteControls({ score, userVote, onVote, size = "default" }: Vote
         variant="ghost"
         size="icon-xs"
         onClick={handleDownvote}
+        aria-label="Downvote"
         className={cn(
           "rounded-md",
           userVote === -1 ? "text-destructive" : "text-muted-foreground"

@@ -3,6 +3,7 @@ export type AbuseAction =
   | "auth.login"
   | "post.create"
   | "post.vote"
+  | "post.bookmark"
   | "comment.create"
   | "comment.vote"
   | "event.create"

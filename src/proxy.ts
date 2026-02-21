@@ -19,11 +19,29 @@ const publicPrefixes = [
 ];
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
+
+  // Legacy community URLs -> canonical /c routes.
+  if (pathname === "/community" || pathname.startsWith("/community/")) {
+    const destination = request.nextUrl.clone();
+    const postId = searchParams.get("post");
+    if (pathname === "/community" && postId) {
+      destination.pathname = `/c/${postId}`;
+      destination.search = "";
+    } else {
+      destination.pathname =
+        pathname === "/community"
+          ? "/c"
+          : pathname.replace(/^\/community/, "/c");
+      destination.search = request.nextUrl.search;
+    }
+    return NextResponse.redirect(destination, 308);
+  }
 
   const isPublicRoute =
     pathname === "/" ||
-    publicPrefixes.some((route) => pathname.startsWith(route));
+    publicPrefixes.some((route) => pathname.startsWith(route)) ||
+    /^\/c\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/i.test(pathname);
   const isApiRoute = pathname.startsWith("/api");
 
   const sessionCookie = getSessionCookie(request);
@@ -34,7 +52,9 @@ export async function proxy(request: NextRequest) {
   if (isPublicRoute || isApiRoute) {
     response = NextResponse.next();
   } else if (!isAuthenticated) {
-    response = NextResponse.redirect(new URL("/sign-in", request.url));
+    const signInUrl = new URL("/sign-in", request.url);
+    signInUrl.searchParams.set("next", pathname + request.nextUrl.search);
+    response = NextResponse.redirect(signInUrl);
   } else {
     response = NextResponse.next();
   }

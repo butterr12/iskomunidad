@@ -50,6 +50,9 @@ function getTypeBadge(type: string): {
       return { label: "Comment", variant: "secondary" };
     case "comment_replied":
       return { label: "Reply", variant: "secondary" };
+    case "post_mentioned":
+    case "comment_mentioned":
+      return { label: "Mention", variant: "secondary" };
     case "post_upvoted":
     case "comment_upvoted":
       return { label: "Upvote", variant: "outline" };
@@ -71,10 +74,13 @@ function NotificationSkeleton() {
   );
 }
 
-function getNotificationHref(n: Notification): string | null {
+function getNotificationHref(n: Notification): string {
+  if (n.contentType === "post") {
+    if (n.type === "post_pending") return `/c`;
+    if (n.type === "post_rejected") return `/community`;
+    return `/c/${n.targetId}`;
+  }
   switch (n.contentType) {
-    case "post":
-      return `/community?post=${n.targetId}`;
     case "gig":
       return `/gigs?gig=${n.targetId}`;
     case "event":
@@ -82,7 +88,7 @@ function getNotificationHref(n: Notification): string | null {
     case "landmark":
       return `/map?landmark=${n.targetId}`;
     default:
-      return null;
+      return `/community`;
   }
 }
 
@@ -194,8 +200,7 @@ export function NotificationList() {
                 )}
                 onClick={() => {
                   if (!n.isRead) markReadMutation.mutate(n.id);
-                  const href = getNotificationHref(n);
-                  if (href) router.push(href);
+                  router.push(getNotificationHref(n));
                 }}
               >
                 <div className="flex items-start gap-3">

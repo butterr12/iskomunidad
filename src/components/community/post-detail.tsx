@@ -10,6 +10,8 @@ import { ArrowLeft, MapPin, Share2, Bookmark, ExternalLink } from "lucide-react"
 import { VoteControls } from "./vote-controls";
 import { CommentSection } from "./comment-section";
 import { UserFlairs } from "@/components/user-flairs";
+import { MentionText } from "./mention-text";
+import { cn } from "@/lib/utils";
 import {
   FLAIR_COLORS,
   formatRelativeTime,
@@ -26,6 +28,7 @@ interface PostDetailProps {
   onVoteComment: (commentId: string, direction: VoteDirection) => void;
   onComment: (body: string) => Promise<void>;
   onReply: (parentId: string, body: string) => Promise<void>;
+  onToggleBookmark?: () => void;
 }
 
 export function PostDetail({
@@ -36,6 +39,7 @@ export function PostDetail({
   onVoteComment,
   onComment,
   onReply,
+  onToggleBookmark,
 }: PostDetailProps) {
   const router = useRouter();
   const postComments = comments.filter((c) => c.postId === post.id);
@@ -91,7 +95,9 @@ export function PostDetail({
 
         {/* Full body */}
         {post.body && (
-          <p className="text-sm leading-relaxed">{post.body}</p>
+          <p className="text-sm leading-relaxed">
+            <MentionText text={post.body} />
+          </p>
         )}
         {post.linkUrl && (
           <a
@@ -137,9 +143,9 @@ export function PostDetail({
             <Share2 className="h-3.5 w-3.5" />
             Share
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <Bookmark className="h-3.5 w-3.5" />
-            Bookmark
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={onToggleBookmark}>
+            <Bookmark className={cn("h-3.5 w-3.5", post.isBookmarked && "fill-current")} />
+            {post.isBookmarked ? "Saved" : "Save"}
           </Button>
           {post.locationId && (
             <Button

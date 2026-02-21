@@ -1,7 +1,7 @@
 /* eslint-disable */
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { PhotoUpload, type UploadedPhoto } from "@/components/admin/photo-upload";
+import { MentionInput } from "@/components/community/mention-input";
 import { POST_FLAIRS, FLAIR_COLORS, type PostFlair } from "@/lib/posts";
 
 interface CreatePostFormProps {
@@ -31,6 +31,7 @@ interface CreatePostFormProps {
 }
 
 export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: CreatePostFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [title, setTitle] = useState("");
   const [flair, setFlair] = useState<PostFlair | "">("");
   const [body, setBody] = useState("");
@@ -81,7 +82,7 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
           <DialogDescription>Share something with the community</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 overflow-y-auto pr-1">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 overflow-y-auto pr-1">
           {/* Title */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="post-title" className="text-sm font-medium">
@@ -127,11 +128,12 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
             <label htmlFor="post-body" className="text-sm font-medium">
               Body <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
-            <Textarea
+            <MentionInput
               id="post-body"
-              placeholder="Write your post..."
+              multiline
+              placeholder="Write your post... (use @username to tag someone)"
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={setBody}
               rows={4}
             />
           </div>
@@ -169,10 +171,7 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
             type="button"
             disabled={!canSubmit}
             className="w-full"
-            onClick={(e) => {
-              const form = (e.target as HTMLElement).closest("[data-slot='dialog-content']")?.querySelector("form");
-              form?.requestSubmit();
-            }}
+            onClick={() => formRef.current?.requestSubmit()}
           >
             {submitting ? (
               <>

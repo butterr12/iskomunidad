@@ -24,6 +24,11 @@ export const POLICY_MAP: Record<AbuseAction, PolicyDefinition> = {
       { keyBy: "userId", windowSec: 60, softLimit: 30, hardLimit: 60 },
     ],
   },
+  "post.bookmark": {
+    rules: [
+      { keyBy: "userId", windowSec: 60, softLimit: 30, hardLimit: 60 },
+    ],
+  },
   "comment.create": {
     rules: [
       { keyBy: "userId", windowSec: 10 * 60, softLimit: 15, hardLimit: 30 },

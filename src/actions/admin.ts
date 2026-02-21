@@ -14,7 +14,7 @@ import {
   user,
   session as authSession,
 } from "@/lib/schema";
-import { and, eq, sql, desc, gte } from "drizzle-orm";
+import { and, eq, sql, desc, gte, inArray, ne } from "drizzle-orm";
 import {
   type ActionResult,
   type ApprovalMode,
@@ -35,6 +35,7 @@ import {
   getUserFlairsFromDb,
 } from "@/lib/flair-service";
 import { getFlairById } from "@/lib/user-flairs";
+import { extractMentionUsernames } from "@/lib/mentions";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -109,6 +110,45 @@ const settingsSchema = z.object({
   customModerationRules: z.string().max(2000).optional(),
 });
 
+function getActorLabel(actor?: { username?: string | null; name?: string | null } | null): string {
+  return actor?.username ? `@${actor.username}` : (actor?.name ?? "Someone");
+}
+
+async function notifyPostMentionsOnApproval(data: {
+  postId: string;
+  postTitle: string;
+  postBody?: string | null;
+  postAuthorId: string;
+  postAuthorLabel: string;
+}) {
+  const usernames = extractMentionUsernames(
+    `${data.postTitle}\n${data.postBody ?? ""}`,
+  );
+  if (usernames.length === 0) return;
+
+  const mentionTargets = await db
+    .select({ id: user.id, username: user.username })
+    .from(user)
+    .where(
+      and(
+        inArray(user.username, usernames),
+        eq(user.status, "active"),
+        ne(user.id, data.postAuthorId),
+      ),
+    );
+
+  for (const target of mentionTargets) {
+    await createUserNotification({
+      userId: target.id,
+      type: "post_mentioned",
+      contentType: "post",
+      targetId: data.postId,
+      targetTitle: data.postTitle,
+      actor: data.postAuthorLabel,
+    });
+  }
+}
+
 // ─── Posts ─────────────────────────────────────────────────────────────────────
 
 export async function adminGetAllPosts(
@@ -156,29 +196,45 @@ export async function adminApprovePost(
     .update(communityPost)
     .set({ status: "approved", rejectionReason: null })
     .where(and(eq(communityPost.id, id), eq(communityPost.status, "draft")))
-    .returning({ title: communityPost.title, userId: communityPost.userId });
+    .returning({
+      title: communityPost.title,
+      body: communityPost.body,
+      userId: communityPost.userId,
+    });
 
   if (!post) return { success: false, error: "Post was modified by another admin" };
 
-  const postUser = await db.query.user.findFirst({
-    where: eq(user.id, post.userId),
-    columns: { username: true, name: true },
-  });
+  try {
+    const postUser = await db.query.user.findFirst({
+      where: eq(user.id, post.userId),
+      columns: { username: true, name: true },
+    });
 
-  await createNotification({
-    type: "post_approved",
-    targetId: id,
-    targetTitle: post.title,
-    authorHandle: postUser?.username ?? postUser?.name ?? "unknown",
-  });
+    await createNotification({
+      type: "post_approved",
+      targetId: id,
+      targetTitle: post.title,
+      authorHandle: postUser?.username ?? postUser?.name ?? "unknown",
+    });
 
-  await createUserNotification({
-    userId: post.userId,
-    type: "post_approved",
-    contentType: "post",
-    targetId: id,
-    targetTitle: post.title,
-  });
+    await createUserNotification({
+      userId: post.userId,
+      type: "post_approved",
+      contentType: "post",
+      targetId: id,
+      targetTitle: post.title,
+    });
+
+    await notifyPostMentionsOnApproval({
+      postId: id,
+      postTitle: post.title,
+      postBody: post.body,
+      postAuthorId: post.userId,
+      postAuthorLabel: getActorLabel(postUser),
+    });
+  } catch (err) {
+    console.error("Failed to send approval notifications for post", id, err);
+  }
 
   return { success: true, data: undefined };
 }

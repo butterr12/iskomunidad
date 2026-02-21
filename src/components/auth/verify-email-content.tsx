@@ -15,9 +15,10 @@ import {
 
 interface VerifyEmailContentProps {
   email?: string | null;
+  nextPath?: string | null;
 }
 
-export function VerifyEmailContent({ email }: VerifyEmailContentProps) {
+export function VerifyEmailContent({ email, nextPath }: VerifyEmailContentProps) {
   const [resendStatus, setResendStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
@@ -35,7 +36,7 @@ export function VerifyEmailContent({ email }: VerifyEmailContentProps) {
 
     const { error } = await authClient.sendVerificationEmail({
       email,
-      callbackURL: "/",
+      callbackURL: nextPath ?? "/",
     });
 
     if (error) {
@@ -89,7 +90,9 @@ export function VerifyEmailContent({ email }: VerifyEmailContentProps) {
           Resend verification email
         </Button>
         <Button asChild variant="ghost" className="w-full">
-          <Link href="/sign-in">Back to sign in</Link>
+          <Link href={nextPath ? `/sign-in?next=${encodeURIComponent(nextPath)}` : "/sign-in"}>
+            Back to sign in
+          </Link>
         </Button>
       </CardContent>
     </Card>

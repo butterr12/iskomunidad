@@ -52,6 +52,10 @@ export function buildActivityMessage(data: {
       return `${actor} commented on your post "${data.targetTitle}".`;
     case "comment_replied":
       return `${actor} replied to your comment on "${data.targetTitle}".`;
+    case "post_mentioned":
+      return `${actor} mentioned you in a post: "${data.targetTitle}".`;
+    case "comment_mentioned":
+      return `${actor} mentioned you in a comment on "${data.targetTitle}".`;
     case "post_upvoted":
       return `${actor} upvoted your post "${data.targetTitle}".`;
     case "comment_upvoted":

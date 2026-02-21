@@ -20,9 +20,10 @@ import {
 
 interface SignInFormProps {
   message?: string | null;
+  nextPath?: string | null;
 }
 
-export function SignInForm({ message }: SignInFormProps) {
+export function SignInForm({ message, nextPath }: SignInFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,7 +46,9 @@ export function SignInForm({ message }: SignInFormProps) {
 
     if (signInError) {
       if (signInError.code === "EMAIL_NOT_VERIFIED") {
-        router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+        const verifyUrl = `/verify-email?email=${encodeURIComponent(email)}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
+        setLoading(false);
+        router.push(verifyUrl);
         return;
       }
       setError(signInError.message ?? "Something went wrong");
@@ -53,7 +56,7 @@ export function SignInForm({ message }: SignInFormProps) {
       return;
     }
 
-    router.push("/");
+    router.push(nextPath ?? "/");
     router.refresh();
   };
 
@@ -64,7 +67,7 @@ export function SignInForm({ message }: SignInFormProps) {
 
     const { error: magicLinkSignInError } = await signIn.magicLink({
       email,
-      callbackURL: "/",
+      callbackURL: nextPath ?? "/",
     });
 
     if (magicLinkSignInError) {
@@ -126,7 +129,7 @@ export function SignInForm({ message }: SignInFormProps) {
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
                   <Link
-                    href="/forgot-password"
+                    href={nextPath ? `/forgot-password?next=${encodeURIComponent(nextPath)}` : "/forgot-password"}
                     className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
                   >
                     Forgot password?

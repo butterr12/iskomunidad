@@ -308,7 +308,7 @@ export default function ProfilePageClient() {
                 <PostFeed
                   posts={posts}
                   onSelectPost={(post) =>
-                    router.push(`/community?post=${post.id}`)
+                    router.push(`/c/${post.id}`)
                   }
                   onVotePost={handleVotePost}
                 />

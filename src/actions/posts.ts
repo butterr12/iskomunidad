@@ -7,10 +7,12 @@ import {
   postImage,
   postComment,
   postVote,
+  postBookmark,
   commentVote,
   userFollow,
+  user,
 } from "@/lib/schema";
-import { eq, sql, and, inArray } from "drizzle-orm";
+import { eq, sql, and, inArray, ne } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
@@ -21,9 +23,64 @@ import {
   guardAction,
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
+import { extractMentionUsernames } from "@/lib/mentions";
 
 function getActorLabel(user: { username?: string | null; name?: string | null }): string {
   return user.username ? `@${user.username}` : (user.name ?? "Someone");
+}
+
+async function resolveMentionTargets(
+  text: string,
+  actorUserId: string,
+): Promise<Array<{ id: string; username: string }>> {
+  const usernames = extractMentionUsernames(text);
+  if (usernames.length === 0) return [];
+
+  const rows = await db
+    .select({
+      id: user.id,
+      username: user.username,
+    })
+    .from(user)
+    .where(
+      and(
+        inArray(user.username, usernames),
+        eq(user.status, "active"),
+        ne(user.id, actorUserId),
+      ),
+    );
+
+  return rows.flatMap((row) =>
+    row.username ? [{ id: row.id, username: row.username }] : [],
+  );
+}
+
+async function notifyMentionedUsers(data: {
+  text: string;
+  actorUserId: string;
+  actorLabel: string;
+  targetId: string;
+  targetTitle: string;
+  notificationType: "post_mentioned" | "comment_mentioned";
+  skipUserIds?: Set<string>;
+}) {
+  const targets = await resolveMentionTargets(data.text, data.actorUserId);
+  if (targets.length === 0) return;
+
+  for (const target of targets) {
+    if (data.skipUserIds?.has(target.id)) continue;
+
+    await createUserNotification({
+      userId: target.id,
+      type: data.notificationType,
+      contentType: "post",
+      targetId: data.targetId,
+      targetTitle: data.targetTitle,
+      actor: data.actorLabel,
+    });
+
+    data.skipUserIds?.add(target.id);
+  }
 }
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -72,13 +129,20 @@ export async function getApprovedPosts(
     },
   });
 
-  // Get current user's votes if logged in
+  // Get current user's votes and bookmarks if logged in
   let userVotes: Record<string, number> = {};
+  let userBookmarks: Record<string, boolean> = {};
   if (session?.user) {
     const votes = await db.query.postVote.findMany({
       where: eq(postVote.userId, session.user.id),
     });
     userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+
+    const bookmarks = await db.query.postBookmark.findMany({
+      where: eq(postBookmark.userId, session.user.id),
+      columns: { postId: true },
+    });
+    userBookmarks = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
   }
 
   return {
@@ -92,6 +156,7 @@ export async function getApprovedPosts(
       authorImage: r.user.image,
       imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
+      isBookmarked: userBookmarks[r.id] ?? false,
     })),
   };
 }
@@ -112,11 +177,18 @@ export async function getPostsForLandmark(
   });
 
   let userVotes: Record<string, number> = {};
+  let userBookmarks: Record<string, boolean> = {};
   if (session?.user) {
     const votes = await db.query.postVote.findMany({
       where: eq(postVote.userId, session.user.id),
     });
     userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+
+    const bookmarks = await db.query.postBookmark.findMany({
+      where: eq(postBookmark.userId, session.user.id),
+      columns: { postId: true },
+    });
+    userBookmarks = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
   }
 
   return {
@@ -130,6 +202,7 @@ export async function getPostsForLandmark(
       authorImage: r.user.image,
       imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
+      isBookmarked: userBookmarks[r.id] ?? false,
     })),
   };
 }
@@ -163,11 +236,17 @@ export async function getFollowingPosts(
     },
   });
 
-  // Get current user's votes
+  // Get current user's votes and bookmarks
   const votes = await db.query.postVote.findMany({
     where: eq(postVote.userId, session.user.id),
   });
   const userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+
+  const bookmarks = await db.query.postBookmark.findMany({
+    where: eq(postBookmark.userId, session.user.id),
+    columns: { postId: true },
+  });
+  const userBookmarks: Record<string, boolean> = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
 
   return {
     success: true,
@@ -180,6 +259,7 @@ export async function getFollowingPosts(
       authorImage: r.user.image,
       imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
+      isBookmarked: userBookmarks[r.id] ?? false,
     })),
   };
 }
@@ -214,11 +294,18 @@ export async function getApprovedPostsPaginated(
   const pageRows = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
 
   let userVotes: Record<string, number> = {};
+  let userBookmarks: Record<string, boolean> = {};
   if (session?.user) {
     const votes = await db.query.postVote.findMany({
       where: eq(postVote.userId, session.user.id),
     });
     userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+
+    const bookmarks = await db.query.postBookmark.findMany({
+      where: eq(postBookmark.userId, session.user.id),
+      columns: { postId: true },
+    });
+    userBookmarks = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
   }
 
   return {
@@ -233,6 +320,7 @@ export async function getApprovedPostsPaginated(
         authorImage: r.user.image,
         imageKeys: r.images.map((img) => img.imageKey),
         userVote: userVotes[r.id] ?? 0,
+        isBookmarked: userBookmarks[r.id] ?? false,
       })),
       hasMore,
     },
@@ -266,8 +354,9 @@ export async function getPostById(
     return { success: false, error: "Post not found" };
   }
 
-  // Get user's votes on post and comments
+  // Get user's votes, bookmarks, and comment votes
   let postUserVote = 0;
+  let isBookmarked = false;
   let commentUserVotes: Record<string, number> = {};
   if (session?.user) {
     const pv = await db.query.postVote.findFirst({
@@ -277,6 +366,14 @@ export async function getPostById(
       ),
     });
     postUserVote = pv?.value ?? 0;
+
+    const bk = await db.query.postBookmark.findFirst({
+      where: and(
+        eq(postBookmark.postId, id),
+        eq(postBookmark.userId, session.user.id),
+      ),
+    });
+    isBookmarked = !!bk;
 
     const cvs = await db.query.commentVote.findMany({
       where: eq(commentVote.userId, session.user.id),
@@ -298,6 +395,7 @@ export async function getPostById(
       authorImage: row.user.image,
       imageKeys: row.images.map((img) => img.imageKey),
       userVote: postUserVote,
+      isBookmarked,
       comments: row.comments.map((c) => ({
         ...c,
         createdAt: c.createdAt.toISOString(),
@@ -393,6 +491,17 @@ export async function createPost(
     });
   }
 
+  if (status === "approved") {
+    await notifyMentionedUsers({
+      text: `${parsed.data.title}\n${parsed.data.body ?? ""}`,
+      actorUserId: session.user.id,
+      actorLabel: getActorLabel(session.user),
+      targetId: created.id,
+      targetTitle: parsed.data.title,
+      notificationType: "post_mentioned",
+    });
+  }
+
   return { success: true, data: { id: created.id, status } };
 }
 
@@ -446,19 +555,14 @@ export async function voteOnPost(
       });
   }
 
-  // Recalculate score
-  const [{ total }] = await db
-    .select({
-      total: sql<number>`COALESCE(SUM(${postVote.value}), 0)`,
-    })
-    .from(postVote)
-    .where(eq(postVote.postId, postId));
-
-  const newScore = Number(total);
-  await db
+  // Recalculate score atomically
+  const [{ score: newScore }] = await db
     .update(communityPost)
-    .set({ score: newScore })
-    .where(eq(communityPost.id, postId));
+    .set({
+      score: sql`COALESCE((SELECT SUM(${postVote.value}) FROM ${postVote} WHERE ${postVote.postId} = ${postId}), 0)`,
+    })
+    .where(eq(communityPost.id, postId))
+    .returning({ score: communityPost.score });
 
   const shouldNotifyUpvote =
     parsed.data.value === 1 &&
@@ -523,25 +627,29 @@ export async function createComment(
     }
   }
 
-  const [created] = await db
-    .insert(postComment)
-    .values({
-      postId: parsed.data.postId,
-      parentId: parsed.data.parentId ?? null,
-      userId: session.user.id,
-      body: parsed.data.body,
-    })
-    .returning();
+  const [created] = await db.transaction(async (tx) => {
+    const [comment] = await tx
+      .insert(postComment)
+      .values({
+        postId: parsed.data.postId,
+        parentId: parsed.data.parentId ?? null,
+        userId: session.user.id,
+        body: parsed.data.body,
+      })
+      .returning();
 
-  // Increment commentCount
-  await db
-    .update(communityPost)
-    .set({
-      commentCount: sql`${communityPost.commentCount} + 1`,
-    })
-    .where(eq(communityPost.id, parsed.data.postId));
+    await tx
+      .update(communityPost)
+      .set({
+        commentCount: sql`${communityPost.commentCount} + 1`,
+      })
+      .where(eq(communityPost.id, parsed.data.postId));
+
+    return [comment];
+  });
 
   const actor = getActorLabel(session.user);
+  const notifiedUserIds = new Set<string>();
   if (parsed.data.parentId && parentComment) {
     if (parentComment.userId !== session.user.id) {
       await createUserNotification({
@@ -552,6 +660,7 @@ export async function createComment(
         targetTitle: post.title,
         actor,
       });
+      notifiedUserIds.add(parentComment.userId);
     }
     if (post.userId !== session.user.id && post.userId !== parentComment.userId) {
       await createUserNotification({
@@ -562,6 +671,7 @@ export async function createComment(
         targetTitle: post.title,
         actor,
       });
+      notifiedUserIds.add(post.userId);
     }
   } else if (post.userId !== session.user.id) {
     await createUserNotification({
@@ -572,7 +682,18 @@ export async function createComment(
       targetTitle: post.title,
       actor,
     });
+    notifiedUserIds.add(post.userId);
   }
+
+  await notifyMentionedUsers({
+    text: parsed.data.body,
+    actorUserId: session.user.id,
+    actorLabel: actor,
+    targetId: parsed.data.postId,
+    targetTitle: post.title,
+    notificationType: "comment_mentioned",
+    skipUserIds: notifiedUserIds,
+  });
 
   return {
     success: true,
@@ -653,19 +774,14 @@ export async function voteOnComment(
       });
   }
 
-  // Recalculate score
-  const [{ total }] = await db
-    .select({
-      total: sql<number>`COALESCE(SUM(${commentVote.value}), 0)`,
-    })
-    .from(commentVote)
-    .where(eq(commentVote.commentId, commentId));
-
-  const newScore = Number(total);
-  await db
+  // Recalculate score atomically
+  const [{ score: newScore }] = await db
     .update(postComment)
-    .set({ score: newScore })
-    .where(eq(postComment.id, commentId));
+    .set({
+      score: sql`COALESCE((SELECT SUM(${commentVote.value}) FROM ${commentVote} WHERE ${commentVote.commentId} = ${commentId}), 0)`,
+    })
+    .where(eq(postComment.id, commentId))
+    .returning({ score: postComment.score });
 
   const shouldNotifyUpvote =
     parsed.data.value === 1 &&
@@ -683,4 +799,90 @@ export async function voteOnComment(
   }
 
   return { success: true, data: { newScore } };
+}
+
+export async function toggleBookmark(
+  postId: string,
+): Promise<ActionResult<{ isBookmarked: boolean }>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const limited = await guardAction("post.bookmark", { userId: session.user.id });
+  if (limited) return limited;
+
+  const post = await db.query.communityPost.findFirst({
+    where: and(eq(communityPost.id, postId), eq(communityPost.status, "approved")),
+    columns: { id: true },
+  });
+  if (!post) return { success: false, error: "Post not found" };
+
+  const [inserted] = await db
+    .insert(postBookmark)
+    .values({ postId, userId: session.user.id })
+    .onConflictDoNothing({ target: [postBookmark.userId, postBookmark.postId] })
+    .returning({ id: postBookmark.id });
+
+  if (!inserted) {
+    // Already bookmarked — remove it
+    await db
+      .delete(postBookmark)
+      .where(
+        and(
+          eq(postBookmark.postId, postId),
+          eq(postBookmark.userId, session.user.id),
+        ),
+      );
+    return { success: true, data: { isBookmarked: false } };
+  }
+
+  return { success: true, data: { isBookmarked: true } };
+}
+
+export async function getBookmarkedPosts(
+  opts?: { sort?: "hot" | "new" | "top" },
+): Promise<ActionResult<unknown[]>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const bookmarkedPostIds = db
+    .select({ id: postBookmark.postId })
+    .from(postBookmark)
+    .where(eq(postBookmark.userId, session.user.id));
+
+  const rows = await db.query.communityPost.findMany({
+    where: (p, { eq: e, and: a }) =>
+      a(
+        e(p.status, "approved"),
+        inArray(p.id, bookmarkedPostIds),
+      ),
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+    },
+    orderBy: (p, { desc: d }) => {
+      if (opts?.sort === "top") return [d(p.score)];
+      if (opts?.sort === "new") return [d(p.createdAt)];
+      return [d(p.score), d(p.createdAt)];
+    },
+  });
+
+  const votes = await db.query.postVote.findMany({
+    where: eq(postVote.userId, session.user.id),
+  });
+  const userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      author: r.user.name,
+      authorHandle: r.user.username ? `@${r.user.username}` : null,
+      authorImage: r.user.image,
+      imageKeys: r.images.map((img) => img.imageKey),
+      userVote: userVotes[r.id] ?? 0,
+      isBookmarked: true,
+    })),
+  };
 }

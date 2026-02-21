@@ -42,7 +42,7 @@ import type { BorderDefinition } from "@/lib/profile-borders";
 /** Desktop: all 5 original tabs */
 const allDesktopTabs = [
   { label: "Map", href: "/map", icon: MapPin },
-  { label: "Community", href: "/community", icon: Users },
+  { label: "Community", href: "/c", icon: Users },
   { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Events", href: "/events", icon: CalendarDays },
   { label: "Gigs", href: "/gigs", icon: Hammer },
@@ -51,7 +51,7 @@ const allDesktopTabs = [
 /** Mobile bottom nav: 4 core tabs + More button */
 const coreTabs = [
   { label: "Map", href: "/map", icon: MapPin },
-  { label: "Community", href: "/community", icon: Users },
+  { label: "Community", href: "/c", icon: Users },
   { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Gigs", href: "/gigs", icon: Hammer },
 ] as const;

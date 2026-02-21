@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { SignInForm } from "@/components/auth/sign-in-form";
+import { sanitizeNextPath } from "@/lib/next-path";
 
 type RouteSearchParams =
   | Promise<Record<string, string | string[] | undefined>>
@@ -23,7 +24,9 @@ export default async function SignInPage({
 }) {
   const resolvedSearchParams = await getSearchParams(searchParams);
   const rawMessage = resolvedSearchParams.message;
+  const rawNext = resolvedSearchParams.next;
   const message = Array.isArray(rawMessage) ? rawMessage[0] : rawMessage;
+  const next = sanitizeNextPath(Array.isArray(rawNext) ? rawNext[0] : rawNext);
 
   return (
     <Suspense
@@ -33,7 +36,7 @@ export default async function SignInPage({
         </div>
       }
     >
-      <SignInForm message={message} />
+      <SignInForm message={message} nextPath={next} />
     </Suspense>
   );
 }

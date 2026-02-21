@@ -16,6 +16,7 @@ export interface CommunityPost {
   score: number;
   commentCount: number;
   userVote: VoteDirection;
+  isBookmarked?: boolean;
   linkUrl?: string;
   imageKeys?: string[];
   status?: PostStatus;

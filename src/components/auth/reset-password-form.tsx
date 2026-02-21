@@ -19,9 +19,10 @@ import {
 
 interface ResetPasswordFormProps {
   token?: string | null;
+  nextPath?: string | null;
 }
 
-export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
+export function ResetPasswordForm({ token, nextPath }: ResetPasswordFormProps) {
   const router = useRouter();
 
   const [newPassword, setNewPassword] = useState("");
@@ -40,7 +41,9 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" className="w-full">
-            <Link href="/forgot-password">Request a new link</Link>
+            <Link href={nextPath ? `/forgot-password?next=${encodeURIComponent(nextPath)}` : "/forgot-password"}>
+              Request a new link
+            </Link>
           </Button>
         </CardContent>
       </Card>
@@ -69,7 +72,8 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
       return;
     }
 
-    router.push("/sign-in?message=Password reset successfully. Please sign in.");
+    const signInUrl = `/sign-in?message=${encodeURIComponent("Password reset successfully. Please sign in.")}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
+    router.push(signInUrl);
   };
 
   return (

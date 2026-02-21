@@ -22,8 +22,8 @@ interface FilterSheetProps {
   onOpenChange: (open: boolean) => void;
   sortMode: SortMode;
   onSortModeChange: (mode: SortMode) => void;
-  feedMode: "all" | "following";
-  onFeedModeChange: (mode: "all" | "following") => void;
+  feedMode: "all" | "following" | "saved";
+  onFeedModeChange: (mode: "all" | "following" | "saved") => void;
   activeFlair: PostFlair | null;
   onFlairChange: (flair: PostFlair | null) => void;
   showFeedMode: boolean;
@@ -88,7 +88,7 @@ export function FilterSheet({
             <div>
               <h3 className="text-sm font-semibold mb-2">Feed</h3>
               <div className="flex gap-1.5">
-                {(["all", "following"] as const).map((mode) => (
+                {(["all", "following", "saved"] as const).map((mode) => (
                   <button
                     key={mode}
                     onClick={() => {
@@ -100,7 +100,7 @@ export function FilterSheet({
                         : "bg-muted text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {mode === "all" ? "All" : "Following"}
+                    {mode === "all" ? "All" : mode === "following" ? "Following" : "Saved"}
                   </button>
                 ))}
               </div>

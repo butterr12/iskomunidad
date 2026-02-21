@@ -265,8 +265,11 @@ export async function createUserNotification(data: {
     data.type.endsWith("_approved") ||
     data.type.endsWith("_rejected") ||
     data.type.endsWith("_pending");
+  const isDirectMentionNotification =
+    data.type === "post_mentioned" || data.type === "comment_mentioned";
   if (
     !isModerationLifecycleNotification &&
+    !isDirectMentionNotification &&
     !areNotificationsEnabledForContentType(data.contentType, preferences)
   ) {
     return;

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { VerifyEmailContent } from "@/components/auth/verify-email-content";
+import { sanitizeNextPath } from "@/lib/next-path";
 
 type RouteSearchParams =
   | Promise<Record<string, string | string[] | undefined>>
@@ -24,6 +25,8 @@ export default async function VerifyEmailPage({
   const resolvedSearchParams = await getSearchParams(searchParams);
   const rawEmail = resolvedSearchParams.email;
   const email = Array.isArray(rawEmail) ? rawEmail[0] : rawEmail;
+  const rawNext = resolvedSearchParams.next;
+  const nextPath = sanitizeNextPath(Array.isArray(rawNext) ? rawNext[0] : rawNext);
 
   return (
     <Suspense
@@ -33,7 +36,7 @@ export default async function VerifyEmailPage({
         </div>
       }
     >
-      <VerifyEmailContent email={email} />
+      <VerifyEmailContent email={email} nextPath={nextPath} />
     </Suspense>
   );
 }

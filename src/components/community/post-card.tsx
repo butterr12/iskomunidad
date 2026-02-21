@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageCircle, MapPin, ExternalLink } from "lucide-react";
 import { VoteControls } from "./vote-controls";
 import { UserFlairs } from "@/components/user-flairs";
+import { MentionText } from "./mention-text";
 import {
   FLAIR_COLORS,
   formatRelativeTime,
@@ -83,7 +84,12 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
 
           {/* Body preview */}
           {post.body && (
-            <p className="line-clamp-2 text-sm text-muted-foreground">{post.body}</p>
+            <p className="line-clamp-2 text-sm text-muted-foreground">
+              <MentionText
+                text={post.body}
+                onMentionClick={(e) => e.stopPropagation()}
+              />
+            </p>
           )}
           {post.linkUrl && (
             <div className="flex items-center gap-1 text-sm text-primary">

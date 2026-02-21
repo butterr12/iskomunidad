@@ -9,13 +9,14 @@ import {
   userSelectedBorder,
 } from "@/lib/schema";
 import { user } from "@/lib/auth-schema";
-import { eq, and, count, ilike, or, ne } from "drizzle-orm";
+import { eq, and, count, ilike, or, ne, inArray, isNotNull } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
   getOptionalSession,
   createUserNotification,
   guardAction,
+  rateLimit,
 } from "./_helpers";
 import { getBorderById, type BorderDefinition } from "@/lib/profile-borders";
 
@@ -82,6 +83,9 @@ export async function unfollowUser(
 ): Promise<ActionResult<void>> {
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const limited = await guardAction("follow.toggle", { userId: session.user.id });
+  if (limited) return limited;
 
   await db
     .delete(userFollow)
@@ -327,6 +331,16 @@ export type UserSearchResult = {
   image: string | null;
 };
 
+export type MentionCandidate = {
+  id: string;
+  name: string;
+  username: string;
+  image: string | null;
+  isFollowing: boolean;
+  isFollowedBy: boolean;
+  isMutual: boolean;
+};
+
 export async function searchUsers(
   query: string,
 ): Promise<ActionResult<UserSearchResult[]>> {
@@ -356,6 +370,134 @@ export async function searchUsers(
     .limit(10);
 
   return { success: true, data: rows };
+}
+
+function getMentionTextRank(candidate: { username: string; name: string }, query: string): number {
+  const username = candidate.username.toLowerCase();
+  const name = candidate.name.toLowerCase();
+
+  if (username === query) return 0;
+  if (username.startsWith(query)) return 1;
+  if (name.startsWith(query)) return 2;
+  if (username.includes(query)) return 3;
+  return 4;
+}
+
+function getMentionSocialRank(flags: {
+  isFollowing: boolean;
+  isFollowedBy: boolean;
+}): number {
+  if (flags.isFollowing && flags.isFollowedBy) return 0; // mutual
+  if (flags.isFollowing) return 1;
+  if (flags.isFollowedBy) return 2;
+  return 3;
+}
+
+export async function searchMentionableUsers(
+  query: string,
+): Promise<ActionResult<MentionCandidate[]>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const limited = await rateLimit("general");
+  if (limited) return limited;
+
+  const trimmed = query.trim();
+  if (!trimmed) return { success: true, data: [] };
+
+  const pattern = `%${trimmed}%`;
+  const normalizedQuery = trimmed.toLowerCase();
+
+  // Pull a larger candidate set first, then apply deterministic ranking in memory.
+  const rawCandidates = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      image: user.image,
+    })
+    .from(user)
+    .where(
+      and(
+        eq(user.status, "active"),
+        isNotNull(user.username),
+        ne(user.id, session.user.id),
+        or(ilike(user.username, pattern), ilike(user.name, pattern)),
+      ),
+    )
+    .orderBy(user.username)
+    .limit(60);
+
+  const candidates = rawCandidates.flatMap((row) =>
+    row.username
+      ? [{
+        id: row.id,
+        name: row.name,
+        username: row.username,
+        image: row.image,
+      }]
+      : [],
+  );
+  if (candidates.length === 0) return { success: true, data: [] };
+
+  const candidateIds = candidates.map((candidate) => candidate.id);
+
+  const [followingRows, followedByRows] = await Promise.all([
+    db
+      .select({ userId: userFollow.followingId })
+      .from(userFollow)
+      .where(
+        and(
+          eq(userFollow.followerId, session.user.id),
+          inArray(userFollow.followingId, candidateIds),
+        ),
+      ),
+    db
+      .select({ userId: userFollow.followerId })
+      .from(userFollow)
+      .where(
+        and(
+          eq(userFollow.followingId, session.user.id),
+          inArray(userFollow.followerId, candidateIds),
+        ),
+      ),
+  ]);
+
+  const followingSet = new Set(followingRows.map((row) => row.userId));
+  const followedBySet = new Set(followedByRows.map((row) => row.userId));
+
+  const ranked = candidates
+    .map((candidate) => {
+      const isFollowing = followingSet.has(candidate.id);
+      const isFollowedBy = followedBySet.has(candidate.id);
+      const isMutual = isFollowing && isFollowedBy;
+
+      return {
+        ...candidate,
+        isFollowing,
+        isFollowedBy,
+        isMutual,
+        textRank: getMentionTextRank(candidate, normalizedQuery),
+        socialRank: getMentionSocialRank({ isFollowing, isFollowedBy }),
+      };
+    })
+    .sort((a, b) => {
+      if (a.textRank !== b.textRank) return a.textRank - b.textRank;
+      if (a.socialRank !== b.socialRank) return a.socialRank - b.socialRank;
+      return a.username.toLowerCase().localeCompare(b.username.toLowerCase());
+    })
+    .slice(0, 10)
+    .map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      username: candidate.username,
+      image: candidate.image,
+      isFollowing: candidate.isFollowing,
+      isFollowedBy: candidate.isFollowedBy,
+      isMutual: candidate.isMutual,
+    }));
+
+  return { success: true, data: ranked };
 }
 
 // ─── Get user's approved posts ──────────────────────────────────────────────

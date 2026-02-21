@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MentionInput } from "./mention-input";
 import { CommentThread } from "./comment-thread";
 import { buildCommentTree, type PostComment, type VoteDirection } from "@/lib/posts";
 
@@ -48,14 +48,14 @@ export function CommentSection({
 
       {/* Comment composer */}
       <form onSubmit={handleSubmit} className="flex gap-2">
-        <Input
-          placeholder="Add a comment..."
+        <MentionInput
+          placeholder="Add a comment... (use @username to tag)"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={setBody}
           disabled={submitting}
-          className="flex-1"
+          containerClassName="flex-1"
         />
-        <Button type="submit" size="icon" disabled={!body.trim() || submitting}>
+        <Button type="submit" size="icon" aria-label="Post comment" disabled={!body.trim() || submitting}>
           {submitting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (

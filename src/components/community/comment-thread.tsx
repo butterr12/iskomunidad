@@ -4,9 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { Reply, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { VoteControls } from "./vote-controls";
+import { MentionText } from "./mention-text";
+import { MentionInput } from "./mention-input";
 import { UserFlairs } from "@/components/user-flairs";
 import { formatRelativeTime, type CommentNode, type VoteDirection } from "@/lib/posts";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,8 @@ interface CommentThreadProps {
   depth?: number;
   onVoteComment: (commentId: string, direction: VoteDirection) => void;
   onReply: (parentId: string, body: string) => Promise<void>;
+  expandedThreads?: Set<string>;
+  onExpandThread?: (commentId: string) => void;
 }
 
 const MAX_VISIBLE_DEPTH = 3;
@@ -57,17 +60,18 @@ function InlineReplyForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-1 flex gap-2">
-      <Input
-        placeholder="Write a reply..."
+      <MentionInput
+        placeholder="Write a reply... (use @username to tag)"
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={setBody}
         disabled={submitting}
-        className="h-8 flex-1 text-sm"
+        containerClassName="flex-1"
+        className="h-8 text-sm"
         onKeyDown={(e) => {
           if (e.key === "Escape") onCancel();
         }}
       />
-      <Button type="submit" size="icon-xs" disabled={!body.trim() || submitting}>
+      <Button type="submit" size="icon-xs" aria-label="Submit reply" disabled={!body.trim() || submitting}>
         {submitting ? (
           <Loader2 className="h-3 w-3 animate-spin" />
         ) : (
@@ -81,8 +85,13 @@ function InlineReplyForm({
   );
 }
 
-export function CommentThread({ nodes, depth = 0, onVoteComment, onReply }: CommentThreadProps) {
+export function CommentThread({ nodes, depth = 0, onVoteComment, onReply, expandedThreads: expandedThreadsProp, onExpandThread: onExpandThreadProp }: CommentThreadProps) {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [ownExpanded, setOwnExpanded] = useState<Set<string>>(new Set());
+
+  // Root instance owns state; children receive it via props
+  const expandedThreads = expandedThreadsProp ?? ownExpanded;
+  const onExpandThread = onExpandThreadProp ?? ((id: string) => setOwnExpanded((prev) => new Set(prev).add(id)));
 
   return (
     <div className={cn("flex flex-col", depth > 0 && "ml-6 border-l-2 border-muted pl-3")}>
@@ -112,7 +121,9 @@ export function CommentThread({ nodes, depth = 0, onVoteComment, onReply }: Comm
                 <span>·</span>
                 <span>{formatRelativeTime(node.comment.createdAt)}</span>
               </div>
-              <p className="text-sm">{node.comment.body}</p>
+              <p className="text-sm">
+                <MentionText text={node.comment.body} />
+              </p>
               <Button
                 variant="ghost"
                 size="xs"
@@ -135,15 +146,20 @@ export function CommentThread({ nodes, depth = 0, onVoteComment, onReply }: Comm
           </div>
 
           {node.children.length > 0 && (
-            depth + 1 < MAX_VISIBLE_DEPTH ? (
+            depth + 1 < MAX_VISIBLE_DEPTH || expandedThreads.has(node.comment.id) ? (
               <CommentThread
                 nodes={node.children}
                 depth={depth + 1}
                 onVoteComment={onVoteComment}
                 onReply={onReply}
+                expandedThreads={expandedThreads}
+                onExpandThread={onExpandThread}
               />
             ) : (
-              <button className="ml-6 mt-1 text-xs font-medium text-primary hover:underline">
+              <button
+                className="ml-6 mt-1 text-xs font-medium text-primary hover:underline"
+                onClick={() => onExpandThread(node.comment.id)}
+              >
                 Continue this thread →
               </button>
             )
