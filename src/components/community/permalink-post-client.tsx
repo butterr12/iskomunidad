@@ -223,7 +223,7 @@ export function PermalinkPostClient({
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col bg-background pt-2 pb-6 sm:pt-6">
+    <main className="mx-auto flex h-dvh w-full max-w-3xl flex-col overflow-y-auto bg-background pt-2 pb-6 sm:pt-6">
       <button
         onClick={handleBack}
         className="flex items-center gap-1.5 border-b px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
