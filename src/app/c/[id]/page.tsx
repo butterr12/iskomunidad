@@ -98,10 +98,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const description = buildDescription(data.post);
-  const firstImage = data.post.imageKeys[0];
-  const imageUrl = firstImage
-    ? `${siteConfig.url}/api/photos/${firstImage}`
-    : undefined;
+  const ogImageUrl = `${siteConfig.url}/api/og/post?id=${id}`;
 
   return {
     title: data.post.title,
@@ -112,13 +109,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: `/c/${id}`,
       title: data.post.title,
       description,
-      images: imageUrl ? [{ url: imageUrl }] : undefined,
+      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: data.post.title }],
     },
     twitter: {
-      card: imageUrl ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: data.post.title,
       description,
-      images: imageUrl ? [imageUrl] : undefined,
+      images: [ogImageUrl],
     },
     robots: {
       index: false,
