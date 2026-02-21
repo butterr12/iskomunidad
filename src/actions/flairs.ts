@@ -4,6 +4,7 @@ import { type ActionResult, getSession } from "./_helpers";
 import {
   getUserFlairsFromDb,
   getVisibleFlairsByUsername,
+  getVisibleFlairsByUsernames,
   setFlairVisibility,
 } from "@/lib/flair-service";
 import type { DisplayFlair } from "@/lib/user-flairs";
@@ -20,6 +21,14 @@ export async function getFlairsForUser(
   username: string,
 ): Promise<ActionResult<DisplayFlair[]>> {
   const flairs = await getVisibleFlairsByUsername(username);
+  return { success: true, data: flairs };
+}
+
+export async function getFlairsForUsers(
+  usernames: string[],
+): Promise<ActionResult<Record<string, DisplayFlair[]>>> {
+  const capped = usernames.slice(0, 50);
+  const flairs = await getVisibleFlairsByUsernames(capped);
   return { success: true, data: flairs };
 }
 

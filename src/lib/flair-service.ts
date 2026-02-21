@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { userFlair } from "@/lib/schema";
 import { user as userTable } from "@/lib/auth-schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   USER_FLAIR_CATALOG,
   getBasicFlairIds,
@@ -148,6 +148,49 @@ export async function setFlairVisibility(
     .where(and(eq(userFlair.userId, userId), eq(userFlair.flairId, flairId)));
 
   return { success: true };
+}
+
+// ─── Batch query (public views — skips ensureBasicFlairs) ────────────────────
+
+export async function getVisibleFlairsByUsernames(
+  usernames: string[],
+): Promise<Record<string, DisplayFlair[]>> {
+  if (usernames.length === 0) return {};
+
+  // Query 1: bulk user lookup
+  const users = await db.query.user.findMany({
+    where: inArray(userTable.username, usernames.map((u) => u.toLowerCase())),
+    columns: { id: true, username: true },
+  });
+  if (users.length === 0) return {};
+
+  const userIdToUsername = new Map(users.map((u) => [u.id, u.username!]));
+  const userIds = users.map((u) => u.id);
+
+  // Query 2: bulk visible flairs
+  const rows = await db.query.userFlair.findMany({
+    where: and(
+      inArray(userFlair.userId, userIds),
+      eq(userFlair.visible, true),
+    ),
+  });
+
+  // Build result keyed by username
+  const result: Record<string, DisplayFlair[]> = {};
+  for (const username of usernames) {
+    result[username] = [];
+  }
+
+  for (const row of rows) {
+    const username = userIdToUsername.get(row.userId);
+    if (!username) continue;
+    const def = USER_FLAIR_CATALOG.find((f) => f.id === row.flairId);
+    if (!def) continue;
+    if (!result[username]) result[username] = [];
+    result[username].push({ ...def, visible: true });
+  }
+
+  return result;
 }
 
 // ─── University sync ────────────────────────────────────────────────────────

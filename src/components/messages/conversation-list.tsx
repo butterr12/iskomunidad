@@ -14,6 +14,7 @@ import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import { formatRelativeTime } from "@/lib/posts";
 import { ComposeDialog } from "./compose-dialog";
+import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -66,24 +67,26 @@ function ConversationItem({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center min-w-0">
             <span className={cn("text-sm truncate", conversation.unreadCount > 0 ? "font-semibold" : "font-medium")}>
               {conversation.otherUser.name}
             </span>
             {conversation.otherUser.username && (
-              <span className="text-[11px] text-muted-foreground shrink-0">
+              <span className="text-[11px] text-muted-foreground shrink-0 ml-1.5">
                 @{conversation.otherUser.username}
               </span>
             )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
             {conversation.otherUser.username && (
               <UserFlairs username={conversation.otherUser.username} context="inline" max={1} />
             )}
+            {conversation.lastMessage && (
+              <span className="text-[11px] text-muted-foreground">
+                {formatRelativeTime(conversation.lastMessage.createdAt)}
+              </span>
+            )}
           </div>
-          {conversation.lastMessage && (
-            <span className="text-[11px] text-muted-foreground shrink-0">
-              {formatRelativeTime(conversation.lastMessage.createdAt)}
-            </span>
-          )}
         </div>
         <p
           className={cn(
@@ -138,6 +141,8 @@ export function ConversationList({
   const messages = data?.messages ?? [];
   const requests = data?.requests ?? [];
   const requestCount = requests.length;
+
+  usePrefetchUserFlairs([...messages, ...requests].map((c) => c.otherUser.username));
 
   if (isLoading) {
     return (

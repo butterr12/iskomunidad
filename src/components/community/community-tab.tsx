@@ -29,6 +29,7 @@ import {
   createPost,
 } from "@/actions/posts";
 import { toast } from "sonner";
+import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
 
 type PostPage = { posts: CommunityPost[]; hasMore: boolean };
 
@@ -149,6 +150,8 @@ export function CommunityTab() {
     }
     return posts;
   }, [feedMode, posts, followingPosts, savedPosts, activeFlair, sortMode]);
+
+  usePrefetchUserFlairs(displayPosts.map((p) => p.authorHandle?.replace("@", "")));
 
   const activePosts = feedMode === "following" ? followingPosts : feedMode === "saved" ? savedPosts : posts;
   const activeLoading = feedMode === "following" ? followingLoading : feedMode === "saved" ? savedLoading : isLoading;

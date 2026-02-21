@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MentionInput } from "./mention-input";
 import { CommentThread } from "./comment-thread";
 import { buildCommentTree, type PostComment, type VoteDirection } from "@/lib/posts";
+import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
 
 interface CommentSectionProps {
   comments: PostComment[];
@@ -21,6 +22,7 @@ export function CommentSection({
   onReply,
 }: CommentSectionProps) {
   const tree = buildCommentTree(comments);
+  usePrefetchUserFlairs(comments.map((c) => c.authorHandle?.replace("@", "")));
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
 

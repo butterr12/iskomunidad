@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getFlairsForUser } from "@/actions/flairs";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface UserFlairsProps {
   username: string;
@@ -10,7 +11,7 @@ interface UserFlairsProps {
 }
 
 export function UserFlairs({ username, context = "inline", max = 3 }: UserFlairsProps) {
-  const { data: flairs = [] } = useQuery({
+  const { data: flairs = [], isPending } = useQuery({
     queryKey: ["user-flairs", username],
     queryFn: async () => {
       const res = await getFlairsForUser(username);
@@ -20,12 +21,24 @@ export function UserFlairs({ username, context = "inline", max = 3 }: UserFlairs
     staleTime: 60_000,
   });
 
+  const isInline = context === "inline";
+
+  if (isPending && username) {
+    return (
+      <Skeleton
+        className={
+          isInline
+            ? "h-4 w-10 rounded-full shrink-0"
+            : "h-5 w-14 rounded-full shrink-0"
+        }
+      />
+    );
+  }
+
   if (flairs.length === 0) return null;
 
   const shown = flairs.slice(0, max);
   const overflow = flairs.length - max;
-
-  const isInline = context === "inline";
 
   return (
     <>
