@@ -118,7 +118,10 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!activeConversation) return;
     const latest = allConversations.find((c) => c.id === activeConversation.id);
-    if (!latest) return;
+    if (!latest) {
+      setActiveConversation(null);
+      return;
+    }
     if (
       latest.updatedAt !== activeConversation.updatedAt ||
       latest.requestStatus !== activeConversation.requestStatus ||

@@ -429,6 +429,11 @@ export const userPrivacySetting = pgTable("user_privacy_setting", {
 export const conversation = pgTable("conversation", {
   id: uuid("id").defaultRandom().primaryKey(),
   isRequest: boolean("is_request").notNull().default(false),
+  deletedAt: timestamp("deleted_at"),
+  deletedByUserId: text("deleted_by_user_id").references(() => user.id, {
+    onDelete: "set null",
+  }),
+  deleteKind: text("delete_kind"), // "conversation" | "request"
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -498,7 +503,8 @@ export const messageRequest = pgTable(
     toUserId: text("to_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    status: text("status").notNull().default("pending"), // "pending" | "accepted" | "declined"
+    status: text("status").notNull().default("pending"), // "pending" | "accepted" | "declined" | "withdrawn"
+    resolvedAt: timestamp("resolved_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -510,6 +516,14 @@ export const messageRequest = pgTable(
     index("message_request_to_user_status_idx").on(
       table.toUserId,
       table.status,
+    ),
+    index("message_request_from_user_status_idx").on(
+      table.fromUserId,
+      table.status,
+    ),
+    index("message_request_status_resolved_idx").on(
+      table.status,
+      table.resolvedAt,
     ),
   ],
 );
@@ -1042,6 +1056,11 @@ export const conversationRelations = relations(conversation, ({ many, one }) => 
   participants: many(conversationParticipant),
   messages: many(message),
   request: one(messageRequest),
+  deletedByUser: one(user, {
+    fields: [conversation.deletedByUserId],
+    references: [user.id],
+    relationName: "conversationDeletedByUser",
+  }),
 }));
 
 export const conversationParticipantRelations = relations(

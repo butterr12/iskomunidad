@@ -10,7 +10,7 @@ import {
   userPrivacySetting,
 } from "@/lib/schema";
 import { user } from "@/lib/auth-schema";
-import { eq, and, desc, lt, sql, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import { getSession, guardAction, type ActionResult } from "./_helpers";
 import { getIO } from "@/lib/socket-server";
 
@@ -55,9 +55,41 @@ export type MessageData = {
 
 const VALID_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const REQUEST_RETRY_COOLDOWN_DAYS = 7;
+const REQUEST_RETRY_COOLDOWN_MS = REQUEST_RETRY_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
 
 function isValidUuid(value: string): boolean {
   return VALID_UUID.test(value);
+}
+
+function formatRetryTimestamp(value: Date): string {
+  return value.toLocaleString("en-US", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "UTC",
+  });
+}
+
+function emitConversationRoomEvent(
+  eventName:
+    | "conversation_deleted"
+    | "request_deleted"
+    | "request_declined"
+    | "request_accepted",
+  conversationId: string,
+  participantUserIds: string[],
+): void {
+  try {
+    const io = getIO();
+    if (!io) return;
+
+    io.to(`conv:${conversationId}`).emit(eventName, { conversationId });
+    for (const participantUserId of participantUserIds) {
+      io.to(`user:${participantUserId}`).emit(eventName, { conversationId });
+    }
+  } catch {
+    // Socket.io not available
+  }
 }
 
 // ─── getOrCreateConversation ─────────────────────────────────────────────────
@@ -109,8 +141,10 @@ export async function getOrCreateConversation(
         and(
           eq(conversationParticipant.userId, targetUserId),
           sql`${conversationParticipant.conversationId} IN (${myConversations})`,
+          isNull(conversation.deletedAt),
         ),
       )
+      .orderBy(desc(conversation.updatedAt))
       .limit(1);
 
     if (existing.length > 0) {
@@ -157,6 +191,35 @@ export async function getOrCreateConversation(
     const isMutual = iFollow.length > 0 && theyFollow.length > 0;
     const isRequest = !isMutual;
 
+    if (isRequest) {
+      const [latestClosedOutgoing] = await tx
+        .select({
+          resolvedAt: messageRequest.resolvedAt,
+          updatedAt: messageRequest.updatedAt,
+        })
+        .from(messageRequest)
+        .where(
+          and(
+            eq(messageRequest.fromUserId, userId),
+            eq(messageRequest.toUserId, targetUserId),
+            inArray(messageRequest.status, ["declined", "withdrawn"]),
+          ),
+        )
+        .orderBy(desc(messageRequest.updatedAt))
+        .limit(1);
+
+      if (latestClosedOutgoing) {
+        const closedAt =
+          latestClosedOutgoing.resolvedAt ?? latestClosedOutgoing.updatedAt;
+        const retryAt = new Date(closedAt.getTime() + REQUEST_RETRY_COOLDOWN_MS);
+        if (Date.now() < retryAt.getTime()) {
+          return {
+            error: `You can send another message request after ${formatRetryTimestamp(retryAt)} UTC`,
+          };
+        }
+      }
+    }
+
     const [newConv] = await tx
       .insert(conversation)
       .values({ isRequest })
@@ -172,6 +235,7 @@ export async function getOrCreateConversation(
         conversationId: newConv.id,
         fromUserId: userId,
         toUserId: targetUserId,
+        status: "pending",
       });
     }
 
@@ -214,6 +278,13 @@ export async function sendMessage(input: {
     const participant = await tx
       .select({ id: conversationParticipant.id })
       .from(conversationParticipant)
+      .innerJoin(
+        conversation,
+        and(
+          eq(conversation.id, conversationParticipant.conversationId),
+          isNull(conversation.deletedAt),
+        ),
+      )
       .where(
         and(
           eq(conversationParticipant.conversationId, input.conversationId),
@@ -223,22 +294,27 @@ export async function sendMessage(input: {
       .limit(1);
 
     if (participant.length === 0) {
-      return { error: "Not a participant" };
+      return { error: "Conversation is no longer available" };
     }
 
     // Serialize request checks + first message creation within this conversation.
     await tx.execute(
-      sql`SELECT id FROM "conversation" WHERE id = ${input.conversationId} FOR UPDATE`,
+      sql`SELECT id FROM "conversation" WHERE id = ${input.conversationId} AND deleted_at IS NULL FOR UPDATE`,
     );
 
     const conv = await tx
       .select({ isRequest: conversation.isRequest })
       .from(conversation)
-      .where(eq(conversation.id, input.conversationId))
+      .where(
+        and(
+          eq(conversation.id, input.conversationId),
+          isNull(conversation.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (conv.length === 0) {
-      return { error: "Conversation not found" };
+      return { error: "Conversation is no longer available" };
     }
 
     let requestToUserId: string | null = null;
@@ -257,8 +333,8 @@ export async function sendMessage(input: {
         return { error: "Request not found" };
       }
 
-      if (request[0].status === "declined") {
-        return { error: "This request was declined" };
+      if (request[0].status === "declined" || request[0].status === "withdrawn") {
+        return { error: "This request is no longer available" };
       }
 
       if (request[0].fromUserId !== userId) {
@@ -376,13 +452,20 @@ export async function getConversations(): Promise<
   if (!session) return { success: false, error: "Not authenticated" };
   const userId = session.user.id;
 
-  // 1. Get my participations
+  // 1. Get my participations in active conversations only
   const myParticipations = await db
     .select({
       conversationId: conversationParticipant.conversationId,
       lastReadAt: conversationParticipant.lastReadAt,
     })
     .from(conversationParticipant)
+    .innerJoin(
+      conversation,
+      and(
+        eq(conversation.id, conversationParticipant.conversationId),
+        isNull(conversation.deletedAt),
+      ),
+    )
     .where(eq(conversationParticipant.userId, userId));
 
   if (myParticipations.length === 0) {
@@ -412,7 +495,12 @@ export async function getConversations(): Promise<
       ),
     )
     .innerJoin(user, eq(user.id, conversationParticipant.userId))
-    .where(sql`${conversation.id} IN (${convIdsSql})`)
+    .where(
+      and(
+        inArray(conversation.id, convIds),
+        isNull(conversation.deletedAt),
+      ),
+    )
     .orderBy(desc(conversation.updatedAt));
 
   if (convRows.length === 0) {
@@ -448,6 +536,9 @@ export async function getConversations(): Promise<
     JOIN conversation_participant cp
       ON cp.conversation_id = m.conversation_id
       AND cp.user_id = ${userId}
+    JOIN conversation c
+      ON c.id = m.conversation_id
+      AND c.deleted_at IS NULL
     WHERE m.conversation_id IN (${convIdsSql})
       AND m.sender_id != ${userId}
       AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
@@ -468,10 +559,6 @@ export async function getConversations(): Promise<
   >();
 
   if (requestConvIds.length > 0) {
-    const requestIdsSql = sql.join(
-      requestConvIds.map((id) => sql`${id}`),
-      sql`, `,
-    );
     const requestRows = await db
       .select({
         conversationId: messageRequest.conversationId,
@@ -481,45 +568,56 @@ export async function getConversations(): Promise<
       })
       .from(messageRequest)
       .where(
-        sql`${messageRequest.conversationId} IN (${requestIdsSql})`,
+        and(
+          inArray(messageRequest.conversationId, requestConvIds),
+          eq(messageRequest.status, "pending"),
+        ),
       );
+
     for (const r of requestRows) {
       requestMap.set(r.conversationId, r);
     }
   }
 
   // 6. Assemble results
-  const conversations: ConversationPreview[] = convRows.map((row) => {
-    const lastMsg = lastMsgMap.get(row.convId);
-    const request = requestMap.get(row.convId);
+  const conversations = convRows
+    .map((row): ConversationPreview | null => {
+      const request = requestMap.get(row.convId);
+      if (row.isRequest && !request) {
+        // Hide closed/stale request threads from user-facing inbox.
+        return null;
+      }
 
-    return {
-      id: row.convId,
-      isRequest: row.isRequest,
-      updatedAt: row.updatedAt.toISOString(),
-      otherUser: {
-        id: row.otherUserId,
-        name: row.otherUserName,
-        username: row.otherUserUsername,
-        image: row.otherUserImage,
-      },
-      lastMessage: lastMsg
-        ? {
-            body: lastMsg.body,
-            imageUrl: lastMsg.image_url,
-            senderId: lastMsg.sender_id,
-            createdAt:
-              typeof lastMsg.created_at === "string"
-                ? new Date(lastMsg.created_at).toISOString()
-                : lastMsg.created_at,
-          }
-        : null,
-      unreadCount: unreadMap.get(row.convId) ?? 0,
-      requestStatus: request?.status,
-      requestFromUserId: request?.fromUserId,
-      requestToUserId: request?.toUserId,
-    };
-  });
+      const lastMsg = lastMsgMap.get(row.convId);
+
+      return {
+        id: row.convId,
+        isRequest: row.isRequest,
+        updatedAt: row.updatedAt.toISOString(),
+        otherUser: {
+          id: row.otherUserId,
+          name: row.otherUserName,
+          username: row.otherUserUsername,
+          image: row.otherUserImage,
+        },
+        lastMessage: lastMsg
+          ? {
+              body: lastMsg.body,
+              imageUrl: lastMsg.image_url,
+              senderId: lastMsg.sender_id,
+              createdAt:
+                typeof lastMsg.created_at === "string"
+                  ? new Date(lastMsg.created_at).toISOString()
+                  : lastMsg.created_at,
+            }
+          : null,
+        unreadCount: unreadMap.get(row.convId) ?? 0,
+        requestStatus: request?.status,
+        requestFromUserId: request?.fromUserId,
+        requestToUserId: request?.toUserId,
+      };
+    })
+    .filter((item): item is ConversationPreview => item !== null);
 
   return {
     success: true,
@@ -544,10 +642,17 @@ export async function getMessages(
     return { success: false, error: "Invalid conversation ID" };
   }
 
-  // Verify participant
+  // Verify participant in active conversation
   const participant = await db
     .select({ id: conversationParticipant.id })
     .from(conversationParticipant)
+    .innerJoin(
+      conversation,
+      and(
+        eq(conversation.id, conversationParticipant.conversationId),
+        isNull(conversation.deletedAt),
+      ),
+    )
     .where(
       and(
         eq(conversationParticipant.conversationId, conversationId),
@@ -557,7 +662,7 @@ export async function getMessages(
     .limit(1);
 
   if (participant.length === 0) {
-    return { success: false, error: "Not a participant" };
+    return { success: false, error: "Conversation is no longer available" };
   }
 
   const PAGE_SIZE = 50;
@@ -637,48 +742,77 @@ export async function acceptRequest(
     return { success: false, error: "Invalid conversation ID" };
   }
 
-  const [request] = await db
-    .select()
-    .from(messageRequest)
-    .where(eq(messageRequest.conversationId, conversationId))
-    .limit(1);
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT id FROM "conversation" WHERE id = ${conversationId} AND deleted_at IS NULL FOR UPDATE`,
+    );
 
-  if (!request) {
-    return { success: false, error: "Request not found" };
+    const [conv] = await tx
+      .select({ isRequest: conversation.isRequest })
+      .from(conversation)
+      .where(and(eq(conversation.id, conversationId), isNull(conversation.deletedAt)))
+      .limit(1);
+
+    if (!conv || !conv.isRequest) {
+      return { error: "Request no longer available" };
+    }
+
+    const [request] = await tx
+      .select({
+        id: messageRequest.id,
+        fromUserId: messageRequest.fromUserId,
+        toUserId: messageRequest.toUserId,
+        status: messageRequest.status,
+      })
+      .from(messageRequest)
+      .where(eq(messageRequest.conversationId, conversationId))
+      .limit(1);
+
+    if (!request) {
+      return { error: "Request not found" };
+    }
+
+    if (request.toUserId !== userId) {
+      return { error: "Only the recipient can accept requests" };
+    }
+
+    if (request.status !== "pending") {
+      return { error: "Request already handled" };
+    }
+
+    const now = new Date();
+
+    await tx
+      .update(messageRequest)
+      .set({ status: "accepted", resolvedAt: now, updatedAt: now })
+      .where(eq(messageRequest.id, request.id));
+
+    await tx
+      .update(conversation)
+      .set({ isRequest: false, updatedAt: now })
+      .where(eq(conversation.id, conversationId));
+
+    const participants = await tx
+      .select({ userId: conversationParticipant.userId })
+      .from(conversationParticipant)
+      .where(eq(conversationParticipant.conversationId, conversationId));
+
+    return {
+      participantUserIds: participants.map((p) => p.userId),
+      fromUserId: request.fromUserId,
+    };
+  });
+
+  if ("error" in result) {
+    return { success: false, error: result.error ?? "Unable to accept request" };
   }
-
-  if (request.toUserId !== userId) {
-    return { success: false, error: "Only the recipient can accept requests" };
-  }
-
-  if (request.status !== "pending") {
-    return { success: false, error: "Request already handled" };
-  }
-
-  await db
-    .update(messageRequest)
-    .set({ status: "accepted", updatedAt: new Date() })
-    .where(eq(messageRequest.id, request.id));
-
-  await db
-    .update(conversation)
-    .set({ isRequest: false, updatedAt: new Date() })
-    .where(eq(conversation.id, conversationId));
 
   // Emit real-time event
-  try {
-    const io = getIO();
-    if (io) {
-      io.to(`user:${request.fromUserId}`).emit("request_accepted", {
-        conversationId,
-      });
-      io.to(`conv:${conversationId}`).emit("request_accepted", {
-        conversationId,
-      });
-    }
-  } catch {
-    // Socket.io not available
-  }
+  emitConversationRoomEvent(
+    "request_accepted",
+    conversationId,
+    result.participantUserIds,
+  );
 
   return { success: true, data: undefined };
 }
@@ -697,8 +831,17 @@ export async function declineRequest(
   }
 
   const [request] = await db
-    .select()
+    .select({
+      toUserId: messageRequest.toUserId,
+    })
     .from(messageRequest)
+    .innerJoin(
+      conversation,
+      and(
+        eq(conversation.id, messageRequest.conversationId),
+        isNull(conversation.deletedAt),
+      ),
+    )
     .where(eq(messageRequest.conversationId, conversationId))
     .limit(1);
 
@@ -710,31 +853,195 @@ export async function declineRequest(
     return { success: false, error: "Only the recipient can decline requests" };
   }
 
-  if (request.status !== "pending") {
-    return { success: false, error: "Request already handled" };
+  return deleteMessageRequest(conversationId);
+}
+
+// ─── deleteConversation ─────────────────────────────────────────────────────
+
+export async function deleteConversation(
+  conversationId: string,
+): Promise<ActionResult<void>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+  const userId = session.user.id;
+
+  if (!isValidUuid(conversationId)) {
+    return { success: false, error: "Invalid conversation ID" };
   }
 
-  await db
-    .update(messageRequest)
-    .set({ status: "declined", updatedAt: new Date() })
-    .where(eq(messageRequest.id, request.id));
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT id FROM "conversation" WHERE id = ${conversationId} AND deleted_at IS NULL FOR UPDATE`,
+    );
 
-  // Emit real-time event
-  try {
-    const io = getIO();
-    if (io) {
-      io.to(`user:${request.fromUserId}`).emit("request_declined", {
-        conversationId,
-      });
-      io.to(`user:${request.toUserId}`).emit("request_declined", {
-        conversationId,
-      });
-      io.to(`conv:${conversationId}`).emit("request_declined", {
-        conversationId,
-      });
+    const [conv] = await tx
+      .select({ isRequest: conversation.isRequest })
+      .from(conversation)
+      .innerJoin(
+        conversationParticipant,
+        and(
+          eq(conversationParticipant.conversationId, conversation.id),
+          eq(conversationParticipant.userId, userId),
+        ),
+      )
+      .where(and(eq(conversation.id, conversationId), isNull(conversation.deletedAt)))
+      .limit(1);
+
+    if (!conv) {
+      return { error: "Conversation not found" };
     }
-  } catch {
-    // Socket.io not available
+
+    if (conv.isRequest) {
+      return { error: "Use request actions to delete message requests" };
+    }
+
+    const now = new Date();
+
+    await tx
+      .update(conversation)
+      .set({
+        deletedAt: now,
+        deletedByUserId: userId,
+        deleteKind: "conversation",
+        updatedAt: now,
+      })
+      .where(eq(conversation.id, conversationId));
+
+    const participants = await tx
+      .select({ userId: conversationParticipant.userId })
+      .from(conversationParticipant)
+      .where(eq(conversationParticipant.conversationId, conversationId));
+
+    return {
+      participantUserIds: participants.map((p) => p.userId),
+    };
+  });
+
+  if ("error" in result) {
+    return { success: false, error: result.error ?? "Unable to delete conversation" };
+  }
+
+  emitConversationRoomEvent(
+    "conversation_deleted",
+    conversationId,
+    result.participantUserIds,
+  );
+
+  return { success: true, data: undefined };
+}
+
+// ─── deleteMessageRequest ───────────────────────────────────────────────────
+
+export async function deleteMessageRequest(
+  conversationId: string,
+): Promise<ActionResult<void>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+  const userId = session.user.id;
+
+  if (!isValidUuid(conversationId)) {
+    return { success: false, error: "Invalid conversation ID" };
+  }
+
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT id FROM "conversation" WHERE id = ${conversationId} AND deleted_at IS NULL FOR UPDATE`,
+    );
+
+    const [conv] = await tx
+      .select({ isRequest: conversation.isRequest })
+      .from(conversation)
+      .innerJoin(
+        conversationParticipant,
+        and(
+          eq(conversationParticipant.conversationId, conversation.id),
+          eq(conversationParticipant.userId, userId),
+        ),
+      )
+      .where(and(eq(conversation.id, conversationId), isNull(conversation.deletedAt)))
+      .limit(1);
+
+    if (!conv) {
+      return { error: "Conversation not found" };
+    }
+
+    if (!conv.isRequest) {
+      return { error: "This conversation is not a message request" };
+    }
+
+    const [request] = await tx
+      .select({
+        id: messageRequest.id,
+        status: messageRequest.status,
+        fromUserId: messageRequest.fromUserId,
+        toUserId: messageRequest.toUserId,
+      })
+      .from(messageRequest)
+      .where(eq(messageRequest.conversationId, conversationId))
+      .limit(1);
+
+    if (!request) {
+      return { error: "Request not found" };
+    }
+
+    if (request.fromUserId !== userId && request.toUserId !== userId) {
+      return { error: "Not allowed to manage this request" };
+    }
+
+    const now = new Date();
+    let closedStatus: "declined" | "withdrawn" | null = null;
+
+    if (request.status === "pending") {
+      closedStatus = request.toUserId === userId ? "declined" : "withdrawn";
+
+      await tx
+        .update(messageRequest)
+        .set({ status: closedStatus, resolvedAt: now, updatedAt: now })
+        .where(eq(messageRequest.id, request.id));
+    }
+
+    await tx
+      .update(conversation)
+      .set({
+        deletedAt: now,
+        deletedByUserId: userId,
+        deleteKind: "request",
+        updatedAt: now,
+      })
+      .where(eq(conversation.id, conversationId));
+
+    const participants = await tx
+      .select({ userId: conversationParticipant.userId })
+      .from(conversationParticipant)
+      .where(eq(conversationParticipant.conversationId, conversationId));
+
+    return {
+      participantUserIds: participants.map((p) => p.userId),
+      closedStatus,
+    };
+  });
+
+  if ("error" in result) {
+    return { success: false, error: result.error ?? "Unable to delete request" };
+  }
+
+  emitConversationRoomEvent(
+    "request_deleted",
+    conversationId,
+    result.participantUserIds,
+  );
+  emitConversationRoomEvent(
+    "conversation_deleted",
+    conversationId,
+    result.participantUserIds,
+  );
+
+  if (result.closedStatus === "declined") {
+    emitConversationRoomEvent(
+      "request_declined",
+      conversationId,
+      result.participantUserIds,
+    );
   }
 
   return { success: true, data: undefined };
@@ -753,7 +1060,29 @@ export async function markAsRead(
     return { success: false, error: "Invalid conversation ID" };
   }
 
-  const updated = await db
+  const participant = await db
+    .select({ id: conversationParticipant.id })
+    .from(conversationParticipant)
+    .innerJoin(
+      conversation,
+      and(
+        eq(conversation.id, conversationParticipant.conversationId),
+        isNull(conversation.deletedAt),
+      ),
+    )
+    .where(
+      and(
+        eq(conversationParticipant.conversationId, conversationId),
+        eq(conversationParticipant.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (participant.length === 0) {
+    return { success: false, error: "Conversation is no longer available" };
+  }
+
+  await db
     .update(conversationParticipant)
     .set({ lastReadAt: new Date() })
     .where(
@@ -761,12 +1090,7 @@ export async function markAsRead(
         eq(conversationParticipant.conversationId, conversationId),
         eq(conversationParticipant.userId, userId),
       ),
-    )
-    .returning({ id: conversationParticipant.id });
-
-  if (updated.length === 0) {
-    return { success: false, error: "Not a participant" };
-  }
+    );
 
   // Emit read receipt
   try {
@@ -792,19 +1116,35 @@ export async function getUnreadCount(): Promise<ActionResult<number>> {
   if (!session) return { success: false, error: "Not authenticated" };
   const userId = session.user.id;
 
-  // Count conversations with unread messages (single query)
-  const result = await db.execute<{ count: string }>(sql`
-    SELECT COUNT(DISTINCT m.conversation_id)::text AS count
-    FROM message m
-    JOIN conversation_participant cp
-      ON cp.conversation_id = m.conversation_id
-      AND cp.user_id = ${userId}
-    JOIN conversation c
-      ON c.id = m.conversation_id
-      AND c.is_request = false
-    WHERE m.sender_id != ${userId}
-      AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
-  `);
+  const [dmUnreadResult, requestUnreadResult] = await Promise.all([
+    // Count conversations with unread direct messages (active, non-request only).
+    db.execute<{ count: string }>(sql`
+      SELECT COUNT(DISTINCT m.conversation_id)::text AS count
+      FROM message m
+      JOIN conversation_participant cp
+        ON cp.conversation_id = m.conversation_id
+        AND cp.user_id = ${userId}
+      JOIN conversation c
+        ON c.id = m.conversation_id
+        AND c.is_request = false
+        AND c.deleted_at IS NULL
+      WHERE m.sender_id != ${userId}
+        AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+    `),
+    // Count pending incoming requests (active request conversations).
+    db.execute<{ count: string }>(sql`
+      SELECT COUNT(*)::text AS count
+      FROM message_request mr
+      JOIN conversation c
+        ON c.id = mr.conversation_id
+      WHERE mr.to_user_id = ${userId}
+        AND mr.status = 'pending'
+        AND c.deleted_at IS NULL
+    `),
+  ]);
 
-  return { success: true, data: Number(result.rows[0]?.count ?? 0) };
+  const dmUnread = Number(dmUnreadResult.rows[0]?.count ?? 0);
+  const requestUnread = Number(requestUnreadResult.rows[0]?.count ?? 0);
+
+  return { success: true, data: dmUnread + requestUnread };
 }

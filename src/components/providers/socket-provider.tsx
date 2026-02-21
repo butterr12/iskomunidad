@@ -91,14 +91,27 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on("new_request", () => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      void refreshUnreadCount();
     });
 
     newSocket.on("request_accepted", () => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      void refreshUnreadCount();
     });
 
     newSocket.on("request_declined", () => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      void refreshUnreadCount();
+    });
+
+    newSocket.on("request_deleted", () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      void refreshUnreadCount();
+    });
+
+    newSocket.on("conversation_deleted", () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      void refreshUnreadCount();
     });
 
     socketRef.current = newSocket;

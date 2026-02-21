@@ -13,6 +13,7 @@ import {
 import { useSocket } from "@/components/providers/socket-provider";
 import { MessageBubble } from "./message-bubble";
 import { RequestBanner } from "./request-banner";
+import { ChatDetailsSheet } from "./chat-details-sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,6 +23,7 @@ import {
   ImagePlus,
   Loader2,
   X,
+  Info,
 } from "lucide-react";
 import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
@@ -74,6 +76,7 @@ export function ChatPanel({
   optimisticMessagesRef.current = optimisticMessages;
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [readBy, setReadBy] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -238,16 +241,26 @@ export function ChatPanel({
       }
     };
 
+    const handleConversationDeleted = (data: { conversationId: string }) => {
+      if (data.conversationId === conversation.id) {
+        onBack();
+      }
+    };
+
     socket.on("new_message", handleNewMessage);
     socket.on("typing", handleTyping);
     socket.on("message_read", handleMessageRead);
+    socket.on("conversation_deleted", handleConversationDeleted);
+    socket.on("request_deleted", handleConversationDeleted);
 
     return () => {
       socket.off("new_message", handleNewMessage);
       socket.off("typing", handleTyping);
       socket.off("message_read", handleMessageRead);
+      socket.off("conversation_deleted", handleConversationDeleted);
+      socket.off("request_deleted", handleConversationDeleted);
     };
-  }, [socket, conversation.id, conversation.otherUser.name, userId, queryClient, data]);
+  }, [socket, conversation.id, conversation.otherUser.name, userId, queryClient, data, onBack]);
 
   // Mark as read on open
   useEffect(() => {
@@ -528,6 +541,15 @@ export function ChatPanel({
             </p>
           )}
         </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="ml-auto"
+          onClick={() => setDetailsOpen(true)}
+        >
+          <Info className="h-4 w-4" />
+          <span className="sr-only">Open chat details</span>
+        </Button>
       </div>
 
       {/* Request banner */}
@@ -693,6 +715,14 @@ export function ChatPanel({
           </div>
         </div>
       )}
+
+      <ChatDetailsSheet
+        conversation={conversation}
+        userId={userId}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        onDeleted={onBack}
+      />
     </div>
   );
 }

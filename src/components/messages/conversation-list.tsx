@@ -1,20 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getConversations, type ConversationPreview } from "@/actions/messages";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  deleteMessageRequest,
+  getConversations,
+  type ConversationPreview,
+} from "@/actions/messages";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { SquarePen } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { SquarePen, MoreVertical, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import { formatRelativeTime } from "@/lib/posts";
 import { ComposeDialog } from "./compose-dialog";
 import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
+import { useSession } from "@/lib/auth-client";
+import { toast } from "sonner";
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -31,75 +45,148 @@ function ConversationItem({
   conversation,
   isActive,
   onClick,
+  showRequestActions = false,
+  currentUserId,
 }: {
   conversation: ConversationPreview;
   isActive: boolean;
   onClick: () => void;
+  showRequestActions?: boolean;
+  currentUserId?: string;
 }) {
+  const queryClient = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const lastMessagePreview = conversation.lastMessage
     ? conversation.lastMessage.imageUrl
       ? "Sent an image"
       : conversation.lastMessage.body ?? ""
     : "No messages yet";
 
+  const isRecipient = !!currentUserId && conversation.requestToUserId === currentUserId;
+  const requestActionLabel = isRecipient ? "Delete request" : "Cancel request";
+
+  async function handleDeleteRequest() {
+    setIsDeleting(true);
+    const res = await deleteMessageRequest(conversation.id);
+    if (res.success) {
+      toast.success(isRecipient ? "Request deleted" : "Request canceled");
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages", conversation.id] });
+      setConfirmOpen(false);
+    } else {
+      toast.error(res.error);
+    }
+    setIsDeleting(false);
+  }
+
   return (
-    <button
-      onClick={onClick}
+    <div
       className={cn(
-        "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50",
+        "flex items-center gap-2 px-2 py-2 transition-colors hover:bg-muted/50",
         isActive && "bg-muted",
       )}
     >
-      <div className="relative shrink-0">
-        <BorderedAvatar avatarSize={32}>
-          <Avatar size="default">
-            <AvatarImage
-              src={conversation.otherUser.image ?? undefined}
-              alt={conversation.otherUser.name}
-            />
-            <AvatarFallback>{getInitials(conversation.otherUser.name)}</AvatarFallback>
-          </Avatar>
-        </BorderedAvatar>
-        {conversation.unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-primary border-2 border-background" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center min-w-0">
-            <span className={cn("text-sm truncate", conversation.unreadCount > 0 ? "font-semibold" : "font-medium")}>
-              {conversation.otherUser.name}
-            </span>
-            {conversation.otherUser.username && (
-              <span className="text-[11px] text-muted-foreground shrink-0 ml-1.5">
-                @{conversation.otherUser.username}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-            {conversation.otherUser.username && (
-              <UserFlairs username={conversation.otherUser.username} context="inline" max={1} />
-            )}
-            {conversation.lastMessage && (
-              <span className="text-[11px] text-muted-foreground">
-                {formatRelativeTime(conversation.lastMessage.createdAt)}
-              </span>
-            )}
-          </div>
-        </div>
-        <p
-          className={cn(
-            "text-xs truncate",
-            conversation.unreadCount > 0
-              ? "text-foreground font-medium"
-              : "text-muted-foreground",
+      <button onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1 text-left">
+        <div className="relative shrink-0">
+          <BorderedAvatar avatarSize={32}>
+            <Avatar size="default">
+              <AvatarImage
+                src={conversation.otherUser.image ?? undefined}
+                alt={conversation.otherUser.name}
+              />
+              <AvatarFallback>{getInitials(conversation.otherUser.name)}</AvatarFallback>
+            </Avatar>
+          </BorderedAvatar>
+          {conversation.unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-primary border-2 border-background" />
           )}
-        >
-          {lastMessagePreview}
-        </p>
-      </div>
-    </button>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center min-w-0">
+              <span className={cn("text-sm truncate", conversation.unreadCount > 0 ? "font-semibold" : "font-medium")}>
+                {conversation.otherUser.name}
+              </span>
+              {conversation.otherUser.username && (
+                <span className="text-[11px] text-muted-foreground shrink-0 ml-1.5">
+                  @{conversation.otherUser.username}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              {conversation.otherUser.username && (
+                <UserFlairs username={conversation.otherUser.username} context="inline" max={1} />
+              )}
+              {conversation.lastMessage && (
+                <span className="text-[11px] text-muted-foreground">
+                  {formatRelativeTime(conversation.lastMessage.createdAt)}
+                </span>
+              )}
+            </div>
+          </div>
+          <p
+            className={cn(
+              "text-xs truncate",
+              conversation.unreadCount > 0
+                ? "text-foreground font-medium"
+                : "text-muted-foreground",
+            )}
+          >
+            {lastMessagePreview}
+          </p>
+        </div>
+      </button>
+
+      {showRequestActions && (
+        <>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setConfirmOpen(true)}
+            aria-label={requestActionLabel}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+
+          <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{requestActionLabel}?</DialogTitle>
+                <DialogDescription>
+                  This will remove this message request for both users.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmOpen(false)}
+                  disabled={isDeleting}
+                >
+                  Keep
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteRequest}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 className="mr-1 h-4 w-4" />
+                      Confirm
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -126,7 +213,9 @@ export function ConversationList({
   activeConversationId: string | null;
   onSelect: (conversation: ConversationPreview) => void;
 }) {
+  const { data: session } = useSession();
   const [showCompose, setShowCompose] = useState(false);
+  const currentUserId = session?.user?.id;
 
   const { data, isLoading } = useQuery({
     queryKey: ["conversations"],
@@ -213,6 +302,8 @@ export function ConversationList({
                   conversation={conv}
                   isActive={conv.id === activeConversationId}
                   onClick={() => onSelect(conv)}
+                  showRequestActions
+                  currentUserId={currentUserId}
                 />
               ))}
             </div>

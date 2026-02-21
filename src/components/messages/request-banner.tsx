@@ -2,9 +2,17 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { acceptRequest, declineRequest } from "@/actions/messages";
+import { acceptRequest, deleteMessageRequest } from "@/actions/messages";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Check, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2, Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function RequestBanner({
@@ -19,7 +27,8 @@ export function RequestBanner({
   status?: string;
 }) {
   const queryClient = useQueryClient();
-  const [loading, setLoading] = useState<"accept" | "decline" | null>(null);
+  const [loading, setLoading] = useState<"accept" | "delete" | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (status === "accepted") return null;
   if (status === "declined") {
@@ -29,11 +38,10 @@ export function RequestBanner({
       </div>
     );
   }
-
-  if (!isRecipient) {
+  if (status === "withdrawn") {
     return (
       <div className="border-b bg-muted/50 px-4 py-3 text-center text-sm text-muted-foreground">
-        Message request sent. {requesterName ? `Waiting for ${requesterName} to accept.` : "Waiting for acceptance."}
+        This message request was canceled.
       </div>
     );
   }
@@ -53,55 +61,160 @@ export function RequestBanner({
     setLoading(null);
   }
 
-  async function handleDecline() {
-    setLoading("decline");
-    const res = await declineRequest(conversationId);
+  async function handleDeleteRequest() {
+    setLoading("delete");
+    const res = await deleteMessageRequest(conversationId);
     if (res.success) {
-      toast.success("Request declined");
+      toast.success(isRecipient ? "Request deleted" : "Request canceled");
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({
+        queryKey: ["messages", conversationId],
+      });
+      setConfirmOpen(false);
     } else {
       toast.error(res.error);
     }
     setLoading(null);
   }
 
+  const deleteLabel = isRecipient ? "Delete request" : "Cancel request";
+
+  if (!isRecipient) {
+    return (
+      <>
+        <div className="border-b bg-muted/50 px-4 py-3">
+          <p className="text-center text-sm text-muted-foreground">
+            Message request sent. {requesterName ? `Waiting for ${requesterName} to respond.` : "Waiting for response."}
+          </p>
+          <div className="mt-2 flex items-center justify-center">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmOpen(true)}
+              disabled={loading !== null}
+            >
+              {loading === "delete" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Trash2 className="mr-1 h-4 w-4" />
+                  {deleteLabel}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{deleteLabel}?</DialogTitle>
+              <DialogDescription>
+                This will remove this message request for both users.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmOpen(false)}
+                disabled={loading !== null}
+              >
+                Keep
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteRequest}
+                disabled={loading !== null}
+              >
+                {loading === "delete" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    Confirm
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
   return (
-    <div className="border-b bg-muted/50 px-4 py-3">
-      <p className="text-sm text-center text-muted-foreground mb-2">
-        <span className="font-medium text-foreground">{requesterName}</span> wants to send you a message
-      </p>
-      <div className="flex items-center justify-center gap-2">
-        <Button
-          size="sm"
-          variant="default"
-          onClick={handleAccept}
-          disabled={loading !== null}
-        >
-          {loading === "accept" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <Check className="mr-1 h-4 w-4" />
-              Accept
-            </>
-          )}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleDecline}
-          disabled={loading !== null}
-        >
-          {loading === "decline" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <X className="mr-1 h-4 w-4" />
-              Decline
-            </>
-          )}
-        </Button>
+    <>
+      <div className="border-b bg-muted/50 px-4 py-3">
+        <p className="mb-2 text-center text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{requesterName}</span> wants to send you a message
+        </p>
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            onClick={handleAccept}
+            disabled={loading !== null}
+          >
+            {loading === "accept" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Check className="mr-1 h-4 w-4" />
+                Accept
+              </>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setConfirmOpen(true)}
+            disabled={loading !== null}
+          >
+            {loading === "delete" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Trash2 className="mr-1 h-4 w-4" />
+                {deleteLabel}
+              </>
+            )}
+          </Button>
+        </div>
       </div>
-    </div>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{deleteLabel}?</DialogTitle>
+            <DialogDescription>
+              This will remove this message request for both users.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+              disabled={loading !== null}
+            >
+              Keep
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteRequest}
+              disabled={loading !== null}
+            >
+              {loading === "delete" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Trash2 className="mr-1 h-4 w-4" />
+                  Confirm
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

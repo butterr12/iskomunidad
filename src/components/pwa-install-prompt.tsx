@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Download, Plus, Share } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,24 +12,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { BeforeInstallPromptEvent } from "@/types/pwa";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 
 const DISMISS_KEY = "pwa-install-dismissed-at";
 const DISMISS_PERMANENTLY_KEY = "pwa-install-dismissed-permanently";
 const DISMISS_DAYS = 3;
-
-function isStandalone() {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    ("standalone" in navigator && (navigator as { standalone?: boolean }).standalone === true)
-  );
-}
-
-function isIOS() {
-  if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent);
-}
 
 function shouldHidePrompt(): boolean {
   if (typeof localStorage === "undefined") return false;
@@ -43,38 +30,23 @@ function shouldHidePrompt(): boolean {
 
 export function PwaInstallPrompt() {
   const isMobile = useIsMobile();
+  const { isStandalone, isIOS, install } = usePwaInstall();
   const [open, setOpen] = useState(false);
-  const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
-  const isIOSDevice = useMemo(() => isIOS(), []);
 
   useEffect(() => {
-    if (!isMobile || isStandalone() || shouldHidePrompt()) return;
-
-    const handler = (e: BeforeInstallPromptEvent) => {
-      e.preventDefault();
-      deferredPrompt.current = e;
-    };
-    window.addEventListener("beforeinstallprompt", handler);
+    if (!isMobile || isStandalone || shouldHidePrompt()) return;
 
     const timer = setTimeout(() => {
       setOpen(true);
     }, 2000);
 
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handler);
-      clearTimeout(timer);
-    };
-  }, [isMobile]);
+    return () => clearTimeout(timer);
+  }, [isMobile, isStandalone]);
 
   const handleInstall = useCallback(async () => {
-    if (!deferredPrompt.current) return;
-    await deferredPrompt.current.prompt();
-    const { outcome } = await deferredPrompt.current.userChoice;
-    if (outcome === "accepted") {
-      setOpen(false);
-    }
-    deferredPrompt.current = null;
-  }, []);
+    const accepted = await install();
+    if (accepted) setOpen(false);
+  }, [install]);
 
   const handleDismiss = useCallback(() => {
     localStorage.setItem(DISMISS_KEY, Date.now().toString());
@@ -100,7 +72,7 @@ export function PwaInstallPrompt() {
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          {isIOSDevice ? (
+          {isIOS ? (
             <p className="text-muted-foreground text-center text-sm">
               To install, tap{" "}
               <Share className="inline size-4 align-text-bottom" /> Share then{" "}

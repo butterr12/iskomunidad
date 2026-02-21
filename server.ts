@@ -4,7 +4,7 @@ loadEnvConfig(process.cwd());
 import { createServer } from "node:http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, isNull } from "drizzle-orm";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME ?? "0.0.0.0";
@@ -18,7 +18,7 @@ app.prepare().then(async () => {
   // Dynamic imports so env vars are available when db module loads
   const { db } = await import("./src/lib/db");
   const { session: sessionTable, user: userTable } = await import("./src/lib/auth-schema");
-  const { conversationParticipant } = await import("./src/lib/schema");
+  const { conversation, conversationParticipant } = await import("./src/lib/schema");
   const { setIO } = await import("./src/lib/socket-server");
 
   async function isConversationParticipant_(
@@ -28,6 +28,13 @@ app.prepare().then(async () => {
     const participant = await db
       .select({ id: conversationParticipant.id })
       .from(conversationParticipant)
+      .innerJoin(
+        conversation,
+        and(
+          eq(conversation.id, conversationParticipant.conversationId),
+          isNull(conversation.deletedAt),
+        ),
+      )
       .where(
         and(
           eq(conversationParticipant.conversationId, conversationId),

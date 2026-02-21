@@ -38,6 +38,10 @@ import {
   Shield,
   UserPlus,
   MessageCircle,
+  Download,
+  Plus,
+  Share,
+  Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -61,6 +65,7 @@ import { getMyReferralSummary } from "@/actions/referrals";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import { Lock, Link2, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -82,6 +87,7 @@ function formatMemberSince(dateStr?: string | null): string {
 export default function SettingsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { isStandalone, isIOS, canPrompt, install } = usePwaInstall();
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
@@ -1099,6 +1105,49 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </section>
+
+        {/* Install App */}
+        {!isStandalone && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Install App
+            </h2>
+            <Card>
+              <CardContent className="space-y-4 p-4">
+                <div className="flex items-start gap-3">
+                  <Smartphone className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <p className="text-sm text-muted-foreground">
+                    Install iskomunidad for faster access and a native app experience. No app store needed.
+                  </p>
+                </div>
+                {isIOS ? (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Tap{" "}
+                    <Share className="inline size-4 align-text-bottom" />{" "}
+                    <span className="font-medium text-foreground">Share</span> then{" "}
+                    <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                      <Plus className="inline size-4" /> Add to Home Screen
+                    </span>
+                  </p>
+                ) : (
+                  <Button
+                    className="w-full"
+                    onClick={async () => {
+                      if (!canPrompt) {
+                        toast.error("Install prompt is not available. Try opening this site in Chrome.");
+                        return;
+                      }
+                      await install();
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Install App
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
         {/* Sign Out */}
         <Button
