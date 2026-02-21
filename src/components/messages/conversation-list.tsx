@@ -231,9 +231,11 @@ export function ConversationList({
   const requests = data?.requests ?? [];
   const requestCount = requests.length;
 
-  usePrefetchUserFlairs([...messages, ...requests].map((c) => c.otherUser.username));
+  const { isPending: flairsPending } = usePrefetchUserFlairs(
+    [...messages, ...requests].map((c) => c.otherUser.username),
+  );
 
-  if (isLoading) {
+  if (isLoading || flairsPending) {
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between border-b px-4 py-3">
