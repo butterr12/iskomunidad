@@ -48,9 +48,9 @@ async function getPostForOg(postId: string) {
 }
 
 function getTitleSize(title: string): number {
-  if (title.length < 80) return 52;
-  if (title.length < 160) return 42;
-  return 34;
+  if (title.length < 60) return 72;
+  if (title.length < 120) return 58;
+  return 48;
 }
 
 function truncateTitle(title: string, maxChars = 120): string {
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
             display: "flex",
             flexDirection: "column",
             background: "#111010",
-            padding: "48px",
+            padding: "60px",
             position: "relative",
             overflow: "hidden",
             fontFamily: "Satoshi",
@@ -135,11 +135,11 @@ export async function GET(request: NextRequest) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "6px 16px",
+                  padding: "10px 24px",
                   borderRadius: "9999px",
                   background: `${flairColor}22`,
-                  border: `1.5px solid ${flairColor}`,
-                  fontSize: "16px",
+                  border: `2px solid ${flairColor}`,
+                  fontSize: "26px",
                   fontFamily: "Satoshi",
                   fontWeight: 700,
                   color: flairColor,
@@ -155,12 +155,12 @@ export async function GET(request: NextRequest) {
             <div
               style={{
                 display: "flex",
-                marginTop: "24px",
+                marginTop: "28px",
                 fontSize: `${titleSize}px`,
                 fontFamily: "Cabinet Grotesk",
                 fontWeight: 800,
                 color: "#f0f0f0",
-                lineHeight: 1.15,
+                lineHeight: 1.2,
                 letterSpacing: "-0.02em",
               }}
             >
@@ -172,8 +172,8 @@ export async function GET(request: NextRequest) {
               <div
                 style={{
                   display: "flex",
-                  marginTop: "16px",
-                  fontSize: "22px",
+                  marginTop: "20px",
+                  fontSize: "32px",
                   fontFamily: "Satoshi",
                   fontWeight: 700,
                   color: "#888888",
@@ -188,13 +188,13 @@ export async function GET(request: NextRequest) {
             <div
               style={{
                 display: "flex",
-                marginTop: "28px",
-                marginBottom: "24px",
+                marginTop: "32px",
+                marginBottom: "28px",
               }}
             >
               <div
                 style={{
-                  width: "80px",
+                  width: "100px",
                   height: "3px",
                   background: `${flairColor}66`,
                   borderRadius: "2px",
@@ -207,19 +207,19 @@ export async function GET(request: NextRequest) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "12px",
+                gap: "14px",
               }}
             >
               <div
                 style={{
-                  width: "40px",
-                  height: "40px",
+                  width: "54px",
+                  height: "54px",
                   borderRadius: "50%",
                   background: "#8b1a1a",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "16px",
+                  fontSize: "24px",
                   fontWeight: 700,
                   color: "#ffffff",
                 }}
@@ -230,12 +230,12 @@ export async function GET(request: NextRequest) {
                 style={{
                   display: "flex",
                   alignItems: "baseline",
-                  gap: "8px",
+                  gap: "10px",
                 }}
               >
                 <span
                   style={{
-                    fontSize: "20px",
+                    fontSize: "30px",
                     fontWeight: 700,
                     color: "#e0e0e0",
                   }}
@@ -245,7 +245,7 @@ export async function GET(request: NextRequest) {
                 {authorHandle && (
                   <span
                     style={{
-                      fontSize: "18px",
+                      fontSize: "28px",
                       fontWeight: 700,
                       color: "#777777",
                     }}
@@ -261,9 +261,9 @@ export async function GET(request: NextRequest) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "16px",
-                marginTop: "12px",
-                fontSize: "18px",
+                gap: "24px",
+                marginTop: "16px",
+                fontSize: "28px",
                 color: "#888888",
                 fontWeight: 700,
               }}
@@ -272,10 +272,10 @@ export async function GET(request: NextRequest) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
+                  gap: "8px",
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
                   <path d="M12 4L3 15h6v5h6v-5h6L12 4z" fill="#888888" />
                 </svg>
                 <span>{post.score}</span>
@@ -285,10 +285,10 @@ export async function GET(request: NextRequest) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
+                  gap: "8px",
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
                   <path
                     d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z"
                     stroke="#888888"
@@ -316,7 +316,7 @@ export async function GET(request: NextRequest) {
           >
             <span
               style={{
-                fontSize: "22px",
+                fontSize: "32px",
                 fontFamily: "Cabinet Grotesk",
                 fontWeight: 800,
                 color: "#8b1a1a",
