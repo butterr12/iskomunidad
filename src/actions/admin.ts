@@ -554,37 +554,54 @@ export async function adminApproveLandmark(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
+  const [existing] = await db
+    .select({ status: landmark.status })
+    .from(landmark)
+    .where(eq(landmark.id, id));
+  if (!existing) return { success: false, error: "Landmark not found" };
+  if (existing.status !== "draft")
+    return { success: false, error: "Landmark is no longer pending" };
+
   const [lm] = await db
     .update(landmark)
     .set({ status: "approved", rejectionReason: null })
-    .where(eq(landmark.id, id))
+    .where(and(eq(landmark.id, id), eq(landmark.status, "draft")))
     .returning({
       name: landmark.name,
       userId: landmark.userId,
     });
 
-  if (!lm) return { success: false, error: "Landmark not found" };
+  if (!lm)
+    return { success: false, error: "Landmark was modified by another admin" };
 
-  if (lm.userId) {
-    const lmUser = await db.query.user.findFirst({
-      where: eq(user.id, lm.userId),
-      columns: { username: true, name: true },
-    });
+  try {
+    if (lm.userId) {
+      const lmUser = await db.query.user.findFirst({
+        where: eq(user.id, lm.userId),
+        columns: { username: true, name: true },
+      });
 
-    await createNotification({
-      type: "landmark_approved",
-      targetId: id,
-      targetTitle: lm.name,
-      authorHandle: lmUser?.username ?? lmUser?.name ?? "unknown",
-    });
+      await createNotification({
+        type: "landmark_approved",
+        targetId: id,
+        targetTitle: lm.name,
+        authorHandle: lmUser?.username ?? lmUser?.name ?? "unknown",
+      });
 
-    await createUserNotification({
-      userId: lm.userId,
-      type: "landmark_approved",
-      contentType: "landmark",
-      targetId: id,
-      targetTitle: lm.name,
-    });
+      await createUserNotification({
+        userId: lm.userId,
+        type: "landmark_approved",
+        contentType: "landmark",
+        targetId: id,
+        targetTitle: lm.name,
+      });
+    }
+  } catch (err) {
+    console.error(
+      "Failed to send approval notifications for landmark",
+      id,
+      err,
+    );
   }
 
   return { success: true, data: undefined };
@@ -601,39 +618,56 @@ export async function adminRejectLandmark(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
+  const [existing] = await db
+    .select({ status: landmark.status })
+    .from(landmark)
+    .where(eq(landmark.id, id));
+  if (!existing) return { success: false, error: "Landmark not found" };
+  if (existing.status !== "draft")
+    return { success: false, error: "Landmark is no longer pending" };
+
   const [lm] = await db
     .update(landmark)
     .set({ status: "rejected", rejectionReason: parsed.data.reason })
-    .where(eq(landmark.id, id))
+    .where(and(eq(landmark.id, id), eq(landmark.status, "draft")))
     .returning({
       name: landmark.name,
       userId: landmark.userId,
     });
 
-  if (!lm) return { success: false, error: "Landmark not found" };
+  if (!lm)
+    return { success: false, error: "Landmark was modified by another admin" };
 
-  if (lm.userId) {
-    const lmUser = await db.query.user.findFirst({
-      where: eq(user.id, lm.userId),
-      columns: { username: true, name: true },
-    });
+  try {
+    if (lm.userId) {
+      const lmUser = await db.query.user.findFirst({
+        where: eq(user.id, lm.userId),
+        columns: { username: true, name: true },
+      });
 
-    await createNotification({
-      type: "landmark_rejected",
-      targetId: id,
-      targetTitle: lm.name,
-      authorHandle: lmUser?.username ?? lmUser?.name ?? "unknown",
-      reason: parsed.data.reason,
-    });
+      await createNotification({
+        type: "landmark_rejected",
+        targetId: id,
+        targetTitle: lm.name,
+        authorHandle: lmUser?.username ?? lmUser?.name ?? "unknown",
+        reason: parsed.data.reason,
+      });
 
-    await createUserNotification({
-      userId: lm.userId,
-      type: "landmark_rejected",
-      contentType: "landmark",
-      targetId: id,
-      targetTitle: lm.name,
-      reason: parsed.data.reason,
-    });
+      await createUserNotification({
+        userId: lm.userId,
+        type: "landmark_rejected",
+        contentType: "landmark",
+        targetId: id,
+        targetTitle: lm.name,
+        reason: parsed.data.reason,
+      });
+    }
+  } catch (err) {
+    console.error(
+      "Failed to send rejection notifications for landmark",
+      id,
+      err,
+    );
   }
 
   return { success: true, data: undefined };

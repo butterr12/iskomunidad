@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RejectDialog } from "@/components/admin/reject-dialog";
+import { toast } from "sonner";
 import {
   adminGetAllLandmarks,
   adminApproveLandmark,
@@ -47,12 +48,16 @@ export default function LocationsQueuePage() {
   };
 
   const handleApprove = async (id: string) => {
-    await adminApproveLandmark(id);
+    const result = await adminApproveLandmark(id);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Location published");
     await refreshDrafts();
   };
 
   const handleReject = async (id: string, reason: string) => {
-    await adminRejectLandmark(id, reason);
+    const result = await adminRejectLandmark(id, reason);
+    if (!result.success) toast.error(result.error);
+    else toast.success("Location declined");
     await refreshDrafts();
   };
 
