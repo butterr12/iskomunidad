@@ -19,7 +19,6 @@ import {
 import {
   MapPin,
   Users,
-  CalendarDays,
   Hammer,
   MessageSquare,
   LayoutGrid,
@@ -39,16 +38,7 @@ import { MoreSheet } from "@/components/more-sheet";
 import { BetaBadge } from "@/components/beta-badge";
 import type { BorderDefinition } from "@/lib/profile-borders";
 
-/** Desktop: all 5 original tabs */
-const allDesktopTabs = [
-  { label: "Map", href: "/map", icon: MapPin },
-  { label: "Community", href: "/c", icon: Users },
-  { label: "Messages", href: "/messages", icon: MessageSquare },
-  { label: "Events", href: "/events", icon: CalendarDays },
-  { label: "Gigs", href: "/gigs", icon: Hammer },
-] as const;
-
-/** Mobile bottom nav: 4 core tabs + More button */
+/** 4 core tabs shared by desktop top nav and mobile bottom nav */
 const coreTabs = [
   { label: "Map", href: "/map", icon: MapPin },
   { label: "Community", href: "/c", icon: Users },
@@ -106,7 +96,7 @@ export function NavBar() {
     <>
       {/* Desktop: full top bar */}
       <header className="fixed top-0 left-0 right-0 z-[1000] hidden sm:block border-b bg-background/80 backdrop-blur-sm">
-        <div className="flex h-14 items-center justify-between px-4">
+        <div className="relative flex h-14 items-center justify-between px-4">
           <button
             onClick={() => setSheetOpen(true)}
             className="rounded-full transition-shadow hover:ring-2 hover:ring-muted-foreground/30 hover:ring-offset-2 hover:ring-offset-background"
@@ -119,8 +109,8 @@ export function NavBar() {
             </BorderedAvatar>
           </button>
 
-          <nav className="flex items-center gap-1">
-            {allDesktopTabs.map((t) => (
+          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
+            {coreTabs.map((t) => (
               <Button
                 key={t.href}
                 variant={pathname === t.href ? "default" : "ghost"}
@@ -137,6 +127,15 @@ export function NavBar() {
                 </Link>
               </Button>
             ))}
+            <Button
+              variant={isMoreActive ? "default" : "ghost"}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setMoreSheetOpen(true)}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              More
+            </Button>
           </nav>
 
           <div className="flex items-center gap-1" dir="ltr">
