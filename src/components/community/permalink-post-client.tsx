@@ -128,7 +128,6 @@ export function PermalinkPostClient({
     } else {
       // Reconcile from server truth
       setPost((prev) => ({ ...prev, isBookmarked: res.data.isBookmarked }));
-      toast.success(res.data.isBookmarked ? "Post saved" : "Post unsaved");
       queryClient.invalidateQueries({ queryKey: ["saved-posts"] });
     }
   };
