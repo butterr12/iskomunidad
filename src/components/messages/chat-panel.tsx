@@ -179,6 +179,12 @@ export function ChatPanel({
 
     const handleNewMessage = (msg: MessageData) => {
       if (msg.conversationId === conversation.id) {
+        // Skip own messages from socket — the HTTP response in fireAndForgetSend
+        // handles inserting the confirmed message and removing the optimistic one
+        // atomically. Adding it here too causes a brief duplicate (flicker) because
+        // the optimistic message is still in state with a different ID.
+        if (msg.senderId === userId) return;
+
         queryClient.setQueryData(
           ["messages", conversation.id],
           (old: typeof data) => {
@@ -198,11 +204,7 @@ export function ChatPanel({
             };
           },
         );
-        // Optimistic removal is handled by the HTTP response in fireAndForgetSend
-        // Mark as read if it's from the other user
-        if (msg.senderId !== userId) {
-          void markAsRead(conversation.id);
-        }
+        void markAsRead(conversation.id);
       }
     };
 
