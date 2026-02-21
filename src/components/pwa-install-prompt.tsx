@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 
 const DISMISS_KEY = "pwa-install-dismissed-at";
@@ -29,19 +28,18 @@ function shouldHidePrompt(): boolean {
 }
 
 export function PwaInstallPrompt() {
-  const isMobile = useIsMobile();
   const { isStandalone, isIOS, install } = usePwaInstall();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!isMobile || isStandalone || shouldHidePrompt()) return;
+    if (isStandalone || shouldHidePrompt()) return;
 
     const timer = setTimeout(() => {
       setOpen(true);
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [isMobile, isStandalone]);
+  }, [isStandalone]);
 
   const handleInstall = useCallback(async () => {
     const accepted = await install();
@@ -57,8 +55,6 @@ export function PwaInstallPrompt() {
     localStorage.setItem(DISMISS_PERMANENTLY_KEY, "true");
     setOpen(false);
   }, []);
-
-  if (!isMobile) return null;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleDismiss(); }}>
