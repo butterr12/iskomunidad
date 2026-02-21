@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import {
   searchMentionableUsers,
@@ -18,6 +18,11 @@ const TRIGGER_REGEX = new RegExp(
   `(^|${MENTION_BOUNDARY})@([${MENTION_WORD_CHARS}]*)$`,
 );
 const WORD_CHAR_REGEX = new RegExp(`[${MENTION_WORD_CHARS}]`);
+
+async function fetchMentionCandidates(query: string): Promise<MentionCandidate[]> {
+  const res = await searchMentionableUsers(query);
+  return res.success ? res.data : [];
+}
 
 type MentionFieldElement = HTMLInputElement | HTMLTextAreaElement;
 type MentionFieldKeyEvent = React.KeyboardEvent<MentionFieldElement>;
@@ -92,6 +97,7 @@ export function MentionInput({
   const instanceId = id ?? generatedId;
   const listboxId = `mention-listbox-${instanceId}`;
 
+  const queryClient = useQueryClient();
   const fieldRef = useRef<MentionFieldElement | null>(null);
   const [caretIndex, setCaretIndex] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
@@ -110,6 +116,10 @@ export function MentionInput({
   const mentionQuery = activeMention?.query ?? "";
 
   useEffect(() => {
+    if (!mentionQuery) {
+      setDebouncedQuery("");
+      return;
+    }
     const timer = window.setTimeout(
       () => setDebouncedQuery(mentionQuery),
       200,
@@ -120,26 +130,24 @@ export function MentionInput({
   const shouldSearch =
     isFocused &&
     !!activeMention &&
-    activeMention.query.length > 0 &&
     dismissedToken !== activeTokenKey;
 
   const { data: candidates = [], isFetching } = useQuery<MentionCandidate[]>({
     queryKey: ["mentionable-users", debouncedQuery],
-    queryFn: async () => {
-      const res = await searchMentionableUsers(debouncedQuery);
-      return res.success ? res.data : [];
-    },
-    enabled: shouldSearch && debouncedQuery.length > 0,
+    queryFn: () => fetchMentionCandidates(debouncedQuery),
+    enabled: shouldSearch,
+    staleTime: debouncedQuery === "" ? 60_000 : 0,
+    placeholderData: keepPreviousData,
   });
 
-  const dropdownOpen = shouldSearch && debouncedQuery.length > 0;
+  const dropdownOpen = shouldSearch;
   const activeIndex =
     candidates.length > 0
       ? Math.min(highlightedIndex, candidates.length - 1)
       : 0;
 
   const activeDescendantId =
-    dropdownOpen && candidates.length > 0 && !isFetching
+    dropdownOpen && candidates.length > 0
       ? `mention-option-${instanceId}-${activeIndex}`
       : undefined;
 
@@ -236,6 +244,11 @@ export function MentionInput({
     onFocus: (event: MentionFieldFocusEvent) => {
       setIsFocused(true);
       syncCaret(event.currentTarget);
+      queryClient.prefetchQuery({
+        queryKey: ["mentionable-users", ""],
+        queryFn: () => fetchMentionCandidates(""),
+        staleTime: 60_000,
+      });
       onFocus?.(event);
     },
     onBlur: (event: MentionFieldFocusEvent) => {
@@ -254,7 +267,7 @@ export function MentionInput({
 
       {dropdownOpen && (
         <div className="absolute inset-x-0 top-[calc(100%+0.25rem)] z-50 rounded-md border bg-popover shadow-md">
-          {isFetching ? (
+          {isFetching && candidates.length === 0 ? (
             <div className="flex items-center justify-center p-2 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="sr-only">Searching users...</span>

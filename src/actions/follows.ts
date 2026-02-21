@@ -9,7 +9,7 @@ import {
   userSelectedBorder,
 } from "@/lib/schema";
 import { user } from "@/lib/auth-schema";
-import { eq, and, count, ilike, or, ne, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, count, ilike, or, ne, inArray, notInArray, isNotNull } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
@@ -379,6 +379,8 @@ export async function searchUsers(
 }
 
 function getMentionTextRank(candidate: { username: string; name: string }, query: string): number {
+  if (!query) return 0; // no text to rank — sort purely by social rank
+
   const username = candidate.username.toLowerCase();
   const name = candidate.name.toLowerCase();
 
@@ -399,6 +401,83 @@ function getMentionSocialRank(flags: {
   return 3;
 }
 
+type MentionCandidateRow = { id: string; name: string; username: string; image: string | null };
+
+async function getDefaultMentionCandidates(userId: string): Promise<{
+  candidates: MentionCandidateRow[];
+  followingSet: Set<string>;
+  followerSet: Set<string>;
+}> {
+  const [followingRows, followerRows] = await Promise.all([
+    db
+      .select({ userId: userFollow.followingId })
+      .from(userFollow)
+      .where(eq(userFollow.followerId, userId))
+      .limit(200),
+    db
+      .select({ userId: userFollow.followerId })
+      .from(userFollow)
+      .where(eq(userFollow.followingId, userId))
+      .limit(200),
+  ]);
+
+  const followingSet = new Set(followingRows.map((r) => r.userId));
+  const followerSet = new Set(followerRows.map((r) => r.userId));
+  const socialIds = [...new Set([...followingSet, ...followerSet])];
+
+  let candidates: MentionCandidateRow[] = [];
+
+  if (socialIds.length > 0) {
+    const socialUsers = await db
+      .select({ id: user.id, name: user.name, username: user.username, image: user.image })
+      .from(user)
+      .where(
+        and(
+          eq(user.status, "active"),
+          isNotNull(user.username),
+          ne(user.id, userId),
+          inArray(user.id, socialIds),
+        ),
+      )
+      .orderBy(user.username)
+      .limit(20);
+
+    candidates = socialUsers.flatMap((row) =>
+      row.username
+        ? [{ id: row.id, name: row.name, username: row.username, image: row.image }]
+        : [],
+    );
+  }
+
+  // Fill remaining slots with other active users if social circle is small
+  if (candidates.length < 10) {
+    const excludeIds = [userId, ...candidates.map((c) => c.id)];
+    const fillers = await db
+      .select({ id: user.id, name: user.name, username: user.username, image: user.image })
+      .from(user)
+      .where(
+        and(
+          eq(user.status, "active"),
+          isNotNull(user.username),
+          notInArray(user.id, excludeIds),
+        ),
+      )
+      .orderBy(user.username)
+      .limit(10 - candidates.length);
+
+    candidates = [
+      ...candidates,
+      ...fillers.flatMap((row) =>
+        row.username
+          ? [{ id: row.id, name: row.name, username: row.username, image: row.image }]
+          : [],
+      ),
+    ];
+  }
+
+  return { candidates, followingSet, followerSet };
+}
+
 export async function searchMentionableUsers(
   query: string,
 ): Promise<ActionResult<MentionCandidate[]>> {
@@ -409,68 +488,76 @@ export async function searchMentionableUsers(
   if (limited) return limited;
 
   const trimmed = query.trim();
-  if (!trimmed) return { success: true, data: [] };
-
-  const pattern = `%${trimmed}%`;
   const normalizedQuery = trimmed.toLowerCase();
 
-  // Pull a larger candidate set first, then apply deterministic ranking in memory.
-  const rawCandidates = await db
-    .select({
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      image: user.image,
-    })
-    .from(user)
-    .where(
-      and(
-        eq(user.status, "active"),
-        isNotNull(user.username),
-        ne(user.id, session.user.id),
-        or(ilike(user.username, pattern), ilike(user.name, pattern)),
-      ),
-    )
-    .orderBy(user.username)
-    .limit(60);
+  let candidates: MentionCandidateRow[];
+  let followingSet: Set<string>;
+  let followedBySet: Set<string>;
 
-  const candidates = rawCandidates.flatMap((row) =>
-    row.username
-      ? [{
-        id: row.id,
-        name: row.name,
-        username: row.username,
-        image: row.image,
-      }]
-      : [],
-  );
+  if (trimmed) {
+    // Text-based search: pull candidates matching query, then rank in memory
+    const pattern = `%${trimmed}%`;
+    const rawCandidates = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        image: user.image,
+      })
+      .from(user)
+      .where(
+        and(
+          eq(user.status, "active"),
+          isNotNull(user.username),
+          ne(user.id, session.user.id),
+          or(ilike(user.username, pattern), ilike(user.name, pattern)),
+        ),
+      )
+      .orderBy(user.username)
+      .limit(60);
+
+    candidates = rawCandidates.flatMap((row) =>
+      row.username
+        ? [{ id: row.id, name: row.name, username: row.username, image: row.image }]
+        : [],
+    );
+
+    if (candidates.length === 0) return { success: true, data: [] };
+
+    const candidateIds = candidates.map((c) => c.id);
+    const [followingRows, followedByRows] = await Promise.all([
+      db
+        .select({ userId: userFollow.followingId })
+        .from(userFollow)
+        .where(
+          and(
+            eq(userFollow.followerId, session.user.id),
+            inArray(userFollow.followingId, candidateIds),
+          ),
+        ),
+      db
+        .select({ userId: userFollow.followerId })
+        .from(userFollow)
+        .where(
+          and(
+            eq(userFollow.followingId, session.user.id),
+            inArray(userFollow.followerId, candidateIds),
+          ),
+        ),
+    ]);
+
+    followingSet = new Set(followingRows.map((row) => row.userId));
+    followedBySet = new Set(followedByRows.map((row) => row.userId));
+  } else {
+    // Empty query: return default suggestions ranked by social proximity
+    // Follow sets are returned alongside candidates to avoid redundant queries
+    const result = await getDefaultMentionCandidates(session.user.id);
+    candidates = result.candidates;
+    followingSet = result.followingSet;
+    followedBySet = result.followerSet;
+  }
+
   if (candidates.length === 0) return { success: true, data: [] };
-
-  const candidateIds = candidates.map((candidate) => candidate.id);
-
-  const [followingRows, followedByRows] = await Promise.all([
-    db
-      .select({ userId: userFollow.followingId })
-      .from(userFollow)
-      .where(
-        and(
-          eq(userFollow.followerId, session.user.id),
-          inArray(userFollow.followingId, candidateIds),
-        ),
-      ),
-    db
-      .select({ userId: userFollow.followerId })
-      .from(userFollow)
-      .where(
-        and(
-          eq(userFollow.followingId, session.user.id),
-          inArray(userFollow.followerId, candidateIds),
-        ),
-      ),
-  ]);
-
-  const followingSet = new Set(followingRows.map((row) => row.userId));
-  const followedBySet = new Set(followedByRows.map((row) => row.userId));
 
   const ranked = candidates
     .map((candidate) => {
