@@ -107,28 +107,36 @@ export function PermalinkPostClient({
     }
   };
 
+  const [bookmarkPending, setBookmarkPending] = useState(false);
+
   const handleToggleBookmark = async () => {
     if (!isAuthenticated) {
       promptSignIn();
       return;
     }
+    if (bookmarkPending) return;
 
     const wasBookmarked = post.isBookmarked;
     const newState = !wasBookmarked;
 
     // Optimistic update
     setPost((prev) => ({ ...prev, isBookmarked: newState }));
+    setBookmarkPending(true);
 
-    const res = await toggleBookmark(post.id);
-    if (!res.success) {
-      // Revert on failure
-      setPost((prev) => ({ ...prev, isBookmarked: wasBookmarked }));
-      toast.error(res.error);
-      if (res.error === "Not authenticated") router.push(signInHref);
-    } else {
-      // Reconcile from server truth
-      setPost((prev) => ({ ...prev, isBookmarked: res.data.isBookmarked }));
-      queryClient.invalidateQueries({ queryKey: ["saved-posts"] });
+    try {
+      const res = await toggleBookmark(post.id);
+      if (!res.success) {
+        // Revert on failure
+        setPost((prev) => ({ ...prev, isBookmarked: wasBookmarked }));
+        toast.error(res.error);
+        if (res.error === "Not authenticated") router.push(signInHref);
+      } else {
+        // Reconcile from server truth
+        setPost((prev) => ({ ...prev, isBookmarked: res.data.isBookmarked }));
+        queryClient.invalidateQueries({ queryKey: ["saved-posts"] });
+      }
+    } finally {
+      setBookmarkPending(false);
     }
   };
 
@@ -324,7 +332,7 @@ export function PermalinkPostClient({
             <Share2 className="h-3.5 w-3.5" />
             Share
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleToggleBookmark}>
+          <Button variant="outline" size="sm" className="gap-1.5" disabled={bookmarkPending} onClick={handleToggleBookmark}>
             <Bookmark className={cn("h-3.5 w-3.5", post.isBookmarked && "fill-current")} />
             {post.isBookmarked ? "Saved" : "Save"}
           </Button>
