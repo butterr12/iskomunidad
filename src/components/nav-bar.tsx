@@ -28,6 +28,7 @@ import {
   Sun,
   Moon,
   User,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -36,6 +37,7 @@ import { BorderedAvatar } from "@/components/bordered-avatar";
 import { getUserBorderSelectionById } from "@/actions/borders";
 import { MoreSheet } from "@/components/more-sheet";
 import { BetaBadge } from "@/components/beta-badge";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 import type { BorderDefinition } from "@/lib/profile-borders";
 
 /** 4 core tabs shared by desktop top nav and mobile bottom nav */
@@ -66,6 +68,7 @@ export function NavBar() {
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
   const { unreadCount } = useSocket();
+  const { isStandalone, install } = usePwaInstall();
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
@@ -289,6 +292,16 @@ export function NavBar() {
             </SheetClose>
 
             <Separator />
+
+            {!isStandalone && (
+              <button
+                onClick={() => void install()}
+                className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted transition-colors"
+              >
+                <Download className="h-4 w-4 text-muted-foreground" />
+                Install App
+              </button>
+            )}
 
             <button
               onClick={async () => {
