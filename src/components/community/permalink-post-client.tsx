@@ -89,7 +89,6 @@ export function PermalinkPostClient({
       if (navigator.share) {
         await navigator.share({
           title: post.title,
-          text: post.body ?? undefined,
           url: canonicalShareUrl,
         });
         return;
