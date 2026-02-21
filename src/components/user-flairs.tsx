@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useIsFetching } from "@tanstack/react-query";
 import { getFlairsForUser } from "@/actions/flairs";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -11,13 +11,17 @@ interface UserFlairsProps {
 }
 
 export function UserFlairs({ username, context = "inline", max = 3 }: UserFlairsProps) {
+  // Suppress individual fetch while a batch prefetch is in-flight so all
+  // flairs appear at once when the batch resolves instead of one-by-one.
+  const batchFetching = useIsFetching({ queryKey: ["user-flairs-batch"] });
+
   const { data: flairs = [], isPending } = useQuery({
     queryKey: ["user-flairs", username],
     queryFn: async () => {
       const res = await getFlairsForUser(username);
       return res.success ? res.data : [];
     },
-    enabled: !!username,
+    enabled: !!username && batchFetching === 0,
     staleTime: 60_000,
   });
 
