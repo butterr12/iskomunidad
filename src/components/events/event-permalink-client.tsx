@@ -21,7 +21,7 @@ export function EventPermalinkClient({ initialEvent }: { initialEvent: CampusEve
   };
 
   return (
-    <main className="mx-auto w-full max-w-2xl min-h-dvh border-x">
+    <main className="mx-auto h-dvh w-full max-w-2xl overflow-y-auto border-x bg-background">
       <EventDetail
         event={event}
         onBack={() => router.push("/events")}
