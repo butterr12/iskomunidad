@@ -260,19 +260,25 @@ export function ConversationList({
       </div>
 
       <Tabs defaultValue="messages" className="flex flex-1 flex-col min-h-0">
-        <TabsList variant="line" className="px-4 shrink-0">
+        <TabsList variant="line" className="w-full px-4 shrink-0">
           <TabsTrigger value="messages">Messages</TabsTrigger>
-          <TabsTrigger value="requests" className="gap-1.5">
+          <TabsTrigger value="anon" className="gap-1">
+            <span className="relative flex items-center gap-1">
+              <Ghost className="h-3.5 w-3.5" />
+              Anon
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+              </span>
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="ml-auto gap-1.5 opacity-40 data-[state=active]:opacity-100">
             Requests
             {requestCount > 0 && (
               <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-[10px]">
                 {requestCount}
               </Badge>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="anon" className="gap-1">
-            <Ghost className="h-3.5 w-3.5" />
-            Anon
           </TabsTrigger>
         </TabsList>
 
