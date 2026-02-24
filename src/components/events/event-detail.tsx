@@ -82,6 +82,7 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
       if (!res.success) return [];
       return res.data as CommunityPost[];
     },
+    staleTime: 30_000,
   });
 
   const toggleRsvp = (status: RsvpStatus) => {
@@ -119,7 +120,6 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
               src={`/api/photos/${event.coverImageKey}`}
               alt={event.title}
               fill
-              unoptimized
               sizes="(max-width: 640px) 100vw, 600px"
               className="object-cover"
             />

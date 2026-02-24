@@ -12,7 +12,7 @@ import {
   userFollow,
   user,
 } from "@/lib/schema";
-import { eq, sql, and, inArray, ne, isNull, or } from "drizzle-orm";
+import { eq, sql, and, inArray, ne } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
@@ -85,6 +85,72 @@ async function notifyMentionedUsers(data: {
   }
 }
 
+async function getPostVoteMap(
+  userId: string,
+  postIds: string[],
+): Promise<Record<string, number>> {
+  if (postIds.length === 0) return {};
+
+  const votes = await db.query.postVote.findMany({
+    where: and(
+      eq(postVote.userId, userId),
+      inArray(postVote.postId, postIds),
+    ),
+    columns: { postId: true, value: true },
+  });
+
+  return Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+}
+
+async function getPostBookmarkMap(
+  userId: string,
+  postIds: string[],
+): Promise<Record<string, boolean>> {
+  if (postIds.length === 0) return {};
+
+  const bookmarks = await db.query.postBookmark.findMany({
+    where: and(
+      eq(postBookmark.userId, userId),
+      inArray(postBookmark.postId, postIds),
+    ),
+    columns: { postId: true },
+  });
+
+  return Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
+}
+
+async function getPostInteractionMaps(
+  userId: string,
+  postIds: string[],
+): Promise<{
+  userVotes: Record<string, number>;
+  userBookmarks: Record<string, boolean>;
+}> {
+  const [userVotes, userBookmarks] = await Promise.all([
+    getPostVoteMap(userId, postIds),
+    getPostBookmarkMap(userId, postIds),
+  ]);
+
+  return { userVotes, userBookmarks };
+}
+
+async function getCommentVoteMap(
+  userId: string,
+  commentIds: string[],
+): Promise<Record<string, number>> {
+  if (commentIds.length === 0) return {};
+
+  const votes = await db.query.commentVote.findMany({
+    where: and(
+      eq(commentVote.userId, userId),
+      inArray(commentVote.commentId, commentIds),
+    ),
+    columns: { commentId: true, value: true },
+  });
+
+  return Object.fromEntries(votes.map((v) => [v.commentId, v.value]));
+}
+
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const createPostSchema = z.object({
@@ -138,16 +204,10 @@ export async function getApprovedPosts(
   let userVotes: Record<string, number> = {};
   let userBookmarks: Record<string, boolean> = {};
   if (session?.user) {
-    const votes = await db.query.postVote.findMany({
-      where: eq(postVote.userId, session.user.id),
-    });
-    userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
-
-    const bookmarks = await db.query.postBookmark.findMany({
-      where: eq(postBookmark.userId, session.user.id),
-      columns: { postId: true },
-    });
-    userBookmarks = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
+    ({ userVotes, userBookmarks } = await getPostInteractionMaps(
+      session.user.id,
+      rows.map((r) => r.id),
+    ));
   }
 
   return {
@@ -188,16 +248,10 @@ export async function getPostsForLandmark(
   let userVotes: Record<string, number> = {};
   let userBookmarks: Record<string, boolean> = {};
   if (session?.user) {
-    const votes = await db.query.postVote.findMany({
-      where: eq(postVote.userId, session.user.id),
-    });
-    userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
-
-    const bookmarks = await db.query.postBookmark.findMany({
-      where: eq(postBookmark.userId, session.user.id),
-      columns: { postId: true },
-    });
-    userBookmarks = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
+    ({ userVotes, userBookmarks } = await getPostInteractionMaps(
+      session.user.id,
+      rows.map((r) => r.id),
+    ));
   }
 
   return {
@@ -237,16 +291,10 @@ export async function getPostsForEvent(
   let userVotes: Record<string, number> = {};
   let userBookmarks: Record<string, boolean> = {};
   if (session?.user) {
-    const votes = await db.query.postVote.findMany({
-      where: eq(postVote.userId, session.user.id),
-    });
-    userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
-
-    const bookmarks = await db.query.postBookmark.findMany({
-      where: eq(postBookmark.userId, session.user.id),
-      columns: { postId: true },
-    });
-    userBookmarks = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
+    ({ userVotes, userBookmarks } = await getPostInteractionMaps(
+      session.user.id,
+      rows.map((r) => r.id),
+    ));
   }
 
   return {
@@ -269,7 +317,7 @@ export async function getPostsForEvent(
 }
 
 export async function getFollowingPosts(
-  opts?: { sort?: "hot" | "new" | "top" },
+  opts?: { sort?: "hot" | "new" | "top"; flair?: string; tag?: string },
 ): Promise<ActionResult<unknown[]>> {
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
@@ -285,6 +333,10 @@ export async function getFollowingPosts(
       a(
         e(p.status, "approved"),
         inArray(p.userId, followedUserIds),
+        ...(opts?.flair ? [e(p.flair, opts.flair)] : []),
+        ...(opts?.tag
+          ? [sql`${p.tags} @> ARRAY[${opts.tag}]::text[]` as ReturnType<typeof e>]
+          : []),
       ),
     with: {
       user: { columns: { name: true, username: true, image: true } },
@@ -298,17 +350,10 @@ export async function getFollowingPosts(
     },
   });
 
-  // Get current user's votes and bookmarks
-  const votes = await db.query.postVote.findMany({
-    where: eq(postVote.userId, session.user.id),
-  });
-  const userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
-
-  const bookmarks = await db.query.postBookmark.findMany({
-    where: eq(postBookmark.userId, session.user.id),
-    columns: { postId: true },
-  });
-  const userBookmarks: Record<string, boolean> = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
+  const { userVotes, userBookmarks } = await getPostInteractionMaps(
+    session.user.id,
+    rows.map((r) => r.id),
+  );
 
   return {
     success: true,
@@ -363,16 +408,10 @@ export async function getApprovedPostsPaginated(
   let userVotes: Record<string, number> = {};
   let userBookmarks: Record<string, boolean> = {};
   if (session?.user) {
-    const votes = await db.query.postVote.findMany({
-      where: eq(postVote.userId, session.user.id),
-    });
-    userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
-
-    const bookmarks = await db.query.postBookmark.findMany({
-      where: eq(postBookmark.userId, session.user.id),
-      columns: { postId: true },
-    });
-    userBookmarks = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
+    ({ userVotes, userBookmarks } = await getPostInteractionMaps(
+      session.user.id,
+      pageRows.map((r) => r.id),
+    ));
   }
 
   return {
@@ -429,28 +468,16 @@ export async function getPostById(
   let isBookmarked = false;
   let commentUserVotes: Record<string, number> = {};
   if (session?.user) {
-    const pv = await db.query.postVote.findFirst({
-      where: and(
-        eq(postVote.postId, id),
-        eq(postVote.userId, session.user.id),
+    const [{ userVotes, userBookmarks }, commentVotes] = await Promise.all([
+      getPostInteractionMaps(session.user.id, [id]),
+      getCommentVoteMap(
+        session.user.id,
+        row.comments.map((comment) => comment.id),
       ),
-    });
-    postUserVote = pv?.value ?? 0;
-
-    const bk = await db.query.postBookmark.findFirst({
-      where: and(
-        eq(postBookmark.postId, id),
-        eq(postBookmark.userId, session.user.id),
-      ),
-    });
-    isBookmarked = !!bk;
-
-    const cvs = await db.query.commentVote.findMany({
-      where: eq(commentVote.userId, session.user.id),
-    });
-    commentUserVotes = Object.fromEntries(
-      cvs.map((v) => [v.commentId, v.value]),
-    );
+    ]);
+    postUserVote = userVotes[id] ?? 0;
+    isBookmarked = userBookmarks[id] ?? false;
+    commentUserVotes = commentVotes;
   }
 
   return {
@@ -1160,7 +1187,7 @@ export async function publishDraft(
 }
 
 export async function getBookmarkedPosts(
-  opts?: { sort?: "hot" | "new" | "top" },
+  opts?: { sort?: "hot" | "new" | "top"; flair?: string; tag?: string },
 ): Promise<ActionResult<unknown[]>> {
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
@@ -1175,6 +1202,10 @@ export async function getBookmarkedPosts(
       a(
         e(p.status, "approved"),
         inArray(p.id, bookmarkedPostIds),
+        ...(opts?.flair ? [e(p.flair, opts.flair)] : []),
+        ...(opts?.tag
+          ? [sql`${p.tags} @> ARRAY[${opts.tag}]::text[]` as ReturnType<typeof e>]
+          : []),
       ),
     with: {
       user: { columns: { name: true, username: true, image: true } },
@@ -1188,10 +1219,10 @@ export async function getBookmarkedPosts(
     },
   });
 
-  const votes = await db.query.postVote.findMany({
-    where: eq(postVote.userId, session.user.id),
-  });
-  const userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+  const userVotes = await getPostVoteMap(
+    session.user.id,
+    rows.map((r) => r.id),
+  );
 
   return {
     success: true,

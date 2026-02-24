@@ -1,8 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { gigListing, campusEvent, communityPost } from "@/lib/schema";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { type ActionResult } from "./_helpers";
 
 export async function getPopularTags(

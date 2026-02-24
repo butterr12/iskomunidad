@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useId, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import {
@@ -102,7 +102,6 @@ export function MentionInput({
   const [caretIndex, setCaretIndex] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [dismissedToken, setDismissedToken] = useState<string | null>(null);
 
   const activeMention = useMemo(
@@ -114,15 +113,7 @@ export function MentionInput({
     ? `${activeMention.start}:${activeMention.end}:${activeMention.query}`
     : null;
   const mentionQuery = activeMention?.query ?? "";
-
-  useEffect(() => {
-    const delay = mentionQuery ? 200 : 0;
-    const timer = window.setTimeout(
-      () => setDebouncedQuery(mentionQuery),
-      delay,
-    );
-    return () => window.clearTimeout(timer);
-  }, [mentionQuery]);
+  const debouncedQuery = useDeferredValue(mentionQuery);
 
   const shouldSearch =
     isFocused &&

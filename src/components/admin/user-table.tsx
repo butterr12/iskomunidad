@@ -51,7 +51,6 @@ const ROLE_BADGE: Record<string, "default" | "secondary"> = {
 
 export function UserTable({
   users,
-  currentUserId,
   onViewDetail,
 }: UserTableProps) {
   const [tab, setTab] = useState("all");

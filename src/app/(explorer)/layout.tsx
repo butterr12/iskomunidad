@@ -82,7 +82,7 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
       university: (session.user as { university?: string }).university ?? undefined,
       role: session.user.role,
     });
-  }, [session?.user?.id, isPending, posthog]);
+  }, [session?.user, isPending, posthog]);
 
   if (isPending || isInactive) {
     return <ExplorerSkeleton />;

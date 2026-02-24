@@ -613,9 +613,17 @@ export async function getUserPosts(
 
   let userVotes: Record<string, number> = {};
   if (session?.user) {
-    const votes = await db.query.postVote.findMany({
-      where: eq(postVote.userId, session.user.id),
-    });
+    const postIds = rows.map((row) => row.id);
+    const votes =
+      postIds.length > 0
+        ? await db.query.postVote.findMany({
+            where: and(
+              eq(postVote.userId, session.user.id),
+              inArray(postVote.postId, postIds),
+            ),
+            columns: { postId: true, value: true },
+          })
+        : [];
     userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
   }
 

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { campusEvent, eventRsvp } from "@/lib/schema";
-import { eq, sql, and, desc } from "drizzle-orm";
+import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
@@ -67,6 +67,23 @@ const rsvpSchema = z.object({
   status: z.enum(["going", "interested"]).nullable(),
 });
 
+async function getEventRsvpMap(
+  userId: string,
+  eventIds: string[],
+): Promise<Record<string, string>> {
+  if (eventIds.length === 0) return {};
+
+  const rsvps = await db.query.eventRsvp.findMany({
+    where: and(
+      eq(eventRsvp.userId, userId),
+      inArray(eventRsvp.eventId, eventIds),
+    ),
+    columns: { eventId: true, status: true },
+  });
+
+  return Object.fromEntries(rsvps.map((rsvp) => [rsvp.eventId, rsvp.status]));
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function getApprovedEvents(
@@ -93,10 +110,10 @@ export async function getApprovedEvents(
   // Get current user's RSVPs
   let userRsvps: Record<string, string> = {};
   if (session?.user) {
-    const rsvps = await db.query.eventRsvp.findMany({
-      where: eq(eventRsvp.userId, session.user.id),
-    });
-    userRsvps = Object.fromEntries(rsvps.map((r) => [r.eventId, r.status]));
+    userRsvps = await getEventRsvpMap(
+      session.user.id,
+      rows.map((row) => row.id),
+    );
   }
 
   return {
@@ -133,10 +150,10 @@ export async function getEventsForLandmark(
 
   let userRsvps: Record<string, string> = {};
   if (session?.user) {
-    const rsvps = await db.query.eventRsvp.findMany({
-      where: eq(eventRsvp.userId, session.user.id),
-    });
-    userRsvps = Object.fromEntries(rsvps.map((r) => [r.eventId, r.status]));
+    userRsvps = await getEventRsvpMap(
+      session.user.id,
+      rows.map((row) => row.id),
+    );
   }
 
   return {
@@ -536,10 +553,10 @@ export async function getUserEventsById(
 
   let userRsvps: Record<string, string> = {};
   if (session?.user) {
-    const rsvps = await db.query.eventRsvp.findMany({
-      where: eq(eventRsvp.userId, session.user.id),
-    });
-    userRsvps = Object.fromEntries(rsvps.map((r) => [r.eventId, r.status]));
+    userRsvps = await getEventRsvpMap(
+      session.user.id,
+      rows.map((row) => row.id),
+    );
   }
 
   return {

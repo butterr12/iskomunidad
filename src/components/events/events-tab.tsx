@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
 import { Plus, Search, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -46,11 +45,8 @@ function EventListSkeleton() {
 export function EventsTab() {
   const queryClient = useQueryClient();
   const posthog = usePostHog();
-  const searchParams = useSearchParams();
-  const eventParam = searchParams.get("event");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [urlParamDismissed, setUrlParamDismissed] = useState(false);
   const [tab, setTab] = useState<"all" | "mine">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateEvent, setShowCreateEvent] = useState(false);
@@ -67,6 +63,7 @@ export function EventsTab() {
         }),
       );
     },
+    staleTime: 30_000,
   });
 
   const { data: myEvents = [], isLoading: myEventsLoading } = useQuery({
@@ -77,6 +74,7 @@ export function EventsTab() {
       return res.data as CampusEvent[];
     },
     enabled: tab === "mine",
+    staleTime: 30_000,
   });
 
   const filteredEvents = useMemo(() => {
@@ -91,11 +89,10 @@ export function EventsTab() {
     );
   }, [events, searchQuery]);
 
-  // Derive selected event from ID — auto-selects from ?event= URL param,
-  // user clicks override, and RSVP updates flow through the query cache.
-  const effectiveSelectedId = selectedEventId ?? (urlParamDismissed ? null : eventParam);
-  const selectedEvent = effectiveSelectedId
-    ? events.find((e) => e.id === effectiveSelectedId) ?? null
+  // Derive selected event from local selection ID so RSVP updates flow
+  // through the query cache without duplicating event state.
+  const selectedEvent = selectedEventId
+    ? events.find((e) => e.id === selectedEventId) ?? null
     : null;
 
   const handleRsvpChange = async (eventId: string, status: RsvpStatus) => {
@@ -174,7 +171,7 @@ export function EventsTab() {
           {selectedEvent ? (
             <EventDetail
               event={selectedEvent}
-              onBack={() => { setSelectedEventId(null); setUrlParamDismissed(true); }}
+              onBack={() => setSelectedEventId(null)}
               onRsvpChange={handleRsvpChange}
             />
           ) : tab === "mine" ? (

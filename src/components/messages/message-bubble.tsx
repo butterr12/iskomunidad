@@ -67,6 +67,7 @@ export function MessageBubble({
         )}
 
         {imageSrc && (
+          // eslint-disable-next-line @next/next/no-img-element -- chat image with dynamic max-width/height sizing
           <img
             src={imageSrc}
             alt="Shared image"

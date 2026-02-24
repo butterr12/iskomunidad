@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { gigListing, gigSwipe } from "@/lib/schema";
-import { eq, and, or, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
@@ -38,10 +38,27 @@ const swipeSchema = z.object({
   action: z.enum(["saved", "skipped"]).nullable(),
 });
 
+async function getGigSwipeMap(
+  userId: string,
+  gigIds: string[],
+): Promise<Record<string, string>> {
+  if (gigIds.length === 0) return {};
+
+  const swipes = await db.query.gigSwipe.findMany({
+    where: and(
+      eq(gigSwipe.userId, userId),
+      inArray(gigSwipe.gigId, gigIds),
+    ),
+    columns: { gigId: true, action: true },
+  });
+
+  return Object.fromEntries(swipes.map((swipe) => [swipe.gigId, swipe.action]));
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function getApprovedGigs(
-  opts?: { category?: string; sort?: "newest" | "pay" | "deadline" },
+  opts?: { category?: string; sort?: "newest" | "pay" | "deadline" | "urgency" },
 ): Promise<ActionResult<unknown[]>> {
   const session = await getOptionalSession();
 
@@ -69,6 +86,16 @@ export async function getApprovedGigs(
     orderBy: (g, { desc: d, asc: a }) => {
       if (opts?.sort === "pay") return [d(g.compensationValue)];
       if (opts?.sort === "deadline") return [a(g.deadline)];
+      if (opts?.sort === "urgency") {
+        return [
+          sql`CASE
+            WHEN ${g.urgency} = 'urgent' THEN 0
+            WHEN ${g.urgency} = 'soon' THEN 1
+            ELSE 2
+          END`,
+          d(g.createdAt),
+        ];
+      }
       return [d(g.createdAt)]; // newest
     },
   });
@@ -76,10 +103,10 @@ export async function getApprovedGigs(
   // Get current user's swipes
   let userSwipes: Record<string, string> = {};
   if (session?.user) {
-    const swipes = await db.query.gigSwipe.findMany({
-      where: eq(gigSwipe.userId, session.user.id),
-    });
-    userSwipes = Object.fromEntries(swipes.map((s) => [s.gigId, s.action]));
+    userSwipes = await getGigSwipeMap(
+      session.user.id,
+      rows.map((row) => row.id),
+    );
   }
 
   return {
@@ -431,10 +458,10 @@ export async function getUserGigsById(
 
   let userSwipes: Record<string, string> = {};
   if (session?.user) {
-    const swipes = await db.query.gigSwipe.findMany({
-      where: eq(gigSwipe.userId, session.user.id),
-    });
-    userSwipes = Object.fromEntries(swipes.map((s) => [s.gigId, s.action]));
+    userSwipes = await getGigSwipeMap(
+      session.user.id,
+      rows.map((row) => row.id),
+    );
   }
 
   return {

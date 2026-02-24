@@ -10,8 +10,6 @@ import {
   followUser,
   unfollowUser,
   getUserPosts,
-  type UserProfile,
-  type FollowStatus,
 } from "@/actions/follows";
 import { voteOnPost, getUserDrafts, getUserPendingPosts, type DraftPost } from "@/actions/posts";
 import { getUserEventsById } from "@/actions/events";

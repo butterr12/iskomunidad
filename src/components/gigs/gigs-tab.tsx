@@ -3,7 +3,6 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SlidersHorizontal, Bookmark, Plus, Search } from "lucide-react";
@@ -16,7 +15,6 @@ import { GigList } from "./gig-list";
 import { GigDetail } from "./gig-detail";
 import { SwipeDeck } from "./swipe-deck";
 import {
-  sortGigs,
   GIG_CATEGORIES,
   CATEGORY_LABELS,
   CATEGORY_COLORS,
@@ -71,12 +69,14 @@ function GigListSkeleton() {
   );
 }
 
-export function GigsTab() {
+interface GigsTabProps {
+  initialGigId?: string | null;
+}
+
+export function GigsTab({ initialGigId }: GigsTabProps) {
   const queryClient = useQueryClient();
   const posthog = usePostHog();
   const { data: session } = useSession();
-  const searchParams = useSearchParams();
-  const gigParam = searchParams.get("gig");
   const [viewMode, setViewMode] = useState<"list" | "swipe">("list");
   const [selectedGig, setSelectedGig] = useState<GigListing | null>(null);
   const [activeCategory, setActiveCategory] = useState<GigCategory | null>(null);
@@ -89,9 +89,12 @@ export function GigsTab() {
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   const { data: gigs = [], isLoading } = useQuery({
-    queryKey: ["approved-gigs"],
+    queryKey: ["approved-gigs", activeCategory, sortMode],
     queryFn: async () => {
-      const res = await getApprovedGigs();
+      const res = await getApprovedGigs({
+        category: activeCategory ?? undefined,
+        sort: sortMode,
+      });
       if (!res.success) return [];
       return (res.data as (GigListing & {
         author?: string;
@@ -106,6 +109,7 @@ export function GigsTab() {
         posterId: gig.posterId ?? "",
       }));
     },
+    staleTime: 30_000,
   });
 
   const savedCount = gigs.filter((g) => g.swipeAction === "saved").length;
@@ -117,9 +121,6 @@ export function GigsTab() {
 
   const filteredAndSorted = useMemo(() => {
     let filtered = gigs;
-    if (activeCategory) {
-      filtered = filtered.filter((g) => g.category === activeCategory);
-    }
     if (showSaved) {
       filtered = filtered.filter((g) => g.swipeAction === "saved");
     }
@@ -132,8 +133,8 @@ export function GigsTab() {
           g.tags.some((t) => t.toLowerCase().includes(q)),
       );
     }
-    return sortGigs(filtered, sortMode);
-  }, [gigs, activeCategory, sortMode, showSaved, searchQuery]);
+    return filtered;
+  }, [gigs, showSaved, searchQuery]);
 
   const swipeGigs = useMemo(() => {
     let filtered = gigs.filter((g) => g.swipeAction === null);
@@ -150,15 +151,15 @@ export function GigsTab() {
 
   // Auto-select gig from ?gig= param
   useEffect(() => {
-    if (!gigParam || selectedGig || gigs.length === 0) return;
-    const found = gigs.find((g) => g.id === gigParam);
+    if (!initialGigId || selectedGig || gigs.length === 0) return;
+    const found = gigs.find((g) => g.id === initialGigId);
     if (found) handleSelectGig(found);
-  }, [gigParam, gigs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialGigId, gigs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSwipe = async (gigId: string, action: "saved" | "skipped") => {
     await swipeGig(gigId, action);
     posthog?.capture("gig_swiped", { action });
-    queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+    queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
       old?.map((g) => (g.id === gigId ? { ...g, swipeAction: action } : g)),
     );
   };
@@ -167,7 +168,7 @@ export function GigsTab() {
     for (const g of gigs.filter((g) => g.swipeAction !== null)) {
       await swipeGig(g.id, null);
     }
-    queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+    queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
       old?.map((g) => ({ ...g, swipeAction: null })),
     );
   };
@@ -175,7 +176,7 @@ export function GigsTab() {
   const handleInterest = async (gigId: string) => {
     const res = await expressInterestInGig(gigId);
     if (res.success && !res.data.alreadyInterested) {
-      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+      queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
         old?.map((g) =>
           g.id === gigId
             ? { ...g, swipeAction: "interested", applicantCount: g.applicantCount + 1 }
@@ -198,7 +199,7 @@ export function GigsTab() {
     try {
       const res = await swipeGig(gigId, newAction);
       if (res.success) {
-        queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+        queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
           old?.map((g) => (g.id === gigId ? { ...g, swipeAction: newAction } : g)),
         );
         setSelectedGig((prev) =>
@@ -232,7 +233,7 @@ export function GigsTab() {
   const handleCloseGig = async (gigId: string) => {
     const res = await closeGig(gigId);
     if (res.success) {
-      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+      queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
         old?.map((g) => (g.id === gigId ? { ...g, isOpen: false } : g)),
       );
       setSelectedGig((prev) => (prev?.id === gigId ? { ...prev, isOpen: false } : prev));
@@ -245,7 +246,7 @@ export function GigsTab() {
   const handleReopenGig = async (gigId: string) => {
     const res = await reopenGig(gigId);
     if (res.success) {
-      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+      queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
         old?.map((g) => (g.id === gigId ? { ...g, isOpen: true } : g)),
       );
       setSelectedGig((prev) => (prev?.id === gigId ? { ...prev, isOpen: true } : prev));
@@ -258,7 +259,7 @@ export function GigsTab() {
   const handleDeleteGig = async (gigId: string) => {
     const res = await deleteGig(gigId);
     if (res.success) {
-      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+      queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
         old?.filter((g) => g.id !== gigId),
       );
       setSelectedGig(null);
@@ -287,7 +288,7 @@ export function GigsTab() {
         tags: data.tags,
         locationNote: data.locationNote,
       };
-      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+      queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
         old?.map((g) => (g.id === selectedGig.id ? updatedGig : g)),
       );
       setSelectedGig(updatedGig);
@@ -366,7 +367,7 @@ export function GigsTab() {
             {!selectedGig && (
               <button
                 onClick={() => setShowCreateGig(true)}
-                className="w-full mb-3 flex items-center gap-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/10 px-5 py-4 text-left transition-all hover:from-emerald-500/20 hover:via-emerald-500/10 hover:border-emerald-500/20 active:scale-[0.98]"
+                className="w-full mb-3 flex items-center gap-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/10 px-5 py-4 text-left transition-[background-color,border-color,transform] hover:from-emerald-500/20 hover:via-emerald-500/10 hover:border-emerald-500/20 active:scale-[0.98]"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
                   <Plus className="h-5 w-5 text-primary" />

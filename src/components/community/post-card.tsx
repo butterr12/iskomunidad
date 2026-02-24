@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { MessageCircle, MapPin, ExternalLink, MoreHorizontal, Pencil, Trash2, CalendarDays } from "lucide-react";
 import { VoteControls } from "./vote-controls";

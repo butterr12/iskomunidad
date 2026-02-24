@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useRef, useState, useCallback, useMemo, useEffect } from "react";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import Map, {
   Marker,
@@ -37,7 +38,7 @@ function usePreviewPlacement(anchorRef: React.RefObject<HTMLElement | null>, isH
       setPlacement(spaceBelow >= PREVIEW_HEIGHT_ESTIMATE || spaceBelow >= spaceAbove ? "below" : "above");
     });
     return () => cancelAnimationFrame(id);
-  }, [isHovered, ctx]);
+  }, [isHovered, ctx, anchorRef]);
 
   return placement;
 }
@@ -86,12 +87,10 @@ function useLandmarkPreview(pinId: string, onPreviewHoverChange?: (id: string | 
 
 function PlacePreview({
   landmark,
-  pinId,
   isLoading,
   placement,
 }: {
   landmark: Landmark | null;
-  pinId: string;
   isLoading?: boolean;
   placement: "above" | "below";
 }) {
@@ -120,11 +119,14 @@ function PlacePreview({
   return (
     <div className={previewClass}>
       {mainPhoto && (
-        <div className="w-full h-28 bg-muted">
-          <img
+        <div className="relative w-full h-28 bg-muted">
+          <Image
             src={mainPhoto}
             alt={landmark.name}
-            className="w-full h-full object-cover"
+            fill
+            unoptimized
+            sizes="256px"
+            className="object-cover"
             draggable={false}
           />
         </div>
@@ -193,7 +195,6 @@ function MarkerPin({
       {hovered && (
         <PlacePreview
           landmark={landmark ?? null}
-          pinId={pinId}
           isLoading={isLoading}
           placement={placement}
         />
@@ -218,6 +219,7 @@ function MarkerPin({
                 style={{ width: w - 4, height: h - 4 }}
               />
             )}
+            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic pixel-sized map pin with onLoad/onError */}
             <img
               src={displayImageUrl!}
               alt={label}
@@ -338,7 +340,6 @@ function ClusterImageSlot({
       {hovered && (
         <PlacePreview
           landmark={landmark ?? null}
-          pinId={pinId}
           isLoading={isLoading}
           placement={placement}
         />
@@ -364,6 +365,7 @@ function ClusterImageSlot({
         {!imgLoaded && (
           <div className="absolute inset-0 bg-muted animate-pulse rounded-full" />
         )}
+        {/* eslint-disable-next-line @next/next/no-img-element -- dynamic pixel-sized map pin with onLoad/onError */}
         <img
           src={photoUrl}
           alt=""

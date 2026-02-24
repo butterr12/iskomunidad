@@ -39,7 +39,7 @@ import { adminGetUserDetail, adminGetUserFlairs, adminGrantFlair, adminRevokeFla
 import { adminGetUserUnlockedBorders, adminGrantBorder, adminRevokeBorder, getUserBorderSelectionById } from "@/actions/borders";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { USER_FLAIR_CATALOG, getProvisionedFlairIds } from "@/lib/user-flairs";
-import { PROFILE_BORDER_CATALOG, type BorderDefinition } from "@/lib/profile-borders";
+import { PROFILE_BORDER_CATALOG } from "@/lib/profile-borders";
 
 interface AdminUser {
   id: string;

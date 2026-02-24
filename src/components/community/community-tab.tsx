@@ -22,7 +22,6 @@ import { PostFeed } from "./post-feed";
 import { CreatePostForm, type PostFormValues } from "./create-post-form";
 import { DraftsSheet } from "./drafts-sheet";
 import {
-  sortPosts,
   POST_FLAIRS,
   FLAIR_COLORS,
   type CommunityPost,
@@ -153,6 +152,7 @@ export function CommunityTab() {
     getNextPageParam: (lastPage, allPages) =>
       lastPage.hasMore ? allPages.length : undefined,
     initialPageParam: 0,
+    staleTime: 30_000,
   });
 
   const posts = useMemo(
@@ -161,21 +161,31 @@ export function CommunityTab() {
   );
 
   const { data: followingPosts = [], isLoading: followingLoading } = useQuery({
-    queryKey: ["following-posts", sortMode],
+    queryKey: ["following-posts", sortMode, activeFlair, activeTag],
     queryFn: async () => {
-      const res = await getFollowingPosts({ sort: sortMode });
+      const res = await getFollowingPosts({
+        sort: sortMode,
+        flair: activeFlair ?? undefined,
+        tag: activeTag ?? undefined,
+      });
       return res.success ? (res.data as CommunityPost[]) : [];
     },
     enabled: feedMode === "following" && !!user,
+    staleTime: 30_000,
   });
 
   const { data: savedPosts = [], isLoading: savedLoading } = useQuery({
-    queryKey: ["saved-posts", sortMode],
+    queryKey: ["saved-posts", sortMode, activeFlair, activeTag],
     queryFn: async () => {
-      const res = await getBookmarkedPosts({ sort: sortMode });
+      const res = await getBookmarkedPosts({
+        sort: sortMode,
+        flair: activeFlair ?? undefined,
+        tag: activeTag ?? undefined,
+      });
       return res.success ? (res.data as CommunityPost[]) : [];
     },
     enabled: feedMode === "saved" && !!user,
+    staleTime: 30_000,
   });
 
   const { data: draftCount = 0 } = useQuery({
@@ -189,21 +199,17 @@ export function CommunityTab() {
 
   const displayPosts = useMemo(() => {
     if (feedMode === "following") {
-      let filtered = activeFlair ? followingPosts.filter((p) => p.flair === activeFlair) : followingPosts;
-      if (activeTag) filtered = filtered.filter((p) => p.tags?.includes(activeTag));
-      return sortPosts(filtered, sortMode);
+      return followingPosts;
     }
     if (feedMode === "saved") {
-      let filtered = activeFlair ? savedPosts.filter((p) => p.flair === activeFlair) : savedPosts;
-      if (activeTag) filtered = filtered.filter((p) => p.tags?.includes(activeTag));
-      return sortPosts(filtered, sortMode);
+      return savedPosts;
     }
     return posts;
-  }, [feedMode, posts, followingPosts, savedPosts, activeFlair, activeTag, sortMode]);
+  }, [feedMode, posts, followingPosts, savedPosts]);
 
   usePrefetchUserFlairs(displayPosts.map((p) => p.authorHandle?.replace("@", "")));
 
-  const activePosts = feedMode === "following" ? followingPosts : feedMode === "saved" ? savedPosts : posts;
+  const activePosts = displayPosts;
   const activeLoading = feedMode === "following" ? followingLoading : feedMode === "saved" ? savedLoading : isLoading;
 
   useEffect(() => {
@@ -249,8 +255,8 @@ export function CommunityTab() {
       },
     );
 
-    queryClient.setQueryData<CommunityPost[]>(
-      ["following-posts", sortMode],
+    queryClient.setQueriesData<CommunityPost[]>(
+      { queryKey: ["following-posts"] },
       (old) =>
         old?.map((post) =>
           post.id === postId
@@ -259,8 +265,8 @@ export function CommunityTab() {
         ),
     );
 
-    queryClient.setQueryData<CommunityPost[]>(
-      ["saved-posts", sortMode],
+    queryClient.setQueriesData<CommunityPost[]>(
+      { queryKey: ["saved-posts"] },
       (old) =>
         old?.map((post) =>
           post.id === postId
@@ -273,8 +279,10 @@ export function CommunityTab() {
   const handleCreatePost = async (data: PostFormValues) => {
     const res = await createPost(data);
     if (res.success) {
-      await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
-      await queryClient.invalidateQueries({ queryKey: ["following-posts"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["approved-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["following-posts"] }),
+      ]);
       const status = (res.data as { status?: string }).status;
       posthog?.capture("post_created", {
         status,
@@ -297,8 +305,10 @@ export function CommunityTab() {
   const handleSaveDraft = async (data: PostFormValues) => {
     const res = await saveDraft(data);
     if (res.success) {
-      await queryClient.invalidateQueries({ queryKey: ["user-draft-count"] });
-      await queryClient.invalidateQueries({ queryKey: ["user-drafts"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["user-draft-count"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-drafts"] }),
+      ]);
       toast.success("Draft saved.");
     } else {
       toast.error(res.error);
@@ -310,8 +320,10 @@ export function CommunityTab() {
     if (!editingPost) return { success: false };
     const res = await updatePost(editingPost.id, data);
     if (res.success) {
-      await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
-      await queryClient.invalidateQueries({ queryKey: ["following-posts"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["approved-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["following-posts"] }),
+      ]);
       toast.success("Post updated.");
     } else {
       toast.error(res.error);
@@ -328,9 +340,11 @@ export function CommunityTab() {
     }
     const res = await publishDraft(editingDraft.id);
     if (res.success) {
-      await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
-      await queryClient.invalidateQueries({ queryKey: ["user-draft-count"] });
-      await queryClient.invalidateQueries({ queryKey: ["user-drafts"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["approved-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-draft-count"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-drafts"] }),
+      ]);
       const status = res.data.status;
       toast.success(status === "approved" ? "Post published!" : "Post submitted for review.");
     } else {
@@ -378,8 +392,10 @@ export function CommunityTab() {
     setDeleting(true);
     const res = await deletePost(deletingPostId);
     if (res.success) {
-      await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
-      await queryClient.invalidateQueries({ queryKey: ["following-posts"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["approved-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["following-posts"] }),
+      ]);
       toast.success("Post deleted.");
     } else {
       toast.error(res.error);
@@ -463,7 +479,7 @@ export function CommunityTab() {
             <div className="w-full mb-3 flex items-center gap-2">
               <button
                 onClick={openCreatePost}
-                className="flex flex-1 items-center gap-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border border-blue-500/10 px-5 py-4 text-left transition-all hover:from-blue-500/20 hover:via-blue-500/10 hover:border-blue-500/20 active:scale-[0.98]"
+                className="flex flex-1 items-center gap-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border border-blue-500/10 px-5 py-4 text-left transition-[background-color,border-color,transform] hover:from-blue-500/20 hover:via-blue-500/10 hover:border-blue-500/20 active:scale-[0.98]"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
                   <Plus className="h-5 w-5 text-primary" />
