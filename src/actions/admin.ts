@@ -683,6 +683,141 @@ export async function adminDeleteLandmark(
   return { success: true, data: undefined };
 }
 
+// ─── Bulk Landmark Actions ─────────────────────────────────────────────────────
+// TODO: Apply the same bulk action pattern to posts, events, gigs, and users
+//       in future admin panel iterations.
+
+const bulkIdsSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1),
+});
+
+export async function adminBulkDeleteLandmarks(
+  ids: string[],
+): Promise<ActionResult<{ count: number }>> {
+  const parsed = bulkIdsSchema.safeParse({ ids });
+  if (!parsed.success) return { success: false, error: "Invalid IDs" };
+
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const result = await db
+    .delete(landmark)
+    .where(inArray(landmark.id, parsed.data.ids))
+    .returning({ id: landmark.id });
+
+  return { success: true, data: { count: result.length } };
+}
+
+export async function adminBulkApproveLandmarks(
+  ids: string[],
+): Promise<ActionResult<{ count: number }>> {
+  const parsed = bulkIdsSchema.safeParse({ ids });
+  if (!parsed.success) return { success: false, error: "Invalid IDs" };
+
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const updated = await db
+    .update(landmark)
+    .set({ status: "approved", rejectionReason: null })
+    .where(
+      and(inArray(landmark.id, parsed.data.ids), eq(landmark.status, "draft")),
+    )
+    .returning({ id: landmark.id, name: landmark.name, userId: landmark.userId });
+
+  for (const lm of updated) {
+    try {
+      if (lm.userId) {
+        const lmUser = await db.query.user.findFirst({
+          where: eq(user.id, lm.userId),
+          columns: { username: true, name: true },
+        });
+
+        await createNotification({
+          type: "landmark_approved",
+          targetId: lm.id,
+          targetTitle: lm.name,
+          authorHandle: lmUser?.username ?? lmUser?.name ?? "unknown",
+        });
+
+        await createUserNotification({
+          userId: lm.userId,
+          type: "landmark_approved",
+          contentType: "landmark",
+          targetId: lm.id,
+          targetTitle: lm.name,
+        });
+      }
+    } catch (err) {
+      console.error(
+        "Failed to send approval notification for landmark",
+        lm.id,
+        err,
+      );
+    }
+  }
+
+  return { success: true, data: { count: updated.length } };
+}
+
+export async function adminBulkRejectLandmarks(
+  ids: string[],
+  reason: string,
+): Promise<ActionResult<{ count: number }>> {
+  const parsed = bulkIdsSchema.safeParse({ ids });
+  if (!parsed.success) return { success: false, error: "Invalid IDs" };
+
+  const reasonParsed = rejectSchema.safeParse({ reason });
+  if (!reasonParsed.success) return { success: false, error: "Reason is required" };
+
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const updated = await db
+    .update(landmark)
+    .set({ status: "rejected", rejectionReason: reasonParsed.data.reason })
+    .where(
+      and(inArray(landmark.id, parsed.data.ids), eq(landmark.status, "draft")),
+    )
+    .returning({ id: landmark.id, name: landmark.name, userId: landmark.userId });
+
+  for (const lm of updated) {
+    try {
+      if (lm.userId) {
+        const lmUser = await db.query.user.findFirst({
+          where: eq(user.id, lm.userId),
+          columns: { username: true, name: true },
+        });
+
+        await createNotification({
+          type: "landmark_rejected",
+          targetId: lm.id,
+          targetTitle: lm.name,
+          authorHandle: lmUser?.username ?? lmUser?.name ?? "unknown",
+          reason: reasonParsed.data.reason,
+        });
+
+        await createUserNotification({
+          userId: lm.userId,
+          type: "landmark_rejected",
+          contentType: "landmark",
+          targetId: lm.id,
+          targetTitle: lm.name,
+          reason: reasonParsed.data.reason,
+        });
+      }
+    } catch (err) {
+      console.error(
+        "Failed to send rejection notification for landmark",
+        lm.id,
+        err,
+      );
+    }
+  }
+
+  return { success: true, data: { count: updated.length } };
+}
+
 export async function adminCreateLandmark(
   input: z.infer<typeof createLandmarkSchema>,
 ): Promise<ActionResult<{ id: string }>> {
