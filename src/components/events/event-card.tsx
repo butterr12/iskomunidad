@@ -36,9 +36,16 @@ export function EventCard({ event, onClick }: EventCardProps) {
     >
       {/* Large cover area */}
       <div
-        className="relative flex h-36 items-end p-4"
+        className="relative flex h-36 items-end overflow-hidden p-4"
         style={{ backgroundColor: event.coverColor }}
       >
+        {event.coverImageKey && (
+          <img
+            src={`/api/photos/${event.coverImageKey}`}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
         {/* Category badge */}
         <Badge
           className="absolute top-3 left-3 text-[10px] text-white border-0"
@@ -76,7 +83,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
           {event.locationId ? (
             <>
               <MapPin className="h-3 w-3 shrink-0" />
-              <span>On Campus</span>
+              <span>{event.locationName ?? "On Campus"}</span>
             </>
           ) : (
             <>

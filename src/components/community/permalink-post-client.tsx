@@ -11,15 +11,29 @@ import {
   ExternalLink,
   MapPin,
   MessageCircle,
+  MoreHorizontal,
+  Pencil,
   Share2,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { voteOnComment, voteOnPost, createComment, getPostById, toggleBookmark } from "@/actions/posts";
+import { usePostHog } from "posthog-js/react";
+import { voteOnComment, voteOnPost, createComment, getPostById, toggleBookmark, updatePost, deletePost } from "@/actions/posts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { VoteControls } from "@/components/community/vote-controls";
 import { CommentSection } from "@/components/community/comment-section";
+import { CreatePostForm, type PostFormValues } from "@/components/community/create-post-form";
 import { UserFlairs } from "@/components/user-flairs";
 import { MentionText } from "@/components/community/mention-text";
 import { cn } from "@/lib/utils";
@@ -36,8 +50,14 @@ interface PermalinkPostClientProps {
   initialPost: CommunityPost;
   initialComments: PostComment[];
   isAuthenticated: boolean;
+  currentUserId?: string | null;
   signInHref: string;
   canonicalShareUrl: string;
+}
+
+function isEdited(post: CommunityPost): boolean {
+  if (!post.updatedAt) return false;
+  return new Date(post.updatedAt).getTime() - new Date(post.createdAt).getTime() > 5000;
 }
 
 type PostByIdPayload = Partial<CommunityPost> & {
@@ -59,13 +79,21 @@ export function PermalinkPostClient({
   initialPost,
   initialComments,
   isAuthenticated,
+  currentUserId,
   signInHref,
   canonicalShareUrl,
 }: PermalinkPostClientProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const [post, setPost] = useState(initialPost);
   const [comments, setComments] = useState(initialComments);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const isAuthor = !!currentUserId && currentUserId === post.userId;
 
   const promptSignIn = () => {
     toast("Sign in to interact with this post.", {
@@ -131,6 +159,7 @@ export function PermalinkPostClient({
         toast.error(res.error);
         if (res.error === "Not authenticated") router.push(signInHref);
       } else {
+        posthog?.capture("post_bookmarked", { bookmarked: res.data.isBookmarked });
         // Reconcile from server truth
         setPost((prev) => ({ ...prev, isBookmarked: res.data.isBookmarked }));
         queryClient.invalidateQueries({ queryKey: ["saved-posts"] });
@@ -210,6 +239,7 @@ export function PermalinkPostClient({
       return;
     }
 
+    posthog?.capture("comment_created", { is_reply: false });
     await refreshFromServer();
   };
 
@@ -226,7 +256,42 @@ export function PermalinkPostClient({
       return;
     }
 
+    posthog?.capture("comment_created", { is_reply: true });
     await refreshFromServer();
+  };
+
+  const handleUpdatePost = async (data: PostFormValues) => {
+    const res = await updatePost(post.id, data);
+    if (!res.success) {
+      toast.error(res.error);
+      return { success: false };
+    }
+    setPost((prev) => ({
+      ...prev,
+      title: data.title,
+      flair: data.flair as CommunityPost["flair"],
+      body: data.body ?? undefined,
+      linkUrl: data.linkUrl ?? undefined,
+      imageKeys: data.imageKeys ?? [],
+      updatedAt: new Date().toISOString(),
+    }));
+    toast.success("Post updated.");
+    return { success: true };
+  };
+
+  const handleDeletePost = async () => {
+    setDeleting(true);
+    try {
+      const res = await deletePost(post.id);
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("Post deleted.");
+      router.push("/c");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -247,7 +312,38 @@ export function PermalinkPostClient({
             onVote={handleVotePost}
           />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <h1 className="text-xl font-semibold leading-tight">{post.title}</h1>
+            <div className="flex items-start gap-2">
+              <h1 className="flex-1 text-xl font-semibold leading-tight">{post.title}</h1>
+              {isAuthor && (
+                <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      onClick={() => setMenuOpen(true)}
+                      className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      aria-label="Post options"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-32 p-1" align="end" side="bottom">
+                    <button
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                      onClick={() => { setMenuOpen(false); setShowEdit(true); }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                    <button
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10"
+                      onClick={() => { setMenuOpen(false); setShowDeleteConfirm(true); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
               <Badge
                 variant="outline"
@@ -271,6 +367,9 @@ export function PermalinkPostClient({
               <UserFlairs username={post.authorHandle?.replace("@", "") ?? ""} context="inline" max={2} />
               <span>·</span>
               <span>{formatRelativeTime(post.createdAt)}</span>
+              {isEdited(post) && (
+                <span className="text-muted-foreground/70">(edited)</span>
+              )}
             </div>
             {post.locationId && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -375,6 +474,41 @@ export function PermalinkPostClient({
           </div>
         )}
       </div>
+
+      {/* Edit dialog */}
+      <CreatePostForm
+        open={showEdit}
+        onOpenChange={setShowEdit}
+        initialValues={{
+          title: post.title,
+          flair: post.flair,
+          body: post.body ?? undefined,
+          linkUrl: post.linkUrl ?? undefined,
+          imageKeys: post.imageKeys ?? [],
+        }}
+        submitLabel="Save"
+        onSubmit={handleUpdatePost}
+      />
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this post?</DialogTitle>
+            <DialogDescription>
+              This cannot be undone. All comments will also be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeletePost} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

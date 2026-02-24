@@ -17,6 +17,7 @@ import {
   type RsvpStatus,
 } from "@/lib/events";
 import { getApprovedEvents, getUserEvents, rsvpToEvent } from "@/actions/events";
+import { usePostHog } from "posthog-js/react";
 
 function EventCardSkeleton() {
   return (
@@ -44,6 +45,7 @@ function EventListSkeleton() {
 
 export function EventsTab() {
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const searchParams = useSearchParams();
   const eventParam = searchParams.get("event");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
@@ -98,6 +100,7 @@ export function EventsTab() {
 
   const handleRsvpChange = async (eventId: string, status: RsvpStatus) => {
     await rsvpToEvent(eventId, status);
+    posthog?.capture("event_rsvp", { status });
     queryClient.setQueryData<CampusEvent[]>(["approved-events"], (old) =>
       old?.map((e) => (e.id === eventId ? { ...e, rsvpStatus: status } : e)),
     );

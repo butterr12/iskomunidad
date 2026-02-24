@@ -62,6 +62,11 @@ export const POLICY_MAP: Record<AbuseAction, PolicyDefinition> = {
       { keyBy: "userId", windowSec: 10 * 60, softLimit: 60, hardLimit: 120 },
     ],
   },
+  "gig.interest": {
+    rules: [
+      { keyBy: "userId", windowSec: 10 * 60, softLimit: 20, hardLimit: 40 },
+    ],
+  },
   "conversation.create": {
     rules: [
       { keyBy: "userId", windowSec: 10 * 60, softLimit: 5, hardLimit: 10 },

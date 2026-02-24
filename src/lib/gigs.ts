@@ -11,10 +11,11 @@ export type GigCategory =
 
 export type GigUrgency = "flexible" | "soon" | "urgent";
 export type GigSortMode = "newest" | "pay" | "urgency";
-export type SwipeAction = "saved" | "skipped" | null;
+export type SwipeAction = "saved" | "skipped" | "interested" | null;
 
 export interface GigListing {
   id: string;
+  posterId: string;
   title: string;
   description: string;
   posterName: string;

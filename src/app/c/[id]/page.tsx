@@ -29,6 +29,7 @@ function toPostTypes(data: PermalinkPostData): {
   return {
     post: {
       id: data.post.id,
+      userId: data.post.userId,
       title: data.post.title,
       body: data.post.body ?? undefined,
       author: data.post.author,
@@ -37,6 +38,7 @@ function toPostTypes(data: PermalinkPostData): {
       flair: data.post.flair as CommunityPost["flair"],
       locationId: data.post.locationId ?? undefined,
       createdAt: data.post.createdAt,
+      updatedAt: data.post.updatedAt,
       score: data.post.score,
       commentCount: data.post.commentCount,
       userVote: data.post.userVote,
@@ -149,6 +151,7 @@ export default async function PostPermalinkPage({ params }: Props) {
       initialPost={post}
       initialComments={comments}
       isAuthenticated={!!session?.user}
+      currentUserId={session?.user.id ?? null}
       signInHref={signInHref}
       canonicalShareUrl={canonicalShareUrl}
     />

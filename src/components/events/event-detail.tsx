@@ -84,6 +84,17 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
       </button>
 
       <div className="flex flex-col gap-4 p-5">
+        {/* Hero banner */}
+        {event.coverImageKey && (
+          <div className="w-full aspect-video overflow-hidden rounded-xl">
+            <img
+              src={`/api/photos/${event.coverImageKey}`}
+              alt={event.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+
         {/* Title & category */}
         <div>
           <h2 className="text-xl font-semibold leading-tight">{event.title}</h2>
@@ -137,7 +148,7 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
             {event.locationId ? (
               <>
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>On Campus</span>
+                <span>{event.locationName ?? "On Campus"}</span>
               </>
             ) : (
               <>

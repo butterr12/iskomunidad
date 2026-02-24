@@ -19,7 +19,7 @@ import {
 import {
   MapPin,
   Users,
-  Hammer,
+  CalendarDays,
   MessageSquare,
   LayoutGrid,
   Settings,
@@ -45,7 +45,7 @@ const coreTabs = [
   { label: "Map", href: "/map", icon: MapPin },
   { label: "Community", href: "/c", icon: Users },
   { label: "Messages", href: "/messages", icon: MessageSquare },
-  { label: "Gigs", href: "/gigs", icon: Hammer },
+  { label: "Events", href: "/events", icon: CalendarDays },
 ] as const;
 
 function getInitials(name?: string | null): string {
@@ -85,7 +85,7 @@ export function NavBar() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  const isMoreActive = ["/events", "/settings"].some((p) => pathname.startsWith(p));
+  const isMoreActive = ["/gigs", "/settings"].some((p) => pathname.startsWith(p));
 
   const themeCooldownRef = useRef(false);
   const toggleTheme = () => {

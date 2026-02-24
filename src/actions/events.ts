@@ -28,6 +28,7 @@ const createEventSchema = z.object({
   locationId: z.string().uuid().optional(),
   tags: z.array(z.string()).default([]),
   coverColor: z.string().default("#3b82f6"),
+  coverImageKey: z.string().optional().nullable(),
 }).refine(
   (data) => new Date(data.endDate).getTime() >= new Date(data.startDate).getTime(),
   { message: "End date must be on or after start date", path: ["endDate"] },
@@ -43,6 +44,7 @@ const updateEventSchema = z.object({
   locationId: z.string().uuid().optional().nullable(),
   tags: z.array(z.string()).optional(),
   coverColor: z.string().optional(),
+  coverImageKey: z.string().optional().nullable(),
 }).refine(
   (data) => {
     if (data.startDate && data.endDate) {
@@ -75,6 +77,7 @@ export async function getApprovedEvents(
     },
     with: {
       user: { columns: { name: true, username: true, image: true } },
+      location: { columns: { name: true } },
     },
     orderBy: (e, { asc }) => [asc(e.startDate)],
   });
@@ -99,6 +102,7 @@ export async function getApprovedEvents(
       author: r.user.name,
       authorHandle: r.user.username ? `@${r.user.username}` : null,
       authorImage: r.user.image,
+      locationName: r.location?.name ?? null,
       userRsvp: userRsvps[r.id] ?? null,
     })),
   };
@@ -114,6 +118,7 @@ export async function getEventsForLandmark(
       andFn(eqFn(e.status, "approved"), eqFn(e.locationId, landmarkId)),
     with: {
       user: { columns: { name: true, username: true, image: true } },
+      location: { columns: { name: true } },
     },
     orderBy: (e, { asc }) => [asc(e.startDate)],
   });
@@ -137,6 +142,7 @@ export async function getEventsForLandmark(
       author: r.user.name,
       authorHandle: r.user.username ? `@${r.user.username}` : null,
       authorImage: r.user.image,
+      locationName: r.location?.name ?? null,
       userRsvp: userRsvps[r.id] ?? null,
     })),
   };
@@ -151,6 +157,7 @@ export async function getEventById(
     where: eq(campusEvent.id, id),
     with: {
       user: { columns: { name: true, username: true, image: true } },
+      location: { columns: { name: true } },
     },
   });
 
@@ -185,6 +192,7 @@ export async function getEventById(
       author: row.user.name,
       authorHandle: row.user.username ? `@${row.user.username}` : null,
       authorImage: row.user.image,
+      locationName: row.location?.name ?? null,
       userRsvp,
     },
   };
@@ -230,6 +238,7 @@ export async function createEvent(
       locationId: parsed.data.locationId ?? null,
       tags: parsed.data.tags,
       coverColor: parsed.data.coverColor,
+      coverImageKey: parsed.data.coverImageKey ?? null,
       status,
       rejectionReason: rejectionReason ?? null,
       userId: session.user.id,
@@ -376,6 +385,7 @@ export async function updateEvent(
   if (parsed.data.locationId !== undefined) updateData.locationId = parsed.data.locationId ?? null;
   if (parsed.data.tags !== undefined) updateData.tags = parsed.data.tags;
   if (parsed.data.coverColor !== undefined) updateData.coverColor = parsed.data.coverColor;
+  if (parsed.data.coverImageKey !== undefined) updateData.coverImageKey = parsed.data.coverImageKey ?? null;
 
   // Validate date range against existing dates when only one date is updated
   const effectiveStart = parsed.data.startDate ? new Date(parsed.data.startDate) : existing.startDate;
@@ -469,6 +479,9 @@ export async function getUserEvents(): Promise<ActionResult<unknown[]>> {
 
   const rows = await db.query.campusEvent.findMany({
     where: eq(campusEvent.userId, session.user.id),
+    with: {
+      location: { columns: { name: true } },
+    },
     orderBy: [desc(campusEvent.createdAt)],
   });
 
@@ -481,6 +494,7 @@ export async function getUserEvents(): Promise<ActionResult<unknown[]>> {
       endDate: r.endDate.toISOString(),
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
+      locationName: r.location?.name ?? null,
       rsvpStatus: null,
       attendeeCount: r.attendeeCount,
       interestedCount: r.interestedCount,

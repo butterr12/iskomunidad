@@ -1,8 +1,13 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MessageCircle, MapPin, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { MessageCircle, MapPin, ExternalLink, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { VoteControls } from "./vote-controls";
 import { UserFlairs } from "@/components/user-flairs";
 import { MentionText } from "./mention-text";
@@ -24,13 +29,24 @@ function getInitials(name?: string | null): string {
     .toUpperCase();
 }
 
-interface PostCardProps {
-  post: CommunityPost;
-  onSelect: () => void;
-  onVote: (direction: VoteDirection) => void;
+function isEdited(post: CommunityPost): boolean {
+  if (!post.updatedAt) return false;
+  return new Date(post.updatedAt).getTime() - new Date(post.createdAt).getTime() > 5000;
 }
 
-export function PostCard({ post, onSelect, onVote }: PostCardProps) {
+interface PostCardProps {
+  post: CommunityPost;
+  currentUserId?: string | null;
+  onSelect: () => void;
+  onVote: (direction: VoteDirection) => void;
+  onEdit?: (post: CommunityPost) => void;
+  onDelete?: (postId: string) => void;
+}
+
+export function PostCard({ post, currentUserId, onSelect, onVote, onEdit, onDelete }: PostCardProps) {
+  const isAuthor = !!currentUserId && currentUserId === post.userId;
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <div
       role="button"
@@ -43,7 +59,51 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
         <VoteControls score={post.score} userVote={post.userVote} onVote={onVote} />
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <h3 className="font-semibold leading-tight">{post.title}</h3>
+          <div className="flex items-start gap-2">
+            <h3 className="flex-1 font-semibold leading-tight">{post.title}</h3>
+            {isAuthor && (
+              <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setMenuOpen(true); }}
+                    className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    aria-label="Post options"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-32 p-1"
+                  align="end"
+                  side="bottom"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      onEdit?.(post);
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                  <button
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      onDelete?.(post.id);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
 
           {/* Meta row */}
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
@@ -71,6 +131,9 @@ export function PostCard({ post, onSelect, onVote }: PostCardProps) {
             <UserFlairs username={post.authorHandle?.replace("@", "") ?? ""} context="inline" max={1} />
             <span>·</span>
             <span>{formatRelativeTime(post.createdAt)}</span>
+            {isEdited(post) && (
+              <span className="text-muted-foreground/70">(edited)</span>
+            )}
             {post.locationId && (
               <>
                 <span>·</span>

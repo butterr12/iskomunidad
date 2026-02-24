@@ -28,6 +28,7 @@ import {
 import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import { toast } from "sonner";
+import { usePostHog } from "posthog-js/react";
 import { compressImageForUpload } from "@/lib/image-compression";
 import {
   ALLOWED_IMAGE_TYPES_LABEL,
@@ -65,6 +66,7 @@ export function ChatPanel({
   const { data: session } = useSession();
   const { socket } = useSocket();
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const userId = session?.user?.id;
 
   const [messageText, setMessageText] = useState("");
@@ -393,6 +395,7 @@ export function ChatPanel({
         );
         toast.error(res.error ?? "Failed to send message");
       } else {
+        posthog?.capture("message_sent", { is_image: !!imageUrl });
         // Insert confirmed message into cache before removing optimistic to avoid flash
         queryClient.setQueryData(
           ["messages", conversation.id],

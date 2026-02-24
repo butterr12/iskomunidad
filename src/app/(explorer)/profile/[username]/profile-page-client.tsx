@@ -13,7 +13,7 @@ import {
   type UserProfile,
   type FollowStatus,
 } from "@/actions/follows";
-import { voteOnPost } from "@/actions/posts";
+import { voteOnPost, getUserDrafts, getUserPendingPosts, type DraftPost } from "@/actions/posts";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PostFeed } from "@/components/community/post-feed";
 import {
   ArrowLeft,
+  Clock,
+  FileText,
   UserPlus,
   UserMinus,
   Users,
@@ -30,9 +32,11 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePostHog } from "posthog-js/react";
 import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import type { CommunityPost, VoteDirection } from "@/lib/posts";
+import { FLAIR_COLORS, formatRelativeTime, type PostFlair } from "@/lib/posts";
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -80,6 +84,7 @@ export default function ProfilePageClient() {
   const username = params.username as string;
 
   const [followLoading, setFollowLoading] = useState(false);
+  const posthog = usePostHog();
 
   const isOwnProfile = session?.user?.username === username;
 
@@ -112,6 +117,24 @@ export default function ProfilePageClient() {
     enabled: !!profile?.id,
   });
 
+  const { data: pendingPosts = [], isLoading: pendingLoading } = useQuery({
+    queryKey: ["user-pending-posts"],
+    queryFn: async () => {
+      const res = await getUserPendingPosts();
+      return res.success ? (res.data as CommunityPost[]) : [];
+    },
+    enabled: isOwnProfile && !!session?.user,
+  });
+
+  const { data: drafts = [], isLoading: draftsLoading } = useQuery({
+    queryKey: ["user-drafts"],
+    queryFn: async () => {
+      const res = await getUserDrafts();
+      return res.success ? res.data : [];
+    },
+    enabled: isOwnProfile && !!session?.user,
+  });
+
   async function handleFollow() {
     if (!profile) return;
     setFollowLoading(true);
@@ -120,6 +143,7 @@ export default function ProfilePageClient() {
       : await followUser(profile.id);
 
     if (res.success) {
+      posthog?.capture(followStatus?.isFollowing ? "user_unfollowed" : "user_followed");
       await refetchFollowStatus();
       await queryClient.invalidateQueries({ queryKey: ["user-profile", username] });
     } else {
@@ -296,6 +320,16 @@ export default function ProfilePageClient() {
               <TabsTrigger value="posts">
                 Posts ({posts.length})
               </TabsTrigger>
+              {isOwnProfile && (
+                <TabsTrigger value="pending">
+                  Pending {pendingPosts.length > 0 && `(${pendingPosts.length})`}
+                </TabsTrigger>
+              )}
+              {isOwnProfile && (
+                <TabsTrigger value="drafts">
+                  Drafts {drafts.length > 0 && `(${drafts.length})`}
+                </TabsTrigger>
+              )}
             </TabsList>
             <TabsContent value="posts" className="mt-3">
               {postsLoading ? (
@@ -307,13 +341,103 @@ export default function ProfilePageClient() {
               ) : (
                 <PostFeed
                   posts={posts}
-                  onSelectPost={(post) =>
-                    router.push(`/c/${post.id}`)
-                  }
+                  onSelectPost={(post) => router.push(`/c/${post.id}`)}
                   onVotePost={handleVotePost}
                 />
               )}
             </TabsContent>
+            {isOwnProfile && (
+              <TabsContent value="pending" className="mt-3">
+                {pendingLoading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+                    ))}
+                  </div>
+                ) : pendingPosts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
+                    <FileText className="h-10 w-10 text-muted-foreground/40" />
+                    <p className="text-sm font-medium">No posts pending review</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {pendingPosts.map((post) => (
+                      <div key={post.id} className="flex items-start gap-3 rounded-xl border bg-card p-3">
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{post.title}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <Badge
+                              variant="outline"
+                              style={{
+                                borderColor: FLAIR_COLORS[post.flair as PostFlair],
+                                color: FLAIR_COLORS[post.flair as PostFlair],
+                              }}
+                              className="text-[10px] px-1.5 py-0"
+                            >
+                              {post.flair}
+                            </Badge>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              Pending review
+                            </Badge>
+                            <span className="flex items-center gap-0.5">
+                              <Clock className="h-3 w-3" />
+                              {formatRelativeTime(post.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            )}
+            {isOwnProfile && (
+              <TabsContent value="drafts" className="mt-3">
+                {draftsLoading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+                    ))}
+                  </div>
+                ) : drafts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
+                    <FileText className="h-10 w-10 text-muted-foreground/40" />
+                    <p className="text-sm font-medium">No drafts yet</p>
+                    <p className="text-xs">Start writing and save for later from the community page.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {(drafts as DraftPost[]).map((draft) => (
+                      <div key={draft.id} className="flex items-start gap-3 rounded-xl border bg-card p-3">
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {draft.title || <span className="italic text-muted-foreground">(No title yet)</span>}
+                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <Badge
+                              variant="outline"
+                              style={{
+                                borderColor: FLAIR_COLORS[draft.flair as PostFlair],
+                                color: FLAIR_COLORS[draft.flair as PostFlair],
+                              }}
+                              className="text-[10px] px-1.5 py-0"
+                            >
+                              {draft.flair}
+                            </Badge>
+                            <span className="flex items-center gap-0.5">
+                              <Clock className="h-3 w-3" />
+                              Edited {formatRelativeTime(draft.updatedAt)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>

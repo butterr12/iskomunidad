@@ -1,9 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   ArrowLeft,
   DollarSign,
@@ -16,7 +26,9 @@ import {
   Share2,
   Bookmark,
   HandHelping,
+  Loader2,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   CATEGORY_LABELS,
   CATEGORY_COLORS,
@@ -25,14 +37,64 @@ import {
   formatRelativeTime,
   type GigListing,
 } from "@/lib/gigs";
+import { getOrCreateConversation, sendMessage } from "@/actions/messages";
 
 interface GigDetailProps {
   gig: GigListing;
   onBack: () => void;
+  onInterest: () => void;
+  isInterested: boolean;
+  onSave: () => void;
+  isSaved: boolean;
+  isSaving: boolean;
 }
 
-export function GigDetail({ gig, onBack }: GigDetailProps) {
+export function GigDetail({
+  gig,
+  onBack,
+  onInterest,
+  isInterested,
+  onSave,
+  isSaved,
+  isSaving,
+}: GigDetailProps) {
   const router = useRouter();
+  const [showCompose, setShowCompose] = useState(false);
+  const [userMessage, setUserMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sentConversationId, setSentConversationId] = useState<string | null>(null);
+
+  const systemPart = `📋 About this gig: "${gig.title}" · ${gig.compensation} · ${CATEGORY_LABELS[gig.category]}`;
+
+  function openCompose() {
+    setUserMessage("Hi! I saw your gig and I'm interested in helping. Could we connect?");
+    setSentConversationId(null);
+    setShowCompose(true);
+  }
+
+  async function handleSendInterestMessage() {
+    if (!userMessage.trim() || sending) return;
+    setSending(true);
+    try {
+      const body = `${systemPart}\n\n${userMessage.trim()}`;
+      const convResult = await getOrCreateConversation(gig.posterId);
+      if (!convResult.success) {
+        toast.error(convResult.error ?? "Could not start conversation");
+        return;
+      }
+      const { conversationId } = convResult.data;
+      const msgResult = await sendMessage({ conversationId, body });
+      if (!msgResult.success) {
+        toast.error(msgResult.error ?? "Failed to send message");
+        return;
+      }
+      setSentConversationId(conversationId);
+      onInterest();
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div className="flex flex-col">
       {/* Back button */}
@@ -131,10 +193,12 @@ export function GigDetail({ gig, onBack }: GigDetailProps) {
               <span>{gig.posterCollege}</span>
             </div>
           )}
-          <div className="flex items-start gap-2">
-            <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{gig.contactMethod}</span>
-          </div>
+          {gig.contactMethod && gig.contactMethod !== "in-app" && (
+            <div className="flex items-start gap-2">
+              <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{gig.contactMethod}</span>
+            </div>
+          )}
           <div className="flex items-start gap-2">
             <Users className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
@@ -154,13 +218,24 @@ export function GigDetail({ gig, onBack }: GigDetailProps) {
         {/* Action buttons */}
         <div className="flex flex-col gap-2 border-t pt-4">
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1 gap-1.5">
+            <Button
+              size="sm"
+              className="flex-1 gap-1.5"
+              onClick={openCompose}
+              disabled={isInterested}
+            >
               <HandHelping className="h-3.5 w-3.5" />
-              I&apos;m Interested
+              {isInterested ? "Interested ✓" : "I'm Interested"}
             </Button>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Bookmark className="h-3.5 w-3.5" />
-              Save
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={onSave}
+              disabled={isSaving}
+            >
+              <Bookmark className={cn("h-3.5 w-3.5", isSaved && "fill-current")} />
+              {isSaved ? "Saved" : "Save"}
             </Button>
             <Button variant="outline" size="sm" className="gap-1.5">
               <Share2 className="h-3.5 w-3.5" />
@@ -180,6 +255,89 @@ export function GigDetail({ gig, onBack }: GigDetailProps) {
           )}
         </div>
       </div>
+
+      {/* DM compose dialog */}
+      <Dialog
+        open={showCompose}
+        onOpenChange={(o) => {
+          if (!sending) setShowCompose(o);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Message {gig.posterName}</DialogTitle>
+            <DialogDescription>
+              {sentConversationId
+                ? "Your message was sent successfully."
+                : "Send a message to express your interest in this gig."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {sentConversationId ? (
+            <div className="flex flex-col gap-3 pt-1">
+              <p className="text-sm text-muted-foreground">
+                Message sent to{" "}
+                <span className="font-medium">
+                  {gig.posterHandle ?? gig.posterName}
+                </span>
+                !
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowCompose(false)}>
+                  Close
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => router.push(`/messages?chat=${sentConversationId}`)}
+                >
+                  Open Conversation
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 pt-1">
+              {/* Non-editable system header */}
+              <div className="select-none rounded-md bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+                {systemPart}
+              </div>
+
+              {/* Editable user message */}
+              <Textarea
+                value={userMessage}
+                onChange={(e) => setUserMessage(e.target.value)}
+                placeholder="Write your message..."
+                rows={4}
+                disabled={sending}
+              />
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCompose(false)}
+                  disabled={sending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={sending || !userMessage.trim()}
+                  onClick={handleSendInterestMessage}
+                >
+                  {sending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    "Send Message →"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

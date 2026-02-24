@@ -62,6 +62,8 @@ export function buildActivityMessage(data: {
       return `${actor} upvoted your comment on "${data.targetTitle}".`;
     case "new_follower":
       return `${actor} started following you.`;
+    case "gig_interest":
+      return `${actor} expressed interest in your gig "${data.targetTitle}".`;
     default:
       return `${actor} interacted with "${data.targetTitle}".`;
   }

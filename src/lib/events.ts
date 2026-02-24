@@ -14,6 +14,8 @@ export interface CampusEvent {
   locationId?: string;
   tags: string[];
   coverColor: string;
+  coverImageKey?: string | null;
+  locationName?: string | null;
   attendeeCount: number;
   interestedCount: number;
   rsvpStatus: RsvpStatus;

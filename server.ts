@@ -15,6 +15,14 @@ const handle = app.getRequestHandler();
 const VALID_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 app.prepare().then(async () => {
+  // Init Sentry before anything else (env vars are loaded at this point)
+  const Sentry = await import("@sentry/nextjs");
+  Sentry.init({
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
+    enableLogs: true,
+  });
+
   // Dynamic imports so env vars are available when db module loads
   const { db } = await import("./src/lib/db");
   const { session: sessionTable, user: userTable } = await import("./src/lib/auth-schema");

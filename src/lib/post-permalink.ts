@@ -18,6 +18,7 @@ export interface PermalinkPost {
   authorHandle: string | null;
   authorImage: string | null;
   createdAt: string;
+  updatedAt: string;
   score: number;
   commentCount: number;
   userVote: VoteDirection;
@@ -25,6 +26,7 @@ export interface PermalinkPost {
   locationId: string | null;
   linkUrl: string | null;
   imageKeys: string[];
+  userId: string;
 }
 
 export interface PermalinkComment {
@@ -53,6 +55,7 @@ function toVoteDirection(value: number | null | undefined): VoteDirection {
 function mapPost(
   row: {
     id: string;
+    userId: string;
     title: string;
     body: string | null;
     flair: string;
@@ -61,6 +64,7 @@ function mapPost(
     locationId: string | null;
     linkUrl: string | null;
     createdAt: Date;
+    updatedAt: Date;
     user: { name: string | null; username: string | null; image: string | null };
     images: { imageKey: string; order: number }[];
   },
@@ -69,6 +73,7 @@ function mapPost(
 ): PermalinkPost {
   return {
     id: row.id,
+    userId: row.userId,
     title: row.title,
     body: row.body,
     flair: row.flair,
@@ -76,6 +81,7 @@ function mapPost(
     authorHandle: row.user.username ? `@${row.user.username}` : null,
     authorImage: row.user.image,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
     score: row.score,
     commentCount: row.commentCount,
     userVote,

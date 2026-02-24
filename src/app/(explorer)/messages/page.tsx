@@ -14,9 +14,11 @@ import { ChatPanel } from "@/components/messages/chat-panel";
 import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { usePostHog } from "posthog-js/react";
 
 export default function MessagesPage() {
   const { data: session } = useSession();
+  const posthog = usePostHog();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -93,6 +95,7 @@ export default function MessagesPage() {
       try {
         const res = await getOrCreateConversation(withUserId!);
         if (res.success) {
+          posthog?.capture("conversation_started", { is_request: res.data.isRequest });
           // Find this conversation in the list, or refetch
           const found = allConversations.find((c) => c.id === res.data.conversationId);
           if (found) {

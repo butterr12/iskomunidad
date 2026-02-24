@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarIcon, Check } from "lucide-react";
+import { CalendarIcon, Check, Camera, X } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { createEvent, updateEvent } from "@/actions/events";
 import { toast } from "sonner";
+import { usePostHog } from "posthog-js/react";
 import { getApprovedLandmarks } from "@/actions/landmarks";
+import { compressImageForUpload } from "@/lib/image-compression";
 import type { CampusEvent, EventCategory } from "@/lib/events";
 import type { Landmark } from "@/lib/landmarks";
 
@@ -42,6 +44,13 @@ const EVENT_CATEGORIES: { value: EventCategory; label: string }[] = [
 
 const COVER_COLORS = [
   "#2563eb", "#9333ea", "#f59e0b", "#e11d48", "#16a34a", "#06b6d4", "#7c3aed", "#0ea5e9",
+];
+
+const SUGGESTED_TAGS = [
+  "workshop", "seminar", "lecture", "networking", "career",
+  "sports", "cultural", "social", "food", "tech",
+  "arts", "music", "volunteer", "free", "fundraiser",
+  "competition", "study", "research", "showcase", "expo",
 ];
 
 function combineDateAndTime(date: Date, time: string): string {
@@ -71,6 +80,7 @@ interface EventFormWizardProps {
 
 export function EventFormWizard({ mode, initialData, autoApprove = true, open, onOpenChange, onSuccess }: EventFormWizardProps) {
   const router = useRouter();
+  const posthog = usePostHog();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,14 +108,50 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
   // Step 3 fields
   const [locationId, setLocationId] = useState(initialData?.locationId ?? "none");
   const [organizer, setOrganizer] = useState(initialData?.organizer ?? "");
-  const [tags, setTags] = useState(initialData?.tags.join(", ") ?? "");
+  const [selectedTags, setSelectedTags] = useState<string[]>(initialData?.tags ?? []);
+  const [customTagInput, setCustomTagInput] = useState("");
   const [coverColor, setCoverColor] = useState(initialData?.coverColor ?? COVER_COLORS[0]);
+  const [coverImageKey, setCoverImageKey] = useState<string | null>(initialData?.coverImageKey ?? null);
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   useEffect(() => {
     getApprovedLandmarks().then((res) => {
       if (res.success) setLandmarks(res.data as Landmark[]);
     });
   }, []);
+
+  const handleBannerUpload = async (file: File) => {
+    setImageUploading(true);
+    try {
+      const compressed = await compressImageForUpload(file);
+      const formData = new FormData();
+      formData.append("file", compressed);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      const { key } = await res.json();
+      setCoverImageKey(key);
+      setCoverImagePreview(URL.createObjectURL(file));
+    } catch {
+      toast.error("Failed to upload banner image");
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  };
+
+  const addCustomTag = (input: string) => {
+    const cleaned = input.replace(/#/g, "").trim().toLowerCase().slice(0, 30);
+    if (cleaned && !selectedTags.includes(cleaned)) {
+      setSelectedTags((prev) => [...prev, cleaned]);
+    }
+    setCustomTagInput("");
+  };
 
   const validateStep = (s: number): boolean => {
     if (s === 1) {
@@ -145,8 +191,9 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
       startDate: combineDateAndTime(startDate, startTime),
       endDate: combineDateAndTime(endDate, endTime),
       locationId: locationId !== "none" ? locationId : undefined,
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      tags: selectedTags,
       coverColor,
+      coverImageKey: coverImageKey ?? undefined,
     };
 
     try {
@@ -158,6 +205,7 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
       if (res.success) {
         const status = (res.data as { status?: string }).status;
         if (mode === "create") {
+          posthog?.capture("event_created", { status, category: payload.category });
           toast.success(
             status === "draft"
               ? "Event submitted for review."
@@ -186,6 +234,8 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
       setSubmitting(false);
     }
   };
+
+  const bannerDisplaySrc = coverImagePreview ?? (coverImageKey ? `/api/photos/${coverImageKey}` : null);
 
   const stepLabels = ["Details", "Date & Time", "More Info"];
 
@@ -345,6 +395,64 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
 
         {step === 3 && (
           <div className="space-y-4">
+            {/* Banner upload */}
+            <div className="space-y-2">
+              <Label>Event Banner (recommended: 16:9)</Label>
+              <div
+                className={cn(
+                  "relative aspect-video w-full overflow-hidden rounded-lg border-2 border-dashed",
+                  "flex cursor-pointer items-center justify-center bg-muted/30 transition-colors",
+                  imageUploading ? "opacity-60" : "hover:border-primary/50",
+                )}
+                onClick={() => {
+                  if (!imageUploading) document.getElementById("banner-upload")?.click();
+                }}
+              >
+                {bannerDisplaySrc ? (
+                  <>
+                    <img
+                      src={bannerDisplaySrc}
+                      alt="Banner preview"
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCoverImageKey(null);
+                        setCoverImagePreview(null);
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    {imageUploading ? (
+                      <span className="text-xs">Uploading…</span>
+                    ) : (
+                      <>
+                        <Camera className="h-8 w-8 opacity-40" />
+                        <span className="text-xs">Click to upload banner image</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <input
+                id="banner-upload"
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleBannerUpload(file);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Location</Label>
               <Select value={locationId} onValueChange={setLocationId}>
@@ -370,17 +478,64 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
                 onChange={(e) => setOrganizer(e.target.value)}
               />
             </div>
+
+            {/* Tags */}
             <div className="space-y-2">
-              <Label htmlFor="tags">Tags (comma-separated)</Label>
+              <Label>Tags</Label>
+              {/* Selected tag badges */}
+              {selectedTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setSelectedTags((prev) => prev.filter((t) => t !== tag))}
+                      className="flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+                    >
+                      #{tag}
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Suggested chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {SUGGESTED_TAGS.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                      selectedTags.includes(tag)
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-muted-foreground/30 text-muted-foreground hover:border-primary/50",
+                    )}
+                  >
+                    {selectedTags.includes(tag) ? `#${tag}` : tag}
+                  </button>
+                ))}
+              </div>
+              {/* Custom tag input */}
               <Input
-                id="tags"
-                placeholder="e.g. tech, workshop, free"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
+                placeholder="Add custom tag (press Enter or comma)"
+                value={customTagInput}
+                onChange={(e) => setCustomTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addCustomTag(customTagInput);
+                  }
+                }}
               />
             </div>
+
+            {/* Accent color */}
             <div className="space-y-2">
-              <Label>Cover Color</Label>
+              <div>
+                <Label>Accent Color</Label>
+                <p className="text-xs text-muted-foreground">Used for category badges and overlays</p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {COVER_COLORS.map((color) => (
                   <button
@@ -397,7 +552,7 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
                   />
                 ))}
                 <label
-                  aria-label="Pick a custom cover color"
+                  aria-label="Pick a custom accent color"
                   className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/40"
                 >
                   <input
@@ -415,7 +570,7 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
               </div>
             </div>
 
-            {/* Cover preview */}
+            {/* Accent preview */}
             <div className="space-y-2">
               <Label>Preview</Label>
               <div
@@ -450,7 +605,7 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
           ) : (
             <Button
               className="flex-1"
-              disabled={!validateStep(3) || submitting}
+              disabled={!validateStep(3) || submitting || imageUploading}
               onClick={handleSubmit}
             >
               {submitting

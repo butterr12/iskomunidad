@@ -13,6 +13,7 @@ export interface CommunityPost {
   flair: PostFlair;
   locationId?: string;
   createdAt: string;
+  updatedAt?: string;
   score: number;
   commentCount: number;
   userVote: VoteDirection;
@@ -21,6 +22,8 @@ export interface CommunityPost {
   imageKeys?: string[];
   status?: PostStatus;
   rejectionReason?: string;
+  userId?: string;
+  draftSource?: string | null;
 }
 
 export interface PostComment {

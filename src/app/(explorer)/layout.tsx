@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+import { usePostHog } from "posthog-js/react";
 import { NavBar } from "@/components/nav-bar";
 import { ConsentGate } from "@/components/consent-gate";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
@@ -57,6 +58,7 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const signingOut = useRef(false);
+  const posthog = usePostHog();
   useVirtualKeyboard();
 
   const isInactive = !isPending && !!session?.user?.status && session.user.status !== "active";
@@ -68,6 +70,19 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
       .catch(() => {})
       .finally(() => router.push("/sign-in"));
   }, [isInactive, router]);
+
+  useEffect(() => {
+    if (isPending) return;
+    if (!session?.user) {
+      posthog?.reset();
+      return;
+    }
+    posthog?.identify(session.user.id, {
+      username: session.user.username ?? undefined,
+      university: (session.user as { university?: string }).university ?? undefined,
+      role: session.user.role,
+    });
+  }, [session?.user?.id, isPending, posthog]);
 
   if (isPending || isInactive) {
     return <ExplorerSkeleton />;

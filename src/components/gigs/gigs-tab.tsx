@@ -6,8 +6,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bookmark, Plus, Hammer, Briefcase, Construction } from "lucide-react";
+import { Bookmark, Plus, Hammer, Briefcase, Construction, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { CreateGigForm } from "./create-gig-form";
 import { SortToggle } from "./sort-toggle";
 import { CategoryFilter } from "./category-filter";
@@ -24,8 +25,9 @@ import {
   type GigCategory,
   type GigSortMode,
 } from "@/lib/gigs";
-import { getApprovedGigs, swipeGig, createGig } from "@/actions/gigs";
+import { getApprovedGigs, swipeGig, createGig, expressInterestInGig } from "@/actions/gigs";
 import { toast } from "sonner";
+import { usePostHog } from "posthog-js/react";
 
 function GigCardSkeleton() {
   return (
@@ -61,6 +63,7 @@ function GigListSkeleton() {
 
 export function GigsTab() {
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const searchParams = useSearchParams();
   const gigParam = searchParams.get("gig");
   const [viewMode, setViewMode] = useState<"list" | "swipe">("list");
@@ -69,6 +72,8 @@ export function GigsTab() {
   const [sortMode, setSortMode] = useState<GigSortMode>("newest");
   const [showSaved, setShowSaved] = useState(false);
   const [showCreateGig, setShowCreateGig] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [savingGigId, setSavingGigId] = useState<string | null>(null);
 
   const { data: gigs = [], isLoading } = useQuery({
     queryKey: ["approved-gigs"],
@@ -79,11 +84,13 @@ export function GigsTab() {
         author?: string;
         authorHandle?: string;
         userSwipe?: GigListing["swipeAction"];
+        posterId?: string;
       })[]).map((gig) => ({
         ...gig,
         posterName: gig.author ?? gig.posterName,
         posterHandle: gig.authorHandle ?? gig.posterHandle,
         swipeAction: gig.userSwipe ?? gig.swipeAction ?? null,
+        posterId: gig.posterId ?? "",
       }));
     },
   });
@@ -98,8 +105,17 @@ export function GigsTab() {
     if (showSaved) {
       filtered = filtered.filter((g) => g.swipeAction === "saved");
     }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter(
+        (g) =>
+          g.title.toLowerCase().includes(q) ||
+          g.description.toLowerCase().includes(q) ||
+          g.tags.some((t) => t.toLowerCase().includes(q)),
+      );
+    }
     return sortGigs(filtered, sortMode);
-  }, [gigs, activeCategory, sortMode, showSaved]);
+  }, [gigs, activeCategory, sortMode, showSaved, searchQuery]);
 
   const swipeGigs = useMemo(() => {
     let filtered = gigs.filter((g) => g.swipeAction === null);
@@ -123,6 +139,7 @@ export function GigsTab() {
 
   const handleSwipe = async (gigId: string, action: "saved" | "skipped") => {
     await swipeGig(gigId, action);
+    posthog?.capture("gig_swiped", { action });
     queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
       old?.map((g) => (g.id === gigId ? { ...g, swipeAction: action } : g)),
     );
@@ -137,11 +154,52 @@ export function GigsTab() {
     );
   };
 
+  const handleInterest = async (gigId: string) => {
+    const res = await expressInterestInGig(gigId);
+    if (res.success && !res.data.alreadyInterested) {
+      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+        old?.map((g) =>
+          g.id === gigId
+            ? { ...g, swipeAction: "interested", applicantCount: g.applicantCount + 1 }
+            : g,
+        ),
+      );
+      setSelectedGig((prev) =>
+        prev?.id === gigId
+          ? { ...prev, swipeAction: "interested", applicantCount: prev.applicantCount + 1 }
+          : prev,
+      );
+    }
+  };
+
+  const handleSaveGig = async (gigId: string) => {
+    const gig = gigs.find((g) => g.id === gigId);
+    if (!gig) return;
+    const newAction = gig.swipeAction === "saved" ? null : "saved";
+    setSavingGigId(gigId);
+    try {
+      const res = await swipeGig(gigId, newAction);
+      if (res.success) {
+        queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+          old?.map((g) => (g.id === gigId ? { ...g, swipeAction: newAction } : g)),
+        );
+        setSelectedGig((prev) =>
+          prev?.id === gigId ? { ...prev, swipeAction: newAction } : prev,
+        );
+      } else {
+        toast.error(res.error);
+      }
+    } finally {
+      setSavingGigId(null);
+    }
+  };
+
   const handleCreateGig = async (data: Parameters<typeof createGig>[0]) => {
     const res = await createGig(data);
     if (res.success) {
       await queryClient.invalidateQueries({ queryKey: ["approved-gigs"] });
       const status = (res.data as { status?: string }).status;
+      posthog?.capture("gig_created", { status, category: data.category });
       toast.success(
         status === "draft"
           ? "Gig submitted for review."
@@ -187,6 +245,20 @@ export function GigsTab() {
           {viewMode === "list" && (
             <div className="lg:hidden">
               <CategoryFilter activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+            </div>
+          )}
+          {/* Search input */}
+          {viewMode === "list" && (
+            <div className="px-4 pb-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search gigs..."
+                  className="h-8 pl-8 text-sm"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -238,11 +310,30 @@ export function GigsTab() {
               <GigDetail
                 gig={selectedGig}
                 onBack={() => setSelectedGig(null)}
+                onInterest={() => handleInterest(selectedGig.id)}
+                isInterested={selectedGig.swipeAction === "interested"}
+                onSave={() => handleSaveGig(selectedGig.id)}
+                isSaved={selectedGig.swipeAction === "saved"}
+                isSaving={savingGigId === selectedGig.id}
               />
             ) : isLoading ? (
               <GigListSkeleton />
             ) : viewMode === "list" ? (
-              <GigList gigs={filteredAndSorted} onSelectGig={handleSelectGig} />
+              filteredAndSorted.length === 0 && showSaved ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
+                  <Bookmark className="h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm font-medium">No saved gigs</p>
+                  <p className="text-xs">Swipe right or tap &ldquo;Save&rdquo; on a gig to bookmark it here.</p>
+                </div>
+              ) : filteredAndSorted.length === 0 && searchQuery.trim() ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
+                  <Search className="h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm font-medium">No gigs match &ldquo;{searchQuery}&rdquo;</p>
+                  <p className="text-xs">Try a different search term or clear the filter.</p>
+                </div>
+              ) : (
+                <GigList gigs={filteredAndSorted} onSelectGig={handleSelectGig} />
+              )
             ) : (
               <SwipeDeck
                 gigs={swipeGigs}

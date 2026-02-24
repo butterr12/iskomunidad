@@ -12,7 +12,7 @@ import {
   userFollow,
   user,
 } from "@/lib/schema";
-import { eq, sql, and, inArray, ne } from "drizzle-orm";
+import { eq, sql, and, inArray, ne, isNull, or } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
@@ -837,6 +837,250 @@ export async function toggleBookmark(
   }
 
   return { success: true, data: { isBookmarked: true } };
+}
+
+export async function saveDraft(
+  input: z.infer<typeof createPostSchema>,
+): Promise<ActionResult<{ id: string; status: string }>> {
+  const parsed = createPostSchema.safeParse(input);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0].message };
+
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const { imageKeys, ...postData } = parsed.data;
+  const [created] = await db
+    .insert(communityPost)
+    .values({
+      ...postData,
+      type: "text",
+      locationId: postData.locationId ?? null,
+      linkUrl: postData.linkUrl ?? null,
+      status: "draft",
+      draftSource: "user",
+      userId: session.user.id,
+    })
+    .returning({ id: communityPost.id });
+
+  if (imageKeys && imageKeys.length > 0) {
+    await db.insert(postImage).values(
+      imageKeys.map((key, i) => ({ postId: created.id, imageKey: key, order: i })),
+    );
+  }
+
+  return { success: true, data: { id: created.id, status: "draft" } };
+}
+
+export interface DraftPost {
+  id: string;
+  title: string;
+  flair: string;
+  body?: string | null;
+  linkUrl?: string | null;
+  imageKeys: string[];
+  updatedAt: string;
+  draftSource: string | null;
+}
+
+export async function getUserDrafts(): Promise<ActionResult<DraftPost[]>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const rows = await db.query.communityPost.findMany({
+    where: (p, { eq: e, and: a }) =>
+      a(e(p.userId, session.user.id), e(p.status, "draft"), e(p.draftSource, "user")),
+    with: {
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+    },
+    orderBy: (p, { desc: d }) => [d(p.updatedAt)],
+  });
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      flair: r.flair,
+      body: r.body,
+      linkUrl: r.linkUrl,
+      imageKeys: r.images.map((img) => img.imageKey),
+      updatedAt: r.updatedAt.toISOString(),
+      draftSource: r.draftSource,
+    })),
+  };
+}
+
+export async function getUserPendingPosts(): Promise<ActionResult<unknown[]>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const rows = await db.query.communityPost.findMany({
+    where: (p, { eq: e, and: a, or: o, isNull: n }) =>
+      a(
+        e(p.userId, session.user.id),
+        e(p.status, "draft"),
+        o(e(p.draftSource, "moderation"), n(p.draftSource)),
+      ),
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+    },
+    orderBy: (p, { desc: d }) => [d(p.createdAt)],
+  });
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      author: r.user.name,
+      authorHandle: r.user.username ? `@${r.user.username}` : null,
+      authorImage: r.user.image,
+      imageKeys: r.images.map((img) => img.imageKey),
+      userVote: 0,
+      isBookmarked: false,
+    })),
+  };
+}
+
+export async function updatePost(
+  id: string,
+  input: z.infer<typeof createPostSchema>,
+): Promise<ActionResult<{ id: string; status: string }>> {
+  const parsed = createPostSchema.safeParse(input);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0].message };
+
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const post = await db.query.communityPost.findFirst({
+    where: eq(communityPost.id, id),
+    columns: { userId: true, status: true },
+  });
+  if (!post) return { success: false, error: "Post not found" };
+  if (post.userId !== session.user.id) return { success: false, error: "Not authorized" };
+
+  const { imageKeys, ...postData } = parsed.data;
+
+  await db
+    .update(communityPost)
+    .set({
+      title: postData.title,
+      body: postData.body ?? null,
+      flair: postData.flair,
+      locationId: postData.locationId ?? null,
+      linkUrl: postData.linkUrl ?? null,
+    })
+    .where(eq(communityPost.id, id));
+
+  await db.delete(postImage).where(eq(postImage.postId, id));
+  if (imageKeys && imageKeys.length > 0) {
+    await db.insert(postImage).values(
+      imageKeys.map((key, i) => ({ postId: id, imageKey: key, order: i })),
+    );
+  }
+
+  return { success: true, data: { id, status: post.status } };
+}
+
+export async function deletePost(id: string): Promise<ActionResult<void>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const post = await db.query.communityPost.findFirst({
+    where: eq(communityPost.id, id),
+    columns: { userId: true },
+  });
+  if (!post) return { success: false, error: "Post not found" };
+  if (post.userId !== session.user.id) return { success: false, error: "Not authorized" };
+
+  await db.delete(communityPost).where(eq(communityPost.id, id));
+  return { success: true, data: undefined };
+}
+
+export async function publishDraft(
+  id: string,
+): Promise<ActionResult<{ id: string; status: string }>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const post = await db.query.communityPost.findFirst({
+    where: eq(communityPost.id, id),
+    columns: { userId: true, status: true, draftSource: true, title: true, body: true },
+  });
+  if (!post) return { success: false, error: "Post not found" };
+  if (post.userId !== session.user.id) return { success: false, error: "Not authorized" };
+  if (post.status !== "draft" || post.draftSource !== "user") {
+    return { success: false, error: "Post cannot be published from this state" };
+  }
+
+  const mode = await getApprovalMode();
+  let newStatus: string;
+  let rejectionReason: string | undefined;
+
+  if (mode === "ai") {
+    const result = await moderateContent({ type: "post", title: post.title, body: post.body ?? undefined });
+    newStatus = result.approved ? "approved" : "draft";
+    rejectionReason = result.reason;
+  } else {
+    newStatus = mode === "auto" ? "approved" : "draft";
+  }
+
+  await db
+    .update(communityPost)
+    .set({
+      status: newStatus,
+      draftSource: "moderation",
+      rejectionReason: rejectionReason ?? null,
+    })
+    .where(eq(communityPost.id, id));
+
+  if (mode === "manual") {
+    await createNotification({
+      type: "post_pending",
+      targetId: id,
+      targetTitle: post.title,
+      authorHandle: session.user.username ?? session.user.name,
+    });
+    await createUserNotification({
+      userId: session.user.id,
+      type: "post_pending",
+      contentType: "post",
+      targetId: id,
+      targetTitle: post.title,
+    });
+  } else if (mode === "ai") {
+    await createNotification({
+      type: newStatus === "approved" ? "post_approved" : "post_pending",
+      targetId: id,
+      targetTitle: post.title,
+      authorHandle: session.user.username ?? session.user.name,
+      reason: rejectionReason,
+    });
+    await createUserNotification({
+      userId: session.user.id,
+      type: newStatus === "approved" ? "post_approved" : "post_pending",
+      contentType: "post",
+      targetId: id,
+      targetTitle: post.title,
+    });
+  }
+
+  if (newStatus === "approved") {
+    await notifyMentionedUsers({
+      text: `${post.title}\n${post.body ?? ""}`,
+      actorUserId: session.user.id,
+      actorLabel: getActorLabel(session.user),
+      targetId: id,
+      targetTitle: post.title,
+      notificationType: "post_mentioned",
+    });
+  }
+
+  return { success: true, data: { id, status: newStatus } };
 }
 
 export async function getBookmarkedPosts(

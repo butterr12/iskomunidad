@@ -4,14 +4,22 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal, Bookmark } from "lucide-react";
+import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal, Bookmark, FileText } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { FilterSheet } from "./filter-sheet";
 import { PostFeed } from "./post-feed";
-import { CreatePostForm } from "./create-post-form";
+import { CreatePostForm, type PostFormValues } from "./create-post-form";
+import { DraftsSheet } from "./drafts-sheet";
 import {
   sortPosts,
   POST_FLAIRS,
@@ -27,9 +35,16 @@ import {
   getBookmarkedPosts,
   voteOnPost,
   createPost,
+  saveDraft,
+  getUserDrafts,
+  updatePost,
+  deletePost,
+  publishDraft,
+  type DraftPost,
 } from "@/actions/posts";
 import { toast } from "sonner";
 import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
+import { usePostHog } from "posthog-js/react";
 
 type PostPage = { posts: CommunityPost[]; hasMore: boolean };
 
@@ -73,11 +88,22 @@ export function CommunityTab() {
   const { data: session } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const [feedMode, setFeedMode] = useState<"all" | "following" | "saved">("all");
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showDrafts, setShowDrafts] = useState(false);
+
+  // Edit state
+  const [editingPost, setEditingPost] = useState<CommunityPost | null>(null);
+  const [editingDraft, setEditingDraft] = useState<DraftPost | null>(null);
+
+  // Delete confirmation
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const activeFilterCount =
@@ -135,6 +161,15 @@ export function CommunityTab() {
     enabled: feedMode === "saved" && !!user,
   });
 
+  const { data: draftCount = 0 } = useQuery({
+    queryKey: ["user-draft-count"],
+    queryFn: async () => {
+      const res = await getUserDrafts();
+      return res.success ? res.data.length : 0;
+    },
+    enabled: !!user,
+  });
+
   const displayPosts = useMemo(() => {
     if (feedMode === "following") {
       const filtered = activeFlair
@@ -177,6 +212,9 @@ export function CommunityTab() {
       toast.error(res.error);
       return;
     }
+    if (direction !== 0) {
+      posthog?.capture("post_voted", { direction: direction === 1 ? "up" : "down" });
+    }
 
     queryClient.setQueryData(
       ["approved-posts", sortMode, activeFlair],
@@ -217,18 +255,19 @@ export function CommunityTab() {
     );
   };
 
-  const handleCreatePost = async (data: {
-    title: string;
-    flair: string;
-    body?: string;
-    linkUrl?: string;
-    imageKeys?: string[];
-  }) => {
+  const handleCreatePost = async (data: PostFormValues) => {
     const res = await createPost(data);
     if (res.success) {
       await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
       await queryClient.invalidateQueries({ queryKey: ["following-posts"] });
       const status = (res.data as { status?: string }).status;
+      posthog?.capture("post_created", {
+        status,
+        has_body: !!data.body,
+        has_images: (data.imageKeys?.length ?? 0) > 0,
+        has_link: !!data.linkUrl,
+        flair: data.flair,
+      });
       toast.success(
         status === "draft"
           ? "Post submitted for review."
@@ -239,6 +278,137 @@ export function CommunityTab() {
     }
     return { success: res.success };
   };
+
+  const handleSaveDraft = async (data: PostFormValues) => {
+    const res = await saveDraft(data);
+    if (res.success) {
+      await queryClient.invalidateQueries({ queryKey: ["user-draft-count"] });
+      await queryClient.invalidateQueries({ queryKey: ["user-drafts"] });
+      toast.success("Draft saved.");
+    } else {
+      toast.error(res.error);
+    }
+    return { success: res.success };
+  };
+
+  const handleUpdatePost = async (data: PostFormValues) => {
+    if (!editingPost) return { success: false };
+    const res = await updatePost(editingPost.id, data);
+    if (res.success) {
+      await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
+      await queryClient.invalidateQueries({ queryKey: ["following-posts"] });
+      toast.success("Post updated.");
+    } else {
+      toast.error(res.error);
+    }
+    return { success: res.success };
+  };
+
+  const handlePublishEditedDraft = async (data: PostFormValues) => {
+    if (!editingDraft) return { success: false };
+    const updateRes = await updatePost(editingDraft.id, data);
+    if (!updateRes.success) {
+      toast.error(updateRes.error);
+      return { success: false };
+    }
+    const res = await publishDraft(editingDraft.id);
+    if (res.success) {
+      await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
+      await queryClient.invalidateQueries({ queryKey: ["user-draft-count"] });
+      await queryClient.invalidateQueries({ queryKey: ["user-drafts"] });
+      const status = res.data.status;
+      toast.success(status === "approved" ? "Post published!" : "Post submitted for review.");
+    } else {
+      toast.error(res.error);
+    }
+    return { success: res.success };
+  };
+
+  const handleSaveDraftEdits = async (data: PostFormValues) => {
+    if (!editingDraft) return { success: false };
+    const res = await updatePost(editingDraft.id, data);
+    if (res.success) {
+      await queryClient.invalidateQueries({ queryKey: ["user-drafts"] });
+      toast.success("Draft saved.");
+    } else {
+      toast.error(res.error);
+    }
+    return { success: res.success };
+  };
+
+  const openCreatePost = () => {
+    setEditingPost(null);
+    setEditingDraft(null);
+    setShowCreatePost(true);
+  };
+
+  const handleEditPost = (post: CommunityPost) => {
+    setEditingDraft(null);
+    setEditingPost(post);
+    setShowCreatePost(true);
+  };
+
+  const handleContinueEditingDraft = (draft: DraftPost) => {
+    setEditingPost(null);
+    setEditingDraft(draft);
+    setShowCreatePost(true);
+  };
+
+  const handleDeletePost = (postId: string) => {
+    setDeletingPostId(postId);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingPostId) return;
+    setDeleting(true);
+    const res = await deletePost(deletingPostId);
+    if (res.success) {
+      await queryClient.invalidateQueries({ queryKey: ["approved-posts"] });
+      await queryClient.invalidateQueries({ queryKey: ["following-posts"] });
+      toast.success("Post deleted.");
+    } else {
+      toast.error(res.error);
+    }
+    setDeleting(false);
+    setDeletingPostId(null);
+  };
+
+  const createFormProps = (() => {
+    if (editingDraft) {
+      return {
+        initialValues: {
+          title: editingDraft.title,
+          flair: editingDraft.flair,
+          body: editingDraft.body ?? undefined,
+          linkUrl: editingDraft.linkUrl ?? undefined,
+          imageKeys: editingDraft.imageKeys,
+        },
+        submitLabel: "Publish",
+        onSubmit: handlePublishEditedDraft,
+        onSaveDraft: handleSaveDraftEdits,
+      };
+    }
+    if (editingPost) {
+      return {
+        initialValues: {
+          title: editingPost.title,
+          flair: editingPost.flair,
+          body: editingPost.body,
+          linkUrl: editingPost.linkUrl,
+          imageKeys: editingPost.imageKeys,
+        },
+        submitLabel: "Save",
+        onSubmit: handleUpdatePost,
+        onSaveDraft: undefined,
+      };
+    }
+    return {
+      initialValues: undefined,
+      submitLabel: undefined,
+      onSubmit: handleCreatePost,
+      onSaveDraft: handleSaveDraft,
+    };
+  })();
 
   return (
     <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
@@ -263,29 +433,40 @@ export function CommunityTab() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-5xl gap-4 p-4">
           <div className="min-w-0 flex-1 max-w-2xl mx-auto lg:mx-0">
-            <button
-              onClick={() => setShowCreatePost(true)}
-              className="w-full mb-3 flex items-center gap-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border border-blue-500/10 px-5 py-4 text-left transition-all hover:from-blue-500/20 hover:via-blue-500/10 hover:border-blue-500/20 active:scale-[0.98]"
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
-                <Plus className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="text-base font-semibold">
-                  {`What's on your mind${promptName ? `, ${promptName}` : ""}?`}
-                </p>
-                <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <MessageCircle className="h-3.5 w-3.5" />
-                    {activePosts.length} {activePosts.length === 1 ? "post" : "posts"}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5" />
-                    Community
-                  </span>
+            <div className="w-full mb-3 flex items-center gap-2">
+              <button
+                onClick={openCreatePost}
+                className="flex flex-1 items-center gap-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border border-blue-500/10 px-5 py-4 text-left transition-all hover:from-blue-500/20 hover:via-blue-500/10 hover:border-blue-500/20 active:scale-[0.98]"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
+                  <Plus className="h-5 w-5 text-primary" />
                 </div>
-              </div>
-            </button>
+                <div className="flex-1">
+                  <p className="text-base font-semibold">
+                    {`What's on your mind${promptName ? `, ${promptName}` : ""}?`}
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      {activePosts.length} {activePosts.length === 1 ? "post" : "posts"}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      Community
+                    </span>
+                  </div>
+                </div>
+              </button>
+              {user && draftCount > 0 && (
+                <button
+                  onClick={() => setShowDrafts(true)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-xl border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/20"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Drafts ({draftCount})
+                </button>
+              )}
+            </div>
 
             {activeLoading ? (
               <PostFeedSkeleton />
@@ -307,6 +488,9 @@ export function CommunityTab() {
                   posts={displayPosts}
                   onSelectPost={(post) => router.push(`/c/${post.id}`)}
                   onVotePost={handleVotePost}
+                  currentUserId={user?.id}
+                  onEditPost={handleEditPost}
+                  onDeletePost={handleDeletePost}
                 />
                 {feedMode === "all" && hasNextPage && (
                   <div ref={loadMoreRef} className="flex justify-center py-4">
@@ -406,17 +590,53 @@ export function CommunityTab() {
       <Button
         size="icon-lg"
         className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-4 z-20 rounded-full shadow-lg sm:bottom-6"
-        onClick={() => setShowCreatePost(true)}
+        onClick={openCreatePost}
       >
         <Plus className="h-5 w-5" />
       </Button>
 
       <CreatePostForm
         open={showCreatePost}
-        onOpenChange={setShowCreatePost}
-        promptName={promptName}
-        onSubmit={handleCreatePost}
+        onOpenChange={(open) => {
+          setShowCreatePost(open);
+          if (!open) {
+            setEditingPost(null);
+            setEditingDraft(null);
+          }
+        }}
+        promptName={!editingPost && !editingDraft ? promptName : undefined}
+        {...createFormProps}
       />
+
+      <DraftsSheet
+        open={showDrafts}
+        onOpenChange={setShowDrafts}
+        onContinueEditing={handleContinueEditingDraft}
+        onNewPost={openCreatePost}
+      />
+
+      <Dialog open={!!deletingPostId} onOpenChange={(open) => { if (!open) setDeletingPostId(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this post?</DialogTitle>
+            <DialogDescription>
+              This cannot be undone. All comments will also be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeletingPostId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={handleConfirmDelete}
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <FilterSheet
         open={showFilters}

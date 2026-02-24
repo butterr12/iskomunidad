@@ -1,7 +1,7 @@
 /* eslint-disable */
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -17,20 +17,33 @@ import { PhotoUpload, type UploadedPhoto } from "@/components/admin/photo-upload
 import { MentionInput } from "@/components/community/mention-input";
 import { POST_FLAIRS, FLAIR_COLORS, type PostFlair } from "@/lib/posts";
 
+export interface PostFormValues {
+  title: string;
+  flair: string;
+  body?: string;
+  linkUrl?: string;
+  imageKeys?: string[];
+}
+
 interface CreatePostFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   promptName?: string;
-  onSubmit: (data: {
-    title: string;
-    flair: string;
-    body?: string;
-    linkUrl?: string;
-    imageKeys?: string[];
-  }) => Promise<{ success: boolean }>;
+  initialValues?: Partial<PostFormValues>;
+  submitLabel?: string;
+  onSubmit: (data: PostFormValues) => Promise<{ success: boolean }>;
+  onSaveDraft?: (data: PostFormValues) => Promise<{ success: boolean }>;
 }
 
-export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: CreatePostFormProps) {
+export function CreatePostForm({
+  open,
+  onOpenChange,
+  promptName,
+  initialValues,
+  submitLabel,
+  onSubmit,
+  onSaveDraft,
+}: CreatePostFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [title, setTitle] = useState("");
   const [flair, setFlair] = useState<PostFlair | "">("");
@@ -38,18 +51,39 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
   const [linkUrl, setLinkUrl] = useState("");
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
-  const canSubmit = title.trim() && flair && !submitting;
+  // When dialog opens, prefill from initialValues or clear the form
+  useEffect(() => {
+    if (open) {
+      setTitle(initialValues?.title ?? "");
+      setFlair((initialValues?.flair as PostFlair) ?? "");
+      setBody(initialValues?.body ?? "");
+      setLinkUrl(initialValues?.linkUrl ?? "");
+      setPhotos(
+        initialValues?.imageKeys?.map((key) => ({
+          key,
+          previewUrl: `/api/photos/${key}`,
+          caption: "",
+        })) ?? [],
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const canSubmit = title.trim() && flair && !submitting && !savingDraft;
   const titlePlaceholder = promptName?.trim()
     ? `What's on your mind, ${promptName.trim()}?`
     : "What's on your mind?";
 
-  function reset() {
-    setTitle("");
-    setFlair("");
-    setBody("");
-    setLinkUrl("");
-    setPhotos([]);
+  function collectData(): PostFormValues {
+    return {
+      title: title.trim(),
+      flair,
+      body: body.trim() || undefined,
+      linkUrl: linkUrl.trim() || undefined,
+      imageKeys: photos.length > 0 ? photos.map((p) => p.key) : undefined,
+    };
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -57,16 +91,8 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const imageKeys = photos.map((p) => p.key);
-      const result = await onSubmit({
-        title: title.trim(),
-        flair,
-        body: body.trim() || undefined,
-        linkUrl: linkUrl.trim() || undefined,
-        imageKeys: imageKeys.length > 0 ? imageKeys : undefined,
-      });
+      const result = await onSubmit(collectData());
       if (result.success) {
-        reset();
         onOpenChange(false);
       }
     } finally {
@@ -74,12 +100,29 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
     }
   }
 
+  async function handleSaveDraft() {
+    if (!canSubmit || !onSaveDraft) return;
+    setSavingDraft(true);
+    try {
+      const result = await onSaveDraft(collectData());
+      if (result.success) {
+        onOpenChange(false);
+      }
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Create a Post</DialogTitle>
-          <DialogDescription>Share something with the community</DialogDescription>
+          <DialogTitle>
+            {initialValues ? "Edit Post" : "Create a Post"}
+          </DialogTitle>
+          <DialogDescription>
+            {initialValues ? "Update your post" : "Share something with the community"}
+          </DialogDescription>
         </DialogHeader>
 
         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 overflow-y-auto pr-1">
@@ -165,21 +208,39 @@ export function CreatePostForm({ open, onOpenChange, promptName, onSubmit }: Cre
           </div>
         </form>
 
-        {/* Submit button */}
-        <div className="border-t pt-3">
+        {/* Action buttons */}
+        <div className="border-t pt-3 flex gap-2">
+          {onSaveDraft && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!canSubmit}
+              className="flex-1"
+              onClick={handleSaveDraft}
+            >
+              {savingDraft ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Draft"
+              )}
+            </Button>
+          )}
           <Button
             type="button"
             disabled={!canSubmit}
-            className="w-full"
+            className={onSaveDraft ? "flex-1" : "w-full"}
             onClick={() => formRef.current?.requestSubmit()}
           >
             {submitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Posting...
+                {submitLabel ? `${submitLabel}...` : "Posting..."}
               </>
             ) : (
-              "Post"
+              submitLabel ?? "Post"
             )}
           </Button>
         </div>

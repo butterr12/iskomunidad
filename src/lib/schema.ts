@@ -103,6 +103,7 @@ export const communityPost = pgTable("community_post", {
   imageEmoji: text("image_emoji"),
   status: text("status").notNull().default("draft"),
   rejectionReason: text("rejection_reason"),
+  draftSource: text("draft_source"), // "user" | "moderation"
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -218,6 +219,7 @@ export const campusEvent = pgTable("campus_event", {
   }),
   tags: text("tags").array().notNull().default([]),
   coverColor: text("cover_color").notNull().default("#3b82f6"),
+  coverImageKey: text("cover_image_key"),
   attendeeCount: integer("attendee_count").notNull().default(0),
   interestedCount: integer("interested_count").notNull().default(0),
   status: text("status").notNull().default("draft"),

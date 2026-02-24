@@ -2,12 +2,14 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { Suspense } from "react";
 import "./globals.css";
 
 import { ThemeColorMeta } from "@/components/theme-color-meta";
 import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/lib/site-config";
+import { PostHogProvider, PageviewTracker } from "@/components/providers/posthog-provider";
 
 const satoshi = localFont({
   src: [
@@ -89,13 +91,18 @@ export default function RootLayout({
         <meta name="theme-color" content="#ffffff" />
       </head>
       <body className="antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <QueryProvider>
-            <ThemeColorMeta />
-            {children}
-            <Toaster />
-          </QueryProvider>
-        </ThemeProvider>
+        <PostHogProvider>
+          <Suspense fallback={null}>
+            <PageviewTracker />
+          </Suspense>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <QueryProvider>
+              <ThemeColorMeta />
+              {children}
+              <Toaster />
+            </QueryProvider>
+          </ThemeProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

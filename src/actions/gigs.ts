@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { gigListing, gigSwipe } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
@@ -80,6 +80,7 @@ export async function getApprovedGigs(
       authorHandle: r.user.username ? `@${r.user.username}` : null,
       authorImage: r.user.image,
       userSwipe: userSwipes[r.id] ?? null,
+      posterId: r.userId,
     })),
   };
 }
@@ -218,4 +219,60 @@ export async function swipeGig(
   }
 
   return { success: true, data: undefined };
+}
+
+export async function expressInterestInGig(
+  gigId: string,
+): Promise<ActionResult<{ alreadyInterested: boolean }>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const limited = await guardAction("gig.interest", { userId: session.user.id });
+  if (limited) return limited;
+
+  const gig = await db.query.gigListing.findFirst({
+    where: eq(gigListing.id, gigId),
+    columns: { status: true, isOpen: true, userId: true, title: true },
+  });
+  if (!gig || gig.status !== "approved" || !gig.isOpen)
+    return { success: false, error: "Gig not found" };
+
+  if (gig.userId === session.user.id)
+    return { success: false, error: "You cannot express interest in your own gig" };
+
+  const result = await db.transaction(async (tx) => {
+    const existing = await tx.query.gigSwipe.findFirst({
+      where: and(eq(gigSwipe.gigId, gigId), eq(gigSwipe.userId, session.user.id)),
+      columns: { action: true },
+    });
+    if (existing?.action === "interested") return { alreadyInterested: true };
+
+    await tx
+      .insert(gigSwipe)
+      .values({ gigId, userId: session.user.id, action: "interested" })
+      .onConflictDoUpdate({
+        target: [gigSwipe.userId, gigSwipe.gigId],
+        set: { action: "interested" },
+      });
+
+    await tx
+      .update(gigListing)
+      .set({ applicantCount: sql`${gigListing.applicantCount} + 1` })
+      .where(eq(gigListing.id, gigId));
+
+    return { alreadyInterested: false };
+  });
+
+  if (!result.alreadyInterested) {
+    await createUserNotification({
+      userId: gig.userId,
+      type: "gig_interest",
+      contentType: "gig",
+      targetId: gigId,
+      targetTitle: gig.title,
+      actor: session.user.username ?? session.user.name,
+    });
+  }
+
+  return { success: true, data: result };
 }

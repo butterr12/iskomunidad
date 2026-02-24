@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   images: {
@@ -11,4 +12,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: "bscale-ventures",
+  project: "iskomunidad",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Only print upload logs in CI
+  silent: !process.env.CI,
+
+  // Route Sentry requests through your server to avoid ad-blockers
+  tunnelRoute: "/monitoring",
+});

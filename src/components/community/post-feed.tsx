@@ -6,9 +6,19 @@ interface PostFeedProps {
   posts: CommunityPost[];
   onSelectPost: (post: CommunityPost) => void;
   onVotePost: (postId: string, direction: VoteDirection) => void;
+  currentUserId?: string | null;
+  onEditPost?: (post: CommunityPost) => void;
+  onDeletePost?: (postId: string) => void;
 }
 
-export function PostFeed({ posts, onSelectPost, onVotePost }: PostFeedProps) {
+export function PostFeed({
+  posts,
+  onSelectPost,
+  onVotePost,
+  currentUserId,
+  onEditPost,
+  onDeletePost,
+}: PostFeedProps) {
   if (posts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
@@ -25,8 +35,11 @@ export function PostFeed({ posts, onSelectPost, onVotePost }: PostFeedProps) {
         <PostCard
           key={post.id}
           post={post}
+          currentUserId={currentUserId}
           onSelect={() => onSelectPost(post)}
           onVote={(dir) => onVotePost(post.id, dir)}
+          onEdit={onEditPost}
+          onDelete={onDeletePost}
         />
       ))}
     </div>
