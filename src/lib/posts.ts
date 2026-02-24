@@ -24,6 +24,9 @@ export interface CommunityPost {
   rejectionReason?: string;
   userId?: string;
   draftSource?: string | null;
+  eventId?: string | null;
+  eventTitle?: string | null;
+  eventCategory?: string | null;
 }
 
 export interface PostComment {

@@ -12,7 +12,7 @@ import useSupercluster from "use-supercluster";
 import type { BBox } from "geojson";
 import { useTheme } from "next-themes";
 import { MapPin } from "lucide-react";
-import type { LandmarkPin, LandmarkCategory, Landmark } from "@/lib/landmarks";
+import type { LandmarkPin, LandmarkCategory, Landmark, LandmarkBanner } from "@/lib/landmarks";
 import { applyMapTheme, MAP_THEME_FILTER, type MapThemeMode } from "@/lib/map-theme";
 import { getLandmarkById } from "@/actions/landmarks";
 
@@ -156,6 +156,7 @@ function MarkerPin({
   label,
   photoUrl,
   pinId,
+  banner,
   onPreviewHoverChange,
 }: {
   color: string;
@@ -163,15 +164,21 @@ function MarkerPin({
   label: string;
   photoUrl?: string | null;
   pinId: string;
+  banner?: LandmarkBanner | null;
   onPreviewHoverChange?: (id: string | null) => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const { hovered, anchorRef, placement, landmark, isLoading, handleMouseEnter, handleMouseLeave } =
     useLandmarkPreview(pinId, onPreviewHoverChange);
-  const size = selected ? 52 : 44;
-  const lineH = selected ? 28 : 22;
-  const showPhoto = photoUrl && !imgFailed;
+  // Visual hierarchy: banner rect > normal circle
+  // Banner: landscape rounded-rect (wider than tall for cover images)
+  const hasBanner = !!banner;
+  const w      = hasBanner ? (selected ? 112 : 100) : (selected ? 52 : 44);
+  const h      = hasBanner ? (selected ? 84  : 74 ) : (selected ? 52 : 44);
+  const lineH  = hasBanner ? (selected ? 32  : 26 ) : (selected ? 28 : 22);
+  const displayImageUrl = hasBanner ? banner!.imageUrl : photoUrl;
+  const showPhoto = !!displayImageUrl && !imgFailed;
 
   return (
     <div
@@ -192,12 +199,12 @@ function MarkerPin({
         />
       )}
 
-      {/* Circle image */}
+      {/* Image frame — rounded-rect for banner, circle for normal */}
       <div
-        className="relative flex items-center justify-center rounded-full border-2 shadow-md"
+        className={`relative flex items-center justify-center border-2 shadow-md ${hasBanner ? "rounded-xl" : "rounded-full"}`}
         style={{
-          width: size,
-          height: size,
+          width: w,
+          height: h,
           borderColor: color,
           backgroundColor: color,
           transition: "width 200ms ease-out, height 200ms ease-out",
@@ -207,24 +214,30 @@ function MarkerPin({
           <>
             {!imgLoaded && (
               <div
-                className="absolute rounded-full bg-white/60 animate-pulse"
-                style={{ width: size - 4, height: size - 4 }}
+                className={hasBanner ? "absolute rounded-[10px] bg-white/60 animate-pulse" : "absolute rounded-full bg-white/60 animate-pulse"}
+                style={{ width: w - 4, height: h - 4 }}
               />
             )}
             <img
-              src={photoUrl}
+              src={displayImageUrl!}
               alt={label}
-              className="rounded-full object-cover transition-opacity duration-300"
-              style={{ width: size - 4, height: size - 4, opacity: imgLoaded ? 1 : 0 }}
+              className={`object-cover transition-opacity duration-300 ${hasBanner ? "rounded-[10px]" : "rounded-full"}`}
+              style={{ width: w - 4, height: h - 4, opacity: imgLoaded ? 1 : 0 }}
               draggable={false}
               onLoad={() => setImgLoaded(true)}
               onError={() => setImgFailed(true)}
             />
           </>
+        ) : hasBanner ? (
+          // No cover image — fill with event's coverColor
+          <div
+            className="rounded-[10px]"
+            style={{ width: w - 4, height: h - 4, backgroundColor: banner!.coverColor }}
+          />
         ) : (
           <div
             className="flex items-center justify-center rounded-full bg-white/90"
-            style={{ width: size - 4, height: size - 4 }}
+            style={{ width: w - 4, height: h - 4 }}
           >
             <svg
               width="20"
@@ -263,6 +276,17 @@ function MarkerPin({
           marginTop: -1,
         }}
       />
+
+      {hasBanner && (
+        <div
+          className="mt-1 rounded-full bg-black/70 px-2 py-0.5 text-center"
+          style={{ backdropFilter: "blur(4px)", maxWidth: w }}
+        >
+          <span className="block truncate text-[10px] font-medium leading-tight text-white">
+            {banner!.title}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -480,6 +504,12 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     return photoMap;
   }, [pins]);
 
+  const pinBannerMap = useMemo(() => {
+    const m: Record<string, LandmarkBanner | null> = {};
+    for (const pin of pins) m[pin.id] = pin.banner ?? null;
+    return m;
+  }, [pins]);
+
   const updateZoom = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -643,7 +673,13 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
         const category = props.category as LandmarkCategory;
 
         const isShowingPreview = hoveredPreviewPinId === pinId;
-        const markerZ = isShowingPreview ? 9999 : selectedId === pinId ? 10 : 1;
+        const markerZ = isShowingPreview
+          ? 9999
+          : selectedId === pinId
+            ? 10
+            : pinBannerMap[pinId]
+              ? 5
+              : 1;
 
         return (
           <Marker
@@ -663,6 +699,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
               label={pinNameMap[pinId] ?? ""}
               photoUrl={pinPhotoMap[pinId]}
               pinId={pinId}
+              banner={pinBannerMap[pinId]}
               onPreviewHoverChange={setHoveredPreviewPinId}
             />
           </Marker>

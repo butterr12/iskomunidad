@@ -27,6 +27,9 @@ export interface PermalinkPost {
   linkUrl: string | null;
   imageKeys: string[];
   userId: string;
+  eventId: string | null;
+  eventTitle: string | null;
+  eventCategory: string | null;
 }
 
 export interface PermalinkComment {
@@ -62,11 +65,13 @@ function mapPost(
     score: number;
     commentCount: number;
     locationId: string | null;
+    eventId: string | null;
     linkUrl: string | null;
     createdAt: Date;
     updatedAt: Date;
     user: { name: string | null; username: string | null; image: string | null };
     images: { imageKey: string; order: number }[];
+    event?: { id: string; title: string; category: string } | null;
   },
   userVote: VoteDirection,
   isBookmarked: boolean,
@@ -89,6 +94,9 @@ function mapPost(
     locationId: row.locationId,
     linkUrl: row.linkUrl,
     imageKeys: row.images.map((image) => image.imageKey),
+    eventId: row.event?.id ?? row.eventId ?? null,
+    eventTitle: row.event?.title ?? null,
+    eventCategory: row.event?.category ?? null,
   };
 }
 
@@ -111,6 +119,7 @@ export async function getApprovedPermalinkPost(
           columns: { imageKey: true, order: true },
           orderBy: (img, { asc }) => [asc(img.order)],
         },
+        event: { columns: { id: true, title: true, category: true } },
       },
     });
 
@@ -131,6 +140,7 @@ export async function getApprovedPermalinkPost(
         columns: { imageKey: true, order: true },
         orderBy: (img, { asc }) => [asc(img.order)],
       },
+      event: { columns: { id: true, title: true, category: true } },
       comments: {
         with: {
           user: {

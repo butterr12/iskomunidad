@@ -29,6 +29,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { siteConfig } from "@/lib/site-config";
 import {
   CATEGORY_LABELS,
   CATEGORY_COLORS,
@@ -42,6 +43,7 @@ import { getOrCreateConversation, sendMessage } from "@/actions/messages";
 interface GigDetailProps {
   gig: GigListing;
   onBack: () => void;
+  isOwner: boolean;
   onInterest: () => void;
   isInterested: boolean;
   onSave: () => void;
@@ -52,6 +54,7 @@ interface GigDetailProps {
 export function GigDetail({
   gig,
   onBack,
+  isOwner,
   onInterest,
   isInterested,
   onSave,
@@ -65,6 +68,18 @@ export function GigDetail({
   const [sentConversationId, setSentConversationId] = useState<string | null>(null);
 
   const systemPart = `📋 About this gig: "${gig.title}" · ${gig.compensation} · ${CATEGORY_LABELS[gig.category]}`;
+
+  const handleShare = async () => {
+    const url = `${siteConfig.url}/gigs?gig=${gig.id}`;
+    try {
+      if (navigator.share) { await navigator.share({ title: gig.title, url }); return; }
+      if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(url); toast.success("Link copied to clipboard."); return; }
+      toast.error("Sharing is not supported on this device.");
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      toast.error("Could not share this gig.");
+    }
+  };
 
   function openCompose() {
     setUserMessage("Hi! I saw your gig and I'm interested in helping. Could we connect?");
@@ -115,7 +130,14 @@ export function GigDetail({
       <div className="flex flex-col gap-4 p-5">
         {/* Title & badges */}
         <div>
-          <h2 className="text-xl font-semibold leading-tight">{gig.title}</h2>
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-xl font-semibold leading-tight">{gig.title}</h2>
+            {isOwner && (
+              <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                Your Gig
+              </span>
+            )}
+          </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge
               variant="secondary"
@@ -136,9 +158,12 @@ export function GigDetail({
         {gig.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {gig.tags.map((tag) => (
-              <Badge key={tag} variant="outline">
-                {tag}
-              </Badge>
+              <span
+                key={tag}
+                className="inline-flex items-center rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-foreground/80"
+              >
+                <span className="mr-0.5 text-muted-foreground">#</span>{tag}
+              </span>
             ))}
           </div>
         )}
@@ -217,41 +242,66 @@ export function GigDetail({
 
         {/* Action buttons */}
         <div className="flex flex-col gap-2 border-t pt-4">
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              className="flex-1 gap-1.5"
-              onClick={openCompose}
-              disabled={isInterested}
-            >
-              <HandHelping className="h-3.5 w-3.5" />
-              {isInterested ? "Interested ✓" : "I'm Interested"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={onSave}
-              disabled={isSaving}
-            >
-              <Bookmark className={cn("h-3.5 w-3.5", isSaved && "fill-current")} />
-              {isSaved ? "Saved" : "Save"}
-            </Button>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Share2 className="h-3.5 w-3.5" />
-              Share
-            </Button>
-          </div>
-          {gig.locationId && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => router.push(`/map?landmark=${gig.locationId}`)}
-            >
-              <MapPin className="h-3.5 w-3.5" />
-              View on Map
-            </Button>
+          {isOwner ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2.5 text-sm">
+                <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span>
+                  <span className="font-semibold">{gig.applicantCount}</span>{" "}
+                  {gig.applicantCount === 1 ? "person" : "people"} expressed interest
+                </span>
+              </div>
+              {gig.locationId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => router.push(`/map?landmark=${gig.locationId}`)}
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  View on Map
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1 gap-1.5"
+                  onClick={openCompose}
+                  disabled={isInterested}
+                >
+                  <HandHelping className="h-3.5 w-3.5" />
+                  {isInterested ? "Interested ✓" : "I'm Interested"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={onSave}
+                  disabled={isSaving}
+                >
+                  <Bookmark className={cn("h-3.5 w-3.5", isSaved && "fill-current")} />
+                  {isSaved ? "Saved" : "Save"}
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={handleShare}>
+                  <Share2 className="h-3.5 w-3.5" />
+                  Share
+                </Button>
+              </div>
+              {gig.locationId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => router.push(`/map?landmark=${gig.locationId}`)}
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  View on Map
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </div>

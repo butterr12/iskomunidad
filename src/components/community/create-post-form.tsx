@@ -10,12 +10,21 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PhotoUpload, type UploadedPhoto } from "@/components/admin/photo-upload";
 import { MentionInput } from "@/components/community/mention-input";
 import { POST_FLAIRS, FLAIR_COLORS, type PostFlair } from "@/lib/posts";
+import { getApprovedEvents } from "@/actions/events";
+import type { CampusEvent } from "@/lib/events";
 
 export interface PostFormValues {
   title: string;
@@ -23,6 +32,7 @@ export interface PostFormValues {
   body?: string;
   linkUrl?: string;
   imageKeys?: string[];
+  eventId?: string | null;
 }
 
 interface CreatePostFormProps {
@@ -49,6 +59,8 @@ export function CreatePostForm({
   const [flair, setFlair] = useState<PostFlair | "">("");
   const [body, setBody] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [eventId, setEventId] = useState<string | null>(null);
+  const [upcomingEvents, setUpcomingEvents] = useState<CampusEvent[]>([]);
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -60,6 +72,7 @@ export function CreatePostForm({
       setFlair((initialValues?.flair as PostFlair) ?? "");
       setBody(initialValues?.body ?? "");
       setLinkUrl(initialValues?.linkUrl ?? "");
+      setEventId(initialValues?.eventId ?? null);
       setPhotos(
         initialValues?.imageKeys?.map((key) => ({
           key,
@@ -70,6 +83,13 @@ export function CreatePostForm({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Fetch upcoming events for the tag-event selector
+  useEffect(() => {
+    getApprovedEvents().then((res) => {
+      if (res.success) setUpcomingEvents(res.data as CampusEvent[]);
+    });
+  }, []);
 
   const canSubmit = title.trim() && flair && !submitting && !savingDraft;
   const titlePlaceholder = promptName?.trim()
@@ -83,6 +103,7 @@ export function CreatePostForm({
       body: body.trim() || undefined,
       linkUrl: linkUrl.trim() || undefined,
       imageKeys: photos.length > 0 ? photos.map((p) => p.key) : undefined,
+      eventId: eventId || null,
     };
   }
 
@@ -165,6 +186,26 @@ export function CreatePostForm({
               ))}
             </div>
           </div>
+
+          {/* Tag Event */}
+          {upcomingEvents.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm font-medium">
+                Tag Event <span className="text-muted-foreground font-normal">(optional)</span>
+              </p>
+              <Select value={eventId ?? "none"} onValueChange={(v) => setEventId(v === "none" ? null : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {upcomingEvents.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Body */}
           <div className="flex flex-col gap-1.5">

@@ -1,6 +1,11 @@
 export type EventCategory = "academic" | "cultural" | "social" | "sports" | "org";
 export type RsvpStatus = "going" | "interested" | null;
 
+export interface EventExternalLink {
+  label: string;
+  url: string;
+}
+
 export interface CampusEvent {
   id: string;
   userId: string;
@@ -21,6 +26,7 @@ export interface CampusEvent {
   rsvpStatus: RsvpStatus;
   status?: "draft" | "approved" | "rejected";
   rejectionReason?: string;
+  externalLinks?: EventExternalLink[];
 }
 
 export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {

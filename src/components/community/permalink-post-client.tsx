@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Bookmark,
+  CalendarDays,
   ExternalLink,
   MapPin,
   MessageCircle,
@@ -351,6 +352,14 @@ export function PermalinkPostClient({
               >
                 {post.flair}
               </Badge>
+              {post.eventId && post.eventTitle && (
+                <Link href={`/events?event=${post.eventId}`}>
+                  <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 border-primary/40 text-primary">
+                    <CalendarDays className="h-2.5 w-2.5" />
+                    {post.eventTitle}
+                  </Badge>
+                </Link>
+              )}
               <Avatar className="h-5 w-5">
                 {post.authorImage && <AvatarImage src={post.authorImage} alt={post.author} />}
                 <AvatarFallback className="text-[9px] font-medium">

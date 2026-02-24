@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bookmark, Plus, Hammer, Briefcase, Construction, Search } from "lucide-react";
+import { Bookmark, Plus, Hammer, Briefcase, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { CreateGigForm } from "./create-gig-form";
@@ -26,6 +26,7 @@ import {
   type GigSortMode,
 } from "@/lib/gigs";
 import { getApprovedGigs, swipeGig, createGig, expressInterestInGig } from "@/actions/gigs";
+import { useSession } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { usePostHog } from "posthog-js/react";
 
@@ -64,6 +65,7 @@ function GigListSkeleton() {
 export function GigsTab() {
   const queryClient = useQueryClient();
   const posthog = usePostHog();
+  const { data: session } = useSession();
   const searchParams = useSearchParams();
   const gigParam = searchParams.get("gig");
   const [viewMode, setViewMode] = useState<"list" | "swipe">("list");
@@ -269,18 +271,6 @@ export function GigsTab() {
         <div className="mx-auto flex w-full max-w-5xl gap-4 p-4">
           {/* Main feed column */}
           <div className="min-w-0 flex-1 max-w-2xl mx-auto lg:mx-0">
-            {/* Work-in-progress banner */}
-            {!selectedGig && (
-              <div className="mb-3 flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent px-4 py-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
-                  <Construction className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                </div>
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  <span className="font-semibold">Work in progress</span> &mdash; Gigs is still being built out. Things may change or break!
-                </p>
-              </div>
-            )}
-
             {/* Welcome banner */}
             {!selectedGig && (
               <button
@@ -310,6 +300,7 @@ export function GigsTab() {
               <GigDetail
                 gig={selectedGig}
                 onBack={() => setSelectedGig(null)}
+                isOwner={!!session?.user && session.user.id === selectedGig.posterId}
                 onInterest={() => handleInterest(selectedGig.id)}
                 isInterested={selectedGig.swipeAction === "interested"}
                 onSave={() => handleSaveGig(selectedGig.id)}

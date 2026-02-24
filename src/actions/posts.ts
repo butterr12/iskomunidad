@@ -91,6 +91,7 @@ const createPostSchema = z.object({
   body: z.string().max(10000).optional(),
   flair: z.string().min(1),
   locationId: z.string().uuid().optional(),
+  eventId: z.string().uuid().optional().nullable(),
   linkUrl: safeLinkUrl,
   imageKeys: z.array(z.string()).max(4).optional(),
 });
@@ -121,6 +122,7 @@ export async function getApprovedPosts(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+      event: { columns: { id: true, title: true, category: true } },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -158,6 +160,9 @@ export async function getApprovedPosts(
       imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
       isBookmarked: userBookmarks[r.id] ?? false,
+      eventId: r.eventId ?? null,
+      eventTitle: r.event?.title ?? null,
+      eventCategory: r.event?.category ?? null,
     })),
   };
 }
@@ -170,6 +175,56 @@ export async function getPostsForLandmark(
   const rows = await db.query.communityPost.findMany({
     where: (p, { eq: e, and: a }) =>
       a(e(p.status, "approved"), e(p.locationId, landmarkId)),
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+      event: { columns: { id: true, title: true, category: true } },
+    },
+    orderBy: (p, { desc: d }) => [d(p.score), d(p.createdAt)],
+  });
+
+  let userVotes: Record<string, number> = {};
+  let userBookmarks: Record<string, boolean> = {};
+  if (session?.user) {
+    const votes = await db.query.postVote.findMany({
+      where: eq(postVote.userId, session.user.id),
+    });
+    userVotes = Object.fromEntries(votes.map((v) => [v.postId, v.value]));
+
+    const bookmarks = await db.query.postBookmark.findMany({
+      where: eq(postBookmark.userId, session.user.id),
+      columns: { postId: true },
+    });
+    userBookmarks = Object.fromEntries(bookmarks.map((b) => [b.postId, true]));
+  }
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      author: r.user.name,
+      authorHandle: r.user.username ? `@${r.user.username}` : null,
+      authorImage: r.user.image,
+      imageKeys: r.images.map((img) => img.imageKey),
+      userVote: userVotes[r.id] ?? 0,
+      isBookmarked: userBookmarks[r.id] ?? false,
+      eventId: r.eventId ?? null,
+      eventTitle: r.event?.title ?? null,
+      eventCategory: r.event?.category ?? null,
+    })),
+  };
+}
+
+export async function getPostsForEvent(
+  eventId: string,
+): Promise<ActionResult<unknown[]>> {
+  const session = await getOptionalSession();
+
+  const rows = await db.query.communityPost.findMany({
+    where: (p, { eq: e, and: a }) =>
+      a(e(p.status, "approved"), e(p.eventId, eventId)),
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
@@ -204,6 +259,9 @@ export async function getPostsForLandmark(
       imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
       isBookmarked: userBookmarks[r.id] ?? false,
+      eventId: r.eventId ?? null,
+      eventTitle: null,
+      eventCategory: null,
     })),
   };
 }
@@ -229,6 +287,7 @@ export async function getFollowingPosts(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+      event: { columns: { id: true, title: true, category: true } },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -261,6 +320,9 @@ export async function getFollowingPosts(
       imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
       isBookmarked: userBookmarks[r.id] ?? false,
+      eventId: r.eventId ?? null,
+      eventTitle: r.event?.title ?? null,
+      eventCategory: r.event?.category ?? null,
     })),
   };
 }
@@ -281,6 +343,7 @@ export async function getApprovedPostsPaginated(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+      event: { columns: { id: true, title: true, category: true } },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -322,6 +385,9 @@ export async function getApprovedPostsPaginated(
         imageKeys: r.images.map((img) => img.imageKey),
         userVote: userVotes[r.id] ?? 0,
         isBookmarked: userBookmarks[r.id] ?? false,
+        eventId: r.eventId ?? null,
+        eventTitle: r.event?.title ?? null,
+        eventCategory: r.event?.category ?? null,
       })),
       hasMore,
     },
@@ -444,6 +510,7 @@ export async function createPost(
       ...postData,
       type: "text",
       locationId: postData.locationId ?? null,
+      eventId: postData.eventId ?? null,
       linkUrl: postData.linkUrl ?? null,
       status,
       rejectionReason: rejectionReason ?? null,
@@ -972,6 +1039,7 @@ export async function updatePost(
       body: postData.body ?? null,
       flair: postData.flair,
       locationId: postData.locationId ?? null,
+      eventId: postData.eventId ?? null,
       linkUrl: postData.linkUrl ?? null,
     })
     .where(eq(communityPost.id, id));
@@ -1103,6 +1171,7 @@ export async function getBookmarkedPosts(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+      event: { columns: { id: true, title: true, category: true } },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -1128,6 +1197,9 @@ export async function getBookmarkedPosts(
       imageKeys: r.images.map((img) => img.imageKey),
       userVote: userVotes[r.id] ?? 0,
       isBookmarked: true,
+      eventId: r.eventId ?? null,
+      eventTitle: r.event?.title ?? null,
+      eventCategory: r.event?.category ?? null,
     })),
   };
 }

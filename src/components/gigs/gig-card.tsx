@@ -63,6 +63,22 @@ export function GigCard({ gig, onSelect }: GigCardProps) {
           </Badge>
         </div>
 
+        {/* Tags */}
+        {gig.tags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {gig.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="text-[10px] text-muted-foreground/60 font-medium">
+                #{tag}
+              </span>
+            ))}
+            {gig.tags.length > 3 && (
+              <span className="text-[10px] text-muted-foreground/40">
+                +{gig.tags.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Description preview */}
         <p className="line-clamp-2 text-xs text-muted-foreground">{gig.description}</p>
 

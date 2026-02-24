@@ -221,6 +221,15 @@ export async function swipeGig(
   return { success: true, data: undefined };
 }
 
+export async function getGigTags(): Promise<ActionResult<string[]>> {
+  const rows = await db.query.gigListing.findMany({
+    where: eq(gigListing.status, "approved"),
+    columns: { tags: true },
+  });
+  const unique = [...new Set(rows.flatMap((r) => r.tags))].sort();
+  return { success: true, data: unique };
+}
+
 export async function expressInterestInGig(
   gigId: string,
 ): Promise<ActionResult<{ alreadyInterested: boolean }>> {

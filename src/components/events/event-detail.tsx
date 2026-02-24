@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,10 +15,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import Link from "next/link";
-import { ArrowLeft, Clock, MapPin, Globe, Users, User, Share2, Star, Check, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Globe, Users, User, Share2, Star, Check, Pencil, Trash2, ExternalLink } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { deleteEvent } from "@/actions/events";
-import type { CampusEvent, RsvpStatus } from "@/lib/events";
+import { getPostsForEvent, createPost, saveDraft } from "@/actions/posts";
+import { CreatePostForm } from "@/components/community/create-post-form";
+import { siteConfig } from "@/lib/site-config";
+import type { CampusEvent, RsvpStatus, EventExternalLink } from "@/lib/events";
+import type { CommunityPost } from "@/lib/posts";
 
 interface EventDetailProps {
   event: CampusEvent;
@@ -53,8 +58,30 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
   const { data: session } = useSession();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showPostForm, setShowPostForm] = useState(false);
 
   const isOwner = session?.user?.id === event.userId;
+
+  const handleShare = async () => {
+    const url = `${siteConfig.url}/events?event=${event.id}`;
+    try {
+      if (navigator.share) { await navigator.share({ title: event.title, url }); return; }
+      if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(url); toast.success("Link copied to clipboard."); return; }
+      toast.error("Sharing is not supported on this device.");
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      toast.error("Could not share this event.");
+    }
+  };
+
+  const { data: eventPosts = [] } = useQuery({
+    queryKey: ["posts-for-event", event.id],
+    queryFn: async () => {
+      const res = await getPostsForEvent(event.id);
+      if (!res.success) return [];
+      return res.data as CommunityPost[];
+    },
+  });
 
   const toggleRsvp = (status: RsvpStatus) => {
     onRsvpChange(event.id, event.rsvpStatus === status ? null : status);
@@ -183,6 +210,20 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
           <p className="text-sm leading-relaxed text-muted-foreground">{event.description}</p>
         </div>
 
+        {/* External links */}
+        {(event.externalLinks as EventExternalLink[] | undefined)?.length ? (
+          <div className="border-t pt-4 flex flex-col gap-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Links</p>
+            {(event.externalLinks as EventExternalLink[]).map((link, i) => (
+              <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                 className="flex items-center gap-2 text-sm text-primary hover:underline">
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                {link.label}
+              </a>
+            ))}
+          </div>
+        ) : null}
+
         {/* Action buttons */}
         <div className="flex flex-col gap-2 border-t pt-4">
           <div className="flex gap-2">
@@ -204,7 +245,7 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
               <Star className="h-3.5 w-3.5" />
               Interested
             </Button>
-            <Button variant="outline" size="sm" className="gap-1.5">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleShare}>
               <Share2 className="h-3.5 w-3.5" />
               Share
             </Button>
@@ -221,7 +262,66 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
             </Button>
           )}
         </div>
+
+        {/* Posts about this event */}
+        <div className="border-t pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold">Posts about this event</h3>
+            {session?.user && (
+              <button
+                onClick={() => setShowPostForm(true)}
+                className="text-xs text-primary hover:underline"
+              >
+                + Write a post
+              </button>
+            )}
+          </div>
+          {eventPosts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No posts yet.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {eventPosts.slice(0, 5).map((post) => (
+                <button
+                  key={post.id}
+                  onClick={() => router.push(`/c/${post.id}`)}
+                  className="text-left rounded-lg border bg-muted/30 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                >
+                  <p className="font-medium leading-tight line-clamp-2">{post.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {post.authorHandle ?? post.author} · {post.score} votes
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Write a post about this event */}
+      <CreatePostForm
+        open={showPostForm}
+        onOpenChange={setShowPostForm}
+        initialValues={{ eventId: event.id }}
+        onSubmit={async (data) => {
+          const res = await createPost({ ...data, eventId: event.id });
+          if (res.success) {
+            toast.success("Post submitted!");
+            await queryClient.invalidateQueries({ queryKey: ["posts-for-event", event.id] });
+          } else {
+            toast.error(res.error ?? "Failed to submit post.");
+          }
+          return { success: res.success };
+        }}
+        onSaveDraft={async (data) => {
+          const res = await saveDraft({ ...data, eventId: event.id });
+          if (res.success) {
+            toast.success("Draft saved.");
+          } else {
+            toast.error(res.error ?? "Failed to save draft.");
+          }
+          return { success: res.success };
+        }}
+      />
 
       {/* Delete confirmation dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

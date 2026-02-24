@@ -45,6 +45,9 @@ function toPostTypes(data: PermalinkPostData): {
       isBookmarked: data.post.isBookmarked,
       linkUrl: data.post.linkUrl ?? undefined,
       imageKeys: data.post.imageKeys,
+      eventId: data.post.eventId ?? null,
+      eventTitle: data.post.eventTitle ?? null,
+      eventCategory: data.post.eventCategory ?? null,
     },
     comments: data.comments.map((comment) => ({
       id: comment.id,

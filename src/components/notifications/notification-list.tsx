@@ -166,7 +166,7 @@ export function NotificationList() {
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold">Notifications</h1>
             {unreadCount > 0 && (
-              <Badge variant="default" className="text-xs">
+              <Badge variant="destructive" className="text-xs">
                 {unreadCount}
               </Badge>
             )}
@@ -195,7 +195,7 @@ export function NotificationList() {
                 key={n.id}
                 className={cn(
                   "w-full text-left rounded-xl border bg-card p-4 transition-colors",
-                  !n.isRead && "border-primary/40 bg-primary/5",
+                  !n.isRead && "border-destructive/40 bg-destructive/5",
                   n.isRead && "hover:bg-muted/50",
                 )}
                 onClick={() => {
@@ -205,7 +205,7 @@ export function NotificationList() {
               >
                 <div className="flex items-start gap-3">
                   {!n.isRead && (
-                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-destructive" />
                   )}
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">

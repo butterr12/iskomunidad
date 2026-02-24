@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { MessageCircle, MapPin, ExternalLink, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MessageCircle, MapPin, ExternalLink, MoreHorizontal, Pencil, Trash2, CalendarDays } from "lucide-react";
 import { VoteControls } from "./vote-controls";
 import { UserFlairs } from "@/components/user-flairs";
 import { MentionText } from "./mention-text";
@@ -113,6 +113,16 @@ export function PostCard({ post, currentUserId, onSelect, onVote, onEdit, onDele
             >
               {post.flair}
             </Badge>
+            {post.eventId && post.eventTitle && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <Link href={`/events?event=${post.eventId}`}>
+                  <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 border-primary/40 text-primary">
+                    <CalendarDays className="h-2.5 w-2.5" />
+                    {post.eventTitle}
+                  </Badge>
+                </Link>
+              </div>
+            )}
             <Avatar className="h-5 w-5">
               {post.authorImage && <AvatarImage src={post.authorImage} alt={post.author} />}
               <AvatarFallback className="text-[9px] font-medium">{getInitials(post.author)}</AvatarFallback>

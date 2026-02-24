@@ -96,6 +96,7 @@ export const communityPost = pgTable("community_post", {
   locationId: uuid("location_id").references(() => landmark.id, {
     onDelete: "set null",
   }),
+  eventId: uuid("event_id").references(() => campusEvent.id, { onDelete: "set null" }),
   score: integer("score").notNull().default(0),
   commentCount: integer("comment_count").notNull().default(0),
   linkUrl: text("link_url"),
@@ -222,6 +223,7 @@ export const campusEvent = pgTable("campus_event", {
   coverImageKey: text("cover_image_key"),
   attendeeCount: integer("attendee_count").notNull().default(0),
   interestedCount: integer("interested_count").notNull().default(0),
+  externalLinks: jsonb("external_links").default([]),
   status: text("status").notNull().default("draft"),
   rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -891,6 +893,10 @@ export const communityPostRelations = relations(
       fields: [communityPost.locationId],
       references: [landmark.id],
     }),
+    event: one(campusEvent, {
+      fields: [communityPost.eventId],
+      references: [campusEvent.id],
+    }),
     images: many(postImage),
     comments: many(postComment),
     votes: many(postVote),
@@ -971,6 +977,7 @@ export const campusEventRelations = relations(
       references: [landmark.id],
     }),
     rsvps: many(eventRsvp),
+    posts: many(communityPost),
   }),
 );
 

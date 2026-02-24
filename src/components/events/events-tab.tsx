@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { Plus, CalendarDays, Users, Search, X, Construction } from "lucide-react";
+import { Plus, CalendarDays, Search, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ViewToggle } from "./view-toggle";
@@ -142,30 +142,15 @@ export function EventsTab() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-5xl p-4">
-          {/* Work-in-progress banner */}
-          {!selectedEvent && (
-            <div className="mb-3 flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent px-4 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
-                <Construction className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              </div>
-              <p className="text-xs text-amber-700 dark:text-amber-300">
-                <span className="font-semibold">Work in progress</span> &mdash; Events is still being built out. Things may change or break!
-              </p>
-            </div>
-          )}
 
           {/* Welcome banner + search */}
           {!selectedEvent && tab === "all" && (
             <div className="mb-4 rounded-2xl bg-gradient-to-r from-violet-500/10 via-violet-500/5 to-transparent border border-violet-500/10 px-5 py-4">
-              <p className="text-base font-semibold">What&apos;s happening on campus?</p>
-              <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
+              <div className="flex items-center justify-between">
+                <p className="text-base font-semibold">What&apos;s happening on campus?</p>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <CalendarDays className="h-3.5 w-3.5" />
                   {events.length} upcoming {events.length === 1 ? "event" : "events"}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5" />
-                  Campus Events
                 </span>
               </div>
               {/* Search bar */}

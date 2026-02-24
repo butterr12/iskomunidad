@@ -18,6 +18,11 @@ import { isoDateString } from "@/lib/validation/date";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
+const externalLinkSchema = z.object({
+  label: z.string().min(1).max(50),
+  url: z.string().url().max(500),
+});
+
 const createEventSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
@@ -29,6 +34,7 @@ const createEventSchema = z.object({
   tags: z.array(z.string()).default([]),
   coverColor: z.string().default("#3b82f6"),
   coverImageKey: z.string().optional().nullable(),
+  externalLinks: z.array(externalLinkSchema).max(5).default([]),
 }).refine(
   (data) => new Date(data.endDate).getTime() >= new Date(data.startDate).getTime(),
   { message: "End date must be on or after start date", path: ["endDate"] },
@@ -45,6 +51,7 @@ const updateEventSchema = z.object({
   tags: z.array(z.string()).optional(),
   coverColor: z.string().optional(),
   coverImageKey: z.string().optional().nullable(),
+  externalLinks: z.array(externalLinkSchema).max(5).optional(),
 }).refine(
   (data) => {
     if (data.startDate && data.endDate) {
@@ -239,6 +246,7 @@ export async function createEvent(
       tags: parsed.data.tags,
       coverColor: parsed.data.coverColor,
       coverImageKey: parsed.data.coverImageKey ?? null,
+      externalLinks: parsed.data.externalLinks ?? [],
       status,
       rejectionReason: rejectionReason ?? null,
       userId: session.user.id,
@@ -386,6 +394,7 @@ export async function updateEvent(
   if (parsed.data.tags !== undefined) updateData.tags = parsed.data.tags;
   if (parsed.data.coverColor !== undefined) updateData.coverColor = parsed.data.coverColor;
   if (parsed.data.coverImageKey !== undefined) updateData.coverImageKey = parsed.data.coverImageKey ?? null;
+  if (parsed.data.externalLinks !== undefined) updateData.externalLinks = parsed.data.externalLinks;
 
   // Validate date range against existing dates when only one date is updated
   const effectiveStart = parsed.data.startDate ? new Date(parsed.data.startDate) : existing.startDate;

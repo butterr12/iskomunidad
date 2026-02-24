@@ -1,12 +1,13 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { landmark } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { landmark, campusEvent } from "@/lib/schema";
+import { eq, and, gte, isNotNull } from "drizzle-orm";
 import {
   type ActionResult,
   getOptionalSession,
 } from "./_helpers";
+import type { LandmarkBanner } from "@/lib/landmarks";
 
 function toPhotoProxyUrl(key: string): string {
   return `/api/photos/${key
@@ -36,6 +37,38 @@ export async function getLandmarkPins() {
     },
   });
 
+  const now = new Date();
+  const eventRows = await db.query.campusEvent.findMany({
+    where: and(
+      eq(campusEvent.status, "approved"),
+      gte(campusEvent.endDate, now),
+      isNotNull(campusEvent.locationId),
+    ),
+    columns: {
+      id: true,
+      title: true,
+      locationId: true,
+      coverImageKey: true,
+      coverColor: true,
+      startDate: true,
+    },
+    orderBy: (e, { asc }) => [asc(e.startDate)],
+  });
+
+  // Group by locationId; array is startDate ASC so first entry = earliest upcoming event
+  const bannerByLocationId = new Map<string, LandmarkBanner>();
+  for (const ev of eventRows) {
+    if (!ev.locationId || bannerByLocationId.has(ev.locationId)) continue;
+    bannerByLocationId.set(ev.locationId, {
+      type: "event",
+      id: ev.id,
+      title: ev.title,
+      imageUrl: ev.coverImageKey ? toPhotoProxyUrl(ev.coverImageKey) : null,
+      coverColor: ev.coverColor,
+      startDate: ev.startDate.toISOString(),
+    });
+  }
+
   const data = rows.map((r) => {
     const firstPhoto = r.photos[0];
     let photoUrl: string | null = null;
@@ -52,6 +85,7 @@ export async function getLandmarkPins() {
       lng: r.lng,
       category: r.category,
       photoUrl,
+      banner: bannerByLocationId.get(r.id) ?? null,
     };
   });
 

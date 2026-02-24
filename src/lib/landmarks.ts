@@ -1,5 +1,17 @@
 export type LandmarkCategory = "attraction" | "community" | "event";
 
+// Extensible discriminated union — add "gig" | "announcement" etc. later
+export type LandmarkBannerType = "event";
+
+export interface LandmarkBanner {
+  type: LandmarkBannerType;
+  id: string;             // event.id
+  title: string;          // event.title
+  imageUrl: string | null; // resolved proxy URL (null if no coverImageKey)
+  coverColor: string;     // fallback solid fill
+  startDate: string;      // ISO string
+}
+
 export interface LandmarkPin {
   id: string;
   name: string;
@@ -7,6 +19,7 @@ export interface LandmarkPin {
   lng: number;
   category: LandmarkCategory;
   photoUrl?: string | null;
+  banner?: LandmarkBanner | null;
 }
 
 export type PhotoSource = "upload" | "google_places";

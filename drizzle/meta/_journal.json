@@ -148,6 +148,13 @@
       "when": 1771891200000,
       "tag": "0020_draft_source",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1771907817630,
+      "tag": "0021_giant_pretty_boy",
+      "breakpoints": true
     }
   ]
 }

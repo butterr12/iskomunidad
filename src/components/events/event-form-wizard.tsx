@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarIcon, Check, Camera, X } from "lucide-react";
+import { CalendarIcon, Check, Camera, X, Plus, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,6 +106,7 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
   );
 
   // Step 3 fields
+  const [externalLinks, setExternalLinks] = useState<{ label: string; url: string }[]>(initialData?.externalLinks ?? []);
   const [locationId, setLocationId] = useState(initialData?.locationId ?? "none");
   const [organizer, setOrganizer] = useState(initialData?.organizer ?? "");
   const [selectedTags, setSelectedTags] = useState<string[]>(initialData?.tags ?? []);
@@ -193,7 +194,8 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
       locationId: locationId !== "none" ? locationId : undefined,
       tags: selectedTags,
       coverColor,
-      coverImageKey: coverImageKey ?? undefined,
+      coverImageKey: coverImageKey,
+      externalLinks: externalLinks.filter(l => l.label.trim() && l.url.trim()),
     };
 
     try {
@@ -477,6 +479,44 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
                 value={organizer}
                 onChange={(e) => setOrganizer(e.target.value)}
               />
+            </div>
+
+            {/* External Links */}
+            <div className="space-y-2">
+              <Label>External Links <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              {externalLinks.map((link, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <Input
+                    placeholder="Label (e.g. Register)"
+                    value={link.label}
+                    onChange={(e) => setExternalLinks(prev => prev.map((l, j) => j === i ? { ...l, label: e.target.value } : l))}
+                    className="w-1/3"
+                  />
+                  <Input
+                    placeholder="https://..."
+                    value={link.url}
+                    onChange={(e) => setExternalLinks(prev => prev.map((l, j) => j === i ? { ...l, url: e.target.value } : l))}
+                    className="flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setExternalLinks(prev => prev.filter((_, j) => j !== i))}
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {externalLinks.length < 5 && (
+                <button
+                  type="button"
+                  onClick={() => setExternalLinks(prev => [...prev, { label: "", url: "" }])}
+                  className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Link
+                </button>
+              )}
             </div>
 
             {/* Tags */}

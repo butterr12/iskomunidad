@@ -1,8 +1,9 @@
 /* eslint-disable */
 "use client";
 
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Loader2, X } from "lucide-react";
+import { getGigTags } from "@/actions/gigs";
 import {
   Dialog,
   DialogContent,
@@ -66,9 +67,68 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
   const [contactPlatform, setContactPlatform] = useState<ContactPlatform>("in-app");
   const [contactHandle, setContactHandle] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [tagsInput, setTagsInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [existingTags, setExistingTags] = useState<string[]>([]);
   const [locationNote, setLocationNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    getGigTags().then((res) => {
+      if (res.success) setExistingTags(res.data);
+    });
+  }, [open]);
+
+  function cleanTag(input: string): string {
+    return input.replace(/^#+/, "").toLowerCase().trim().replace(/\s+/g, "-");
+  }
+
+  function addTag(input: string) {
+    const clean = cleanTag(input);
+    if (!clean || tags.includes(clean) || tags.length >= 10) return;
+    setTags((prev) => [...prev, clean]);
+    setTagInput("");
+  }
+
+  function removeTag(tag: string) {
+    setTags((prev) => prev.filter((t) => t !== tag));
+  }
+
+  function handleTagInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    if (val.endsWith(",") || val.endsWith(" ")) {
+      addTag(val.slice(0, -1));
+      return;
+    }
+    setTagInput(val);
+    setShowSuggestions(true);
+  }
+
+  function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (tagInput.trim()) addTag(tagInput);
+    } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+      setTags((prev) => prev.slice(0, -1));
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  }
+
+  const filteredSuggestions = existingTags
+    .filter((t) => {
+      const q = cleanTag(tagInput);
+      return (!q || t.includes(q)) && !tags.includes(t);
+    })
+    .slice(0, 8);
+
+  const canCreateNew =
+    tagInput.trim() &&
+    !existingTags.includes(cleanTag(tagInput)) &&
+    !tags.includes(cleanTag(tagInput));
 
   const step1Valid = !!(title.trim() && category && compensation.trim());
   const step2Valid = !!description.trim();
@@ -92,7 +152,8 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
     setContactPlatform("in-app");
     setContactHandle("");
     setDeadline("");
-    setTagsInput("");
+    setTags([]);
+    setTagInput("");
     setLocationNote("");
   }
 
@@ -100,10 +161,6 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const tags = tagsInput
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
       const result = await onSubmit({
         title: title.trim(),
         description: description.trim(),
@@ -111,7 +168,7 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
         compensation: compensation.trim(),
         urgency,
         contactMethod: buildContactMethod(),
-        deadline: deadline || undefined,
+        deadline: deadline ? new Date(deadline).toISOString() : undefined,
         tags,
         locationNote: locationNote.trim() || undefined,
       });
@@ -279,15 +336,84 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
 
               {/* Tags (optional) */}
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="gig-tags" className="text-sm font-medium">
-                  Tags <span className="text-muted-foreground font-normal">(optional, comma-separated)</span>
-                </label>
-                <Input
-                  id="gig-tags"
-                  placeholder="e.g. math, tutoring, online"
-                  value={tagsInput}
-                  onChange={(e) => setTagsInput(e.target.value)}
-                />
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">
+                    Tags <span className="text-muted-foreground font-normal">(optional)</span>
+                  </p>
+                  {tags.length > 0 && (
+                    <span className="text-xs text-muted-foreground">{tags.length}/10</span>
+                  )}
+                </div>
+
+                {/* Chip input */}
+                <div className="relative">
+                  <div
+                    className="flex min-h-9 w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+                    onClick={() => tagInputRef.current?.focus()}
+                  >
+                    {tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                      >
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); removeTag(tag); }}
+                          className="rounded-full hover:text-destructive transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {tags.length < 10 && (
+                      <input
+                        ref={tagInputRef}
+                        value={tagInput}
+                        onChange={handleTagInputChange}
+                        onKeyDown={handleTagKeyDown}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                        placeholder={tags.length === 0 ? "#math, #tutoring…" : ""}
+                        className="min-w-20 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                      />
+                    )}
+                  </div>
+
+                  {/* Suggestions dropdown */}
+                  {showSuggestions && (filteredSuggestions.length > 0 || canCreateNew) && (
+                    <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-md">
+                      <div className="max-h-40 overflow-y-auto py-1">
+                        {filteredSuggestions.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => addTag(tag)}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
+                          >
+                            <span className="text-muted-foreground">#</span>
+                            <span>{tag}</span>
+                          </button>
+                        ))}
+                        {canCreateNew && (
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => addTag(tagInput)}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-primary hover:bg-accent"
+                          >
+                            <span className="font-medium">+</span>
+                            <span>Create <span className="font-medium">#{cleanTag(tagInput)}</span></span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Type and press Enter or comma to add · Backspace to remove
+                </p>
               </div>
             </div>
           )}
