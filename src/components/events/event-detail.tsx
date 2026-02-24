@@ -63,7 +63,7 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
   const isOwner = session?.user?.id === event.userId;
 
   const handleShare = async () => {
-    const url = `${siteConfig.url}/events?event=${event.id}`;
+    const url = `${siteConfig.url}/e/${event.id}`;
     try {
       if (navigator.share) { await navigator.share({ title: event.title, url }); return; }
       if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(url); toast.success("Link copied to clipboard."); return; }

@@ -8,6 +8,7 @@ import {
   recordConsent,
   setUserUniversity,
 } from "@/actions/auth";
+import { checkCursorPromoStatus, claimCursorPromo } from "@/actions/flairs";
 import { UP_CAMPUSES } from "@/lib/constants";
 import { updateUser, useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ interface GateContext {
   userName: string | undefined;
   displayUsername: string | undefined;
   university: string | undefined;
+  cursorPromoAvailable: boolean;
 }
 
 interface OnboardingGate {
@@ -303,6 +305,88 @@ function UniversityStep({ onComplete }: { onComplete: () => void }) {
   );
 }
 
+function CursorPromoStep({ onComplete }: { onComplete: () => void }) {
+  const [claiming, setClaiming] = useState(false);
+  const [error, setError] = useState("");
+  const queryClient = useQueryClient();
+
+  async function handleClaim() {
+    setClaiming(true);
+    setError("");
+    try {
+      const res = await claimCursorPromo();
+      if (!res.success) {
+        setError(res.error);
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["cursor-promo-status"] });
+      onComplete();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl bg-black text-white overflow-hidden">
+      <div className="p-6 space-y-4">
+        <div className="space-y-1">
+          <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Limited offer</p>
+          <h2 className="text-2xl font-bold tracking-tight">You attended a Cursor event.</h2>
+        </div>
+        <p className="text-sm text-neutral-300 leading-relaxed">
+          As a Cursor event attendee, you&apos;ve unlocked an exclusive flair badge and animated profile border — a sleek, pitch-black design inspired by the Cursor IDE aesthetic.
+        </p>
+        <div className="flex items-center gap-4 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold text-white"
+              style={{ backgroundColor: "#000000", border: "1px solid #333" }}
+            >
+              Cursor
+            </span>
+            <span className="text-neutral-500 text-xs">flair</span>
+          </div>
+          <div className="h-4 w-px bg-neutral-700" />
+          <div className="flex items-center gap-2">
+            <div className="relative h-6 w-6">
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{ background: "conic-gradient(from 0deg, #777, #aaa, #ddd, #aaa, #777)" }}
+              />
+              <div className="absolute inset-[2px] rounded-full bg-black" />
+            </div>
+            <span className="text-neutral-500 text-xs">border</span>
+          </div>
+        </div>
+        {error && (
+          <p className="text-sm text-red-400">{error}</p>
+        )}
+        <div className="flex flex-col gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleClaim}
+            disabled={claiming}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-white py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {claiming && <Loader2 className="h-4 w-4 animate-spin" />}
+            Claim rewards
+          </button>
+          <button
+            type="button"
+            onClick={onComplete}
+            disabled={claiming}
+            className="w-full rounded-lg py-2.5 text-sm font-medium text-neutral-400 transition-colors hover:text-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Skip
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Step dots ───────────────────────────────────────────────────────────────
 
 function StepDots({ total, current }: { total: number; current: number }) {
@@ -343,6 +427,11 @@ const ONBOARDING_GATES: OnboardingGate[] = [
     isNeeded: (ctx) => !ctx.university,
     component: UniversityStep,
   },
+  {
+    id: "cursor-promo",
+    isNeeded: (ctx) => ctx.cursorPromoAvailable,
+    component: CursorPromoStep,
+  },
 ];
 
 // ─── Main gate component ─────────────────────────────────────────────────────
@@ -369,17 +458,27 @@ export function ConsentGate({ session, children }: ConsentGateProps) {
     enabled: !!session,
   });
 
+  const { data: promoStatus, isLoading: isLoadingPromo } = useQuery({
+    queryKey: ["cursor-promo-status"],
+    queryFn: async () => {
+      const res = await checkCursorPromoStatus();
+      return res.success ? res.data : { enabled: false, claimed: false };
+    },
+    enabled: !!session,
+  });
+
   // No session — render children (public pages, or auth handles redirect)
   if (!session) return <>{children}</>;
 
-  // Loading consent status
-  if (isLoading) return null;
+  // Wait for both queries before evaluating gates
+  if (isLoading || isLoadingPromo) return null;
 
   const ctx: GateContext = {
     hasValidConsent: data?.hasValidConsent ?? false,
     userName: liveSession?.user?.name || session?.user?.name || undefined,
     displayUsername: liveSession?.user?.displayUsername ?? undefined,
     university: liveSession?.user?.university ?? undefined,
+    cursorPromoAvailable: (promoStatus?.enabled ?? false) && !(promoStatus?.claimed ?? true),
   };
 
   // All gates the user needs (regardless of local completion state)
@@ -399,7 +498,9 @@ export function ConsentGate({ session, children }: ConsentGateProps) {
 
   function handleComplete() {
     setCompletedGateIds((prev) => new Set(prev).add(currentGate.id));
-    queryClient.invalidateQueries({ queryKey: ["consent-status"] });
+    if (currentGate.id !== "cursor-promo") {
+      queryClient.invalidateQueries({ queryKey: ["consent-status"] });
+    }
   }
 
   return (

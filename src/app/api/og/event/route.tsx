@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { campusEvent } from "@/lib/schema";
 import { EVENT_CATEGORY_LABELS, EVENT_CATEGORY_COLORS } from "@/lib/events";
@@ -29,7 +29,7 @@ async function loadFont(filename: string): Promise<ArrayBuffer> {
 
 async function getEventForOg(eventId: string) {
   return db.query.campusEvent.findFirst({
-    where: and(eq(campusEvent.id, eventId), eq(campusEvent.status, "approved")),
+    where: eq(campusEvent.id, eventId),
     columns: {
       title: true,
       description: true,

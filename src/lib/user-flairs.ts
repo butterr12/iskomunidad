@@ -31,6 +31,7 @@ export const USER_FLAIR_CATALOG: FlairDefinition[] = [
   { id: "creative", label: "Creative", shortLabel: "Creative", category: "interest", color: "#ec4899", tier: "provisioned" },
   // Achievements — provisioned
   { id: "noted", label: "Noted.", shortLabel: "Noted.", category: "achievement", color: "#d97706", tier: "provisioned" },
+  { id: "cursor-promo", label: "Cursor Attendee", shortLabel: "Cursor", category: "achievement", color: "#000000", tier: "provisioned" },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

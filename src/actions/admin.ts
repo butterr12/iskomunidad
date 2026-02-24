@@ -24,6 +24,7 @@ import {
   getApprovalMode,
   getModerationPreset,
   getCustomModerationRules,
+  getCursorPromoEnabled,
   createNotification,
   createUserNotification,
 } from "./_helpers";
@@ -106,9 +107,10 @@ const createGigSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  approvalMode: z.enum(["auto", "manual", "ai"]),
+  approvalMode: z.enum(["auto", "manual", "ai"]).optional(),
   moderationPreset: z.enum(["strict", "moderate", "relaxed"]).optional(),
   customModerationRules: z.string().max(2000).optional(),
+  cursorPromoEnabled: z.boolean().optional(),
 });
 
 function getActorLabel(actor?: { username?: string | null; name?: string | null } | null): string {
@@ -1169,6 +1171,7 @@ export async function adminGetSettings(): Promise<
     approvalMode: ApprovalMode;
     moderationPreset: ModerationPreset;
     customModerationRules: string;
+    cursorPromoEnabled: boolean;
   }>
 > {
   const session = await requireAdmin();
@@ -1177,7 +1180,8 @@ export async function adminGetSettings(): Promise<
   const approvalMode = await getApprovalMode();
   const moderationPreset = await getModerationPreset();
   const customModerationRules = await getCustomModerationRules();
-  return { success: true, data: { approvalMode, moderationPreset, customModerationRules } };
+  const cursorPromoEnabled = await getCursorPromoEnabled();
+  return { success: true, data: { approvalMode, moderationPreset, customModerationRules, cursorPromoEnabled } };
 }
 
 export async function adminUpdateSettings(
@@ -1190,16 +1194,18 @@ export async function adminUpdateSettings(
   const session = await requireAdmin();
   if (!session) return { success: false, error: "Unauthorized" };
 
-  await db
-    .insert(adminSetting)
-    .values({
-      key: "approvalMode",
-      value: parsed.data.approvalMode,
-    })
-    .onConflictDoUpdate({
-      target: [adminSetting.key],
-      set: { value: parsed.data.approvalMode },
-    });
+  if (parsed.data.approvalMode !== undefined) {
+    await db
+      .insert(adminSetting)
+      .values({
+        key: "approvalMode",
+        value: parsed.data.approvalMode,
+      })
+      .onConflictDoUpdate({
+        target: [adminSetting.key],
+        set: { value: parsed.data.approvalMode },
+      });
+  }
 
   if (parsed.data.moderationPreset !== undefined) {
     await db
@@ -1224,6 +1230,19 @@ export async function adminUpdateSettings(
       .onConflictDoUpdate({
         target: [adminSetting.key],
         set: { value: parsed.data.customModerationRules },
+      });
+  }
+
+  if (parsed.data.cursorPromoEnabled !== undefined) {
+    await db
+      .insert(adminSetting)
+      .values({
+        key: "cursorPromoEnabled",
+        value: parsed.data.cursorPromoEnabled,
+      })
+      .onConflictDoUpdate({
+        target: [adminSetting.key],
+        set: { value: parsed.data.cursorPromoEnabled },
       });
   }
 

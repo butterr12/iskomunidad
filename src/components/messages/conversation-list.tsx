@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SquarePen, MoreVertical, Loader2, Trash2 } from "lucide-react";
+import { SquarePen, MoreVertical, Loader2, Trash2, Ghost } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
@@ -270,6 +270,10 @@ export function ConversationList({
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="anon" className="gap-1">
+            <Ghost className="h-3.5 w-3.5" />
+            Anon
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="messages" className="flex-1 overflow-y-auto mt-0">
@@ -310,6 +314,66 @@ export function ConversationList({
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="anon" className="flex-1 overflow-y-auto mt-0">
+          <div className="flex flex-col items-center p-5 gap-5 text-center">
+            {/* Icon */}
+            <div className="mt-2 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <Ghost className="h-7 w-7 text-muted-foreground" />
+            </div>
+
+            {/* Heading + badge */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-sm font-semibold">Talk to Strangers</span>
+                <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                  Coming soon
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground max-w-[200px] leading-relaxed">
+                Get matched with a random iskomunidad user. No names, no profiles — just a conversation.
+              </p>
+            </div>
+
+            {/* Mock chat preview */}
+            <div className="w-full rounded-xl border bg-muted/30 p-3 space-y-2.5 select-none">
+              {/* System message */}
+              <p className="text-[10px] text-muted-foreground/60 text-center">
+                You&apos;re now chatting with a stranger.
+              </p>
+              <div className="flex items-end gap-2">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted">
+                  <Ghost className="h-3 w-3 text-muted-foreground" />
+                </div>
+                <div className="rounded-2xl rounded-bl-sm bg-muted px-3 py-1.5 text-left text-xs text-muted-foreground max-w-[150px]">
+                  from which college?
+                </div>
+              </div>
+              <div className="flex items-end justify-end gap-2">
+                <div className="rounded-2xl rounded-br-sm bg-primary/15 px-3 py-1.5 text-xs text-muted-foreground max-w-[150px]">
+                  cal! you?
+                </div>
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted">
+                  <Ghost className="h-3 w-3 text-muted-foreground" />
+                </div>
+                <div className="rounded-2xl rounded-bl-sm bg-muted px-3 py-1.5 text-left text-xs text-muted-foreground max-w-[150px]">
+                  i&apos;m from coe
+                </div>
+              </div>
+              <div className="flex items-end justify-end gap-2">
+                <div className="rounded-2xl rounded-br-sm bg-primary/15 px-3 py-1.5 text-xs text-muted-foreground max-w-[150px]">
+                  ghosters daw coe sabi ng friends ko...
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground/50">
+              🔒 no identity revealed · skip anytime
+            </p>
+          </div>
         </TabsContent>
       </Tabs>
 

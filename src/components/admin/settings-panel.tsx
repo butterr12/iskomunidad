@@ -5,12 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import type { ApprovalMode, ModerationPreset } from "@/actions/_helpers";
 
 interface AdminSettings {
   approvalMode: ApprovalMode;
   moderationPreset: ModerationPreset;
   customModerationRules: string;
+  cursorPromoEnabled: boolean;
 }
 
 interface SettingsPanelProps {
@@ -19,6 +21,7 @@ interface SettingsPanelProps {
   onModerationPresetChange: (preset: ModerationPreset) => void;
   onCustomRulesChange: (rules: string) => void;
   onCustomRulesSave: () => void;
+  onCursorPromoChange: (enabled: boolean) => void;
 }
 
 const APPROVAL_MODES: { value: ApprovalMode; label: string; description: string }[] = [
@@ -63,6 +66,7 @@ export function SettingsPanel({
   onModerationPresetChange,
   onCustomRulesChange,
   onCustomRulesSave,
+  onCursorPromoChange,
 }: SettingsPanelProps) {
   return (
     <div className="space-y-6">
@@ -151,6 +155,27 @@ export function SettingsPanel({
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Promotions</CardTitle>
+          <CardDescription>Toggle limited-time promotional rewards for new sign-ups.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Cursor Promo</Label>
+              <p className="text-xs text-muted-foreground">
+                Show a claim modal after sign-up that grants the &quot;Cursor Attendee&quot; flair and exclusive animated border.
+              </p>
+            </div>
+            <Switch
+              checked={settings.cursorPromoEnabled}
+              onCheckedChange={onCursorPromoChange}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
     </div>
   );

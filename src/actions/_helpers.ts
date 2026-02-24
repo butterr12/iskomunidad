@@ -216,6 +216,16 @@ export async function getCampusMatchEnabled(): Promise<boolean> {
   return true; // default: enabled
 }
 
+// ─── Cursor Promo toggle ──────────────────────────────────────────────────────
+
+export async function getCursorPromoEnabled(): Promise<boolean> {
+  const row = await db.query.adminSetting.findFirst({
+    where: eq(adminSetting.key, "cursorPromoEnabled"),
+  });
+  if (row && typeof row.value === "boolean") return row.value;
+  return false; // default: disabled (opt-in via admin)
+}
+
 export async function requireCampusMatch(): Promise<ActionResult<never> | null> {
   const enabled = await getCampusMatchEnabled();
   if (!enabled) return { success: false, error: "Campus Match is currently disabled" };

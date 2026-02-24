@@ -10,6 +10,7 @@ interface SettingsState {
   approvalMode: ApprovalMode;
   moderationPreset: ModerationPreset;
   customModerationRules: string;
+  cursorPromoEnabled: boolean;
 }
 
 export default function SettingsPage() {
@@ -47,6 +48,11 @@ export default function SettingsPage() {
     });
   };
 
+  const handleCursorPromoChange = async (enabled: boolean) => {
+    setSettings((prev) => prev && { ...prev, cursorPromoEnabled: enabled });
+    await adminUpdateSettings({ cursorPromoEnabled: enabled });
+  };
+
   if (!settings) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -62,6 +68,7 @@ export default function SettingsPage() {
       onModerationPresetChange={handleModerationPresetChange}
       onCustomRulesChange={handleCustomRulesChange}
       onCustomRulesSave={handleCustomRulesSave}
+      onCursorPromoChange={handleCursorPromoChange}
     />
   );
 }
