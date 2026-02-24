@@ -39,15 +39,6 @@ export default async function QrPage() {
 
         {/* URL label */}
         <p className="text-xs font-mono text-neutral-400">{siteConfig.url}</p>
-
-        {/* Download */}
-        <a
-          href="/api/qr"
-          download="iskomunidad-qr.png"
-          className="rounded-lg bg-[#8b1a1a] px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          Download PNG
-        </a>
       </div>
     </main>
   );
