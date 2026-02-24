@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { useSession } from "@/lib/auth-client";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -82,11 +89,12 @@ export function ChatPanel({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadOlderRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
   const hasInitialAutoScrollRef = useRef(false);
+  const previousDisplayCountRef = useRef(0);
+  const scrollRafRef = useRef<number | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const typingIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -138,9 +146,21 @@ export function ChatPanel({
     };
   }, []);
 
-  // Auto-scroll to latest message (instant on first paint, smooth afterwards)
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+  const displayMessageCount = allMessages.length + optimisticMessages.length;
+
+  // Scroll only the chat container. Coalesce rapid calls into one per frame.
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (scrollRafRef.current !== null) {
+      cancelAnimationFrame(scrollRafRef.current);
+    }
+
+    scrollRafRef.current = requestAnimationFrame(() => {
+      container.scrollTo({ top: container.scrollHeight, behavior });
+      scrollRafRef.current = null;
+    });
   }, []);
 
   // Track whether the user is near the bottom so we only autoscroll when appropriate.
@@ -164,15 +184,26 @@ export function ChatPanel({
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isLoading) return;
-    const hasDisplayMessages = allMessages.length > 0 || optimisticMessages.length > 0;
-    if (!hasDisplayMessages) return;
-    if (!shouldStickToBottomRef.current && hasInitialAutoScrollRef.current) return;
+
+    if (displayMessageCount === 0) {
+      previousDisplayCountRef.current = 0;
+      return;
+    }
+
+    const previousCount = previousDisplayCountRef.current;
+    previousDisplayCountRef.current = displayMessageCount;
+
+    const isInitialAutoScroll = !hasInitialAutoScrollRef.current;
+    const hasNewMessage = displayMessageCount > previousCount;
+
+    if (!isInitialAutoScroll && !hasNewMessage) return;
+    if (!shouldStickToBottomRef.current && !isInitialAutoScroll) return;
 
     scrollToBottom("auto");
     hasInitialAutoScrollRef.current = true;
-  }, [isLoading, allMessages.length, optimisticMessages.length, scrollToBottom]);
+  }, [isLoading, displayMessageCount, scrollToBottom]);
 
   // Auto-resize textarea on content change
   useEffect(() => {
@@ -311,6 +342,9 @@ export function ChatPanel({
   // Cleanup remaining blob URLs on unmount
   useEffect(() => {
     return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
       optimisticMessagesRef.current.forEach((om) => {
         if (om._imagePreviewUrl) URL.revokeObjectURL(om._imagePreviewUrl);
       });
@@ -689,7 +723,6 @@ export function ChatPanel({
           </div>
         )}
 
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Image preview */}
@@ -765,7 +798,10 @@ export function ChatPanel({
       {/* Scroll to bottom button */}
       {!isAtBottom && (
         <button
-          onClick={() => scrollToBottom("smooth")}
+          onClick={() => {
+            shouldStickToBottomRef.current = true;
+            scrollToBottom("smooth");
+          }}
           className="absolute bottom-20 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border bg-background shadow-md text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronDown className="h-4 w-4" />
