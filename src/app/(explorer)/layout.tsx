@@ -14,7 +14,13 @@ import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 
 function ExplorerSkeleton() {
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    <div
+      className="flex flex-col overflow-hidden"
+      style={{
+        transform: "translateY(var(--vvp-page-top, 0px))",
+        height: "var(--vvp-height, 100dvh)",
+      }}
+    >
       {/* Top bar skeleton */}
       <div className="border-b bg-background/80 backdrop-blur-sm">
         <div className="flex h-14 items-center justify-between px-4">
@@ -90,7 +96,13 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
 
   return (
     <SocketProvider>
-      <div className="flex h-dvh flex-col overflow-hidden">
+      <div
+        className="flex flex-col overflow-hidden"
+        style={{
+          transform: "translateY(var(--vvp-page-top, 0px))",
+          height: "var(--vvp-height, 100dvh)",
+        }}
+      >
         <NavBar />
         <ConsentGate session={session}>
           {children}

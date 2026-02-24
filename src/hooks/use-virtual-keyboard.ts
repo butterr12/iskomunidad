@@ -2,8 +2,15 @@ import { useEffect } from "react";
 
 /**
  * Detects the mobile virtual keyboard via the visualViewport API.
- * Sets `data-keyboard-open` on <html> and a `--vkb-height` CSS custom
- * property so the rest of the app can react with pure CSS.
+ * Sets `data-keyboard-open` on <html> and CSS custom properties:
+ *
+ *   --vkb-height     keyboard height in px (0 when closed)
+ *   --vvp-page-top   how many px iOS has panned the visual viewport upward (0 on non-iOS)
+ *   --vvp-height     visual viewport height in px (shrinks when keyboard appears)
+ *
+ * The explorer layout reads --vvp-page-top and --vvp-height to counteract
+ * iOS's "overlay + pan" keyboard behaviour, keeping position:fixed children
+ * (NavBar, bottom nav) pinned to the visual viewport.
  */
 export function useVirtualKeyboard() {
   useEffect(() => {
@@ -14,12 +21,20 @@ export function useVirtualKeyboard() {
     const KEYBOARD_THRESHOLD = 150;
 
     const update = () => {
-      const keyboardHeight = window.innerHeight - vv.height;
+      const keyboardHeight = window.innerHeight - vv.height - vv.offsetTop;
       const isOpen = keyboardHeight > KEYBOARD_THRESHOLD;
 
       document.documentElement.style.setProperty(
         "--vkb-height",
         `${Math.max(0, keyboardHeight)}px`,
+      );
+      document.documentElement.style.setProperty(
+        "--vvp-page-top",
+        `${vv.pageTop}px`,
+      );
+      document.documentElement.style.setProperty(
+        "--vvp-height",
+        `${vv.height}px`,
       );
 
       if (isOpen) {
@@ -30,13 +45,17 @@ export function useVirtualKeyboard() {
     };
 
     vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update); // iOS panning fires "scroll" on visualViewport
     // Run once on mount in case a keyboard is already open
     update();
 
     return () => {
       vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
       document.documentElement.removeAttribute("data-keyboard-open");
       document.documentElement.style.removeProperty("--vkb-height");
+      document.documentElement.style.removeProperty("--vvp-page-top");
+      document.documentElement.style.removeProperty("--vvp-height");
     };
   }, []);
 }
