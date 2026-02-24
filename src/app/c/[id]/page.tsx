@@ -47,7 +47,7 @@ function toPostTypes(data: PermalinkPostData): {
       imageKeys: data.post.imageKeys,
       eventId: data.post.eventId ?? null,
       eventTitle: data.post.eventTitle ?? null,
-      eventCategory: data.post.eventCategory ?? null,
+      eventColor: data.post.eventColor ?? null,
     },
     comments: data.comments.map((comment) => ({
       id: comment.id,

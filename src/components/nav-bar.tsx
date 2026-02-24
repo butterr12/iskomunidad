@@ -29,6 +29,8 @@ import {
   Moon,
   User,
   Download,
+  Hammer,
+  Users2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -85,7 +87,13 @@ export function NavBar() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  const isMoreActive = ["/gigs", "/settings"].some((p) => pathname.startsWith(p));
+  const moreItems = [
+    { label: "Gigs", href: "/gigs", icon: Hammer },
+    { label: "Settings", href: "/settings", icon: Settings },
+    { label: "People", href: "/people", icon: Users2 },
+  ];
+  const activeMoreItem = moreItems.find((item) => pathname.startsWith(item.href));
+  const isMoreActive = !!activeMoreItem;
 
   const themeCooldownRef = useRef(false);
   const toggleTheme = () => {
@@ -136,8 +144,12 @@ export function NavBar() {
               className="gap-1.5"
               onClick={() => setMoreSheetOpen(true)}
             >
-              <LayoutGrid className="h-4 w-4" />
-              More
+              {activeMoreItem ? (
+                <activeMoreItem.icon className="h-4 w-4" />
+              ) : (
+                <LayoutGrid className="h-4 w-4" />
+              )}
+              {activeMoreItem ? activeMoreItem.label : "More"}
             </Button>
           </nav>
 
@@ -219,8 +231,12 @@ export function NavBar() {
               isMoreActive ? "text-primary" : "text-muted-foreground"
             )}
           >
-            <LayoutGrid className={cn("h-5 w-5", isMoreActive && "text-primary")} />
-            More
+            {activeMoreItem ? (
+              <activeMoreItem.icon className="h-5 w-5 text-primary" />
+            ) : (
+              <LayoutGrid className="h-5 w-5" />
+            )}
+            {activeMoreItem ? activeMoreItem.label : "More"}
           </button>
         </div>
       </nav>

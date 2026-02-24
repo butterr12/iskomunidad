@@ -760,6 +760,41 @@ export const cmRematchCooldown = pgTable(
   ],
 );
 
+// ─── Banner ──────────────────────────────────────────────────────────────────
+
+export const banner = pgTable("banner", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  body: text("body"),
+  variant: text("variant").notNull().default("info"), // "info" | "warning" | "urgent" | "success"
+  ctaLabel: text("cta_label"),
+  ctaUrl: text("cta_url"),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ─── Banner Dismissal ─────────────────────────────────────────────────────────
+
+export const bannerDismissal = pgTable(
+  "banner_dismissal",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    bannerId: uuid("banner_id")
+      .notNull()
+      .references(() => banner.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    dismissedAt: timestamp("dismissed_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("banner_dismissal_uq").on(t.bannerId, t.userId)],
+);
+
 // ─── Abuse Event ──────────────────────────────────────────────────────────────
 
 export const abuseEvent = pgTable(
@@ -803,6 +838,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   gigListings: many(gigListing),
   gigSwipes: many(gigSwipe),
   userNotifications: many(userNotification),
+  bannerDismissals: many(bannerDismissal),
   legalConsents: many(userLegalConsent),
   notificationSetting: one(userNotificationSetting, {
     fields: [user.id],
@@ -1242,3 +1278,20 @@ export const cmRematchCooldownRelations = relations(
     }),
   }),
 );
+
+// ─── Banner Relations ─────────────────────────────────────────────────────────
+
+export const bannerRelations = relations(banner, ({ many }) => ({
+  dismissals: many(bannerDismissal),
+}));
+
+export const bannerDismissalRelations = relations(bannerDismissal, ({ one }) => ({
+  banner: one(banner, {
+    fields: [bannerDismissal.bannerId],
+    references: [banner.id],
+  }),
+  user: one(user, {
+    fields: [bannerDismissal.userId],
+    references: [user.id],
+  }),
+}));

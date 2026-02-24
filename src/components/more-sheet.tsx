@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Hammer, HeartHandshake, Settings, Bot, UsersRound, Building2 } from "lucide-react";
+import { Hammer, HeartHandshake, Settings, Bot, UsersRound, Building2, Users2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { MatchPreviewSheet } from "@/components/match-preview-sheet";
 
 const items = [
+  { label: "People", href: "/people", icon: Users2, comingSoon: false, toastMessage: "" },
   { label: "Gigs", href: "/gigs", icon: Hammer, comingSoon: false, toastMessage: "" },
   { label: "Match", href: null, icon: HeartHandshake, comingSoon: true, toastMessage: "" },
   { label: "Settings", href: "/settings", icon: Settings, comingSoon: false, toastMessage: "" },

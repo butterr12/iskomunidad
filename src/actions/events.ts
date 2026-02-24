@@ -510,3 +510,51 @@ export async function getUserEvents(): Promise<ActionResult<unknown[]>> {
     })),
   };
 }
+
+// ─── Get events by user ID (for profile page) ────────────────────────────────
+
+export async function getUserEventsById(
+  userId: string,
+): Promise<ActionResult<unknown[]>> {
+  const session = await getOptionalSession();
+  const isOwner = session?.user?.id === userId;
+
+  const rows = await db.query.campusEvent.findMany({
+    where: (e, { eq: eqFn, and: andFn, or: orFn }) => {
+      const approved = andFn(eqFn(e.userId, userId), eqFn(e.status, "approved"));
+      if (isOwner) {
+        const own = eqFn(e.userId, userId);
+        return own;
+      }
+      return approved;
+    },
+    with: {
+      location: { columns: { name: true } },
+    },
+    orderBy: [desc(campusEvent.createdAt)],
+  });
+
+  let userRsvps: Record<string, string> = {};
+  if (session?.user) {
+    const rsvps = await db.query.eventRsvp.findMany({
+      where: eq(eventRsvp.userId, session.user.id),
+    });
+    userRsvps = Object.fromEntries(rsvps.map((r) => [r.eventId, r.status]));
+  }
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      rejectionReason: r.status === "rejected" ? r.rejectionReason : undefined,
+      startDate: r.startDate.toISOString(),
+      endDate: r.endDate.toISOString(),
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      locationName: r.location?.name ?? null,
+      rsvpStatus: (userRsvps[r.id] as "going" | "interested") ?? null,
+      attendeeCount: r.attendeeCount,
+      interestedCount: r.interestedCount,
+    })),
+  };
+}

@@ -9,6 +9,7 @@ export type AbuseAction =
   | "event.create"
   | "event.rsvp"
   | "gig.create"
+  | "gig.update"
   | "gig.swipe"
   | "gig.interest"
   | "follow.toggle"

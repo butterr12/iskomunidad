@@ -26,7 +26,7 @@ import {
   type GigUrgency,
 } from "@/lib/gigs";
 
-interface CreateGigFormData {
+export interface CreateGigFormData {
   title: string;
   description: string;
   category: string;
@@ -42,6 +42,8 @@ interface CreateGigFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: CreateGigFormData) => Promise<{ success: boolean }>;
+  gigId?: string;
+  initialData?: CreateGigFormData;
 }
 
 const URGENCIES: GigUrgency[] = ["flexible", "soon", "urgent"];
@@ -57,7 +59,26 @@ const CONTACT_OPTIONS: { id: ContactPlatform; label: string; emoji: string; plac
   { id: "other", label: "Other", emoji: "🔗", placeholder: "How to reach you..." },
 ];
 
-export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormProps) {
+function parseContactMethod(method: string): { platform: ContactPlatform; handle: string } {
+  if (!method || method === "in-app") return { platform: "in-app", handle: "" };
+  const knownPlatforms: { id: ContactPlatform; label: string }[] = [
+    { id: "facebook", label: "Facebook" },
+    { id: "whatsapp", label: "WhatsApp" },
+    { id: "telegram", label: "Telegram" },
+    { id: "email", label: "Email" },
+  ];
+  for (const { id, label } of knownPlatforms) {
+    const prefix = `${label}: `;
+    if (method.startsWith(prefix)) {
+      return { platform: id, handle: method.slice(prefix.length) };
+    }
+  }
+  return { platform: "other", handle: method };
+}
+
+export function CreateGigForm({ open, onOpenChange, onSubmit, gigId, initialData }: CreateGigFormProps) {
+  const isEditMode = !!gigId;
+
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -74,6 +95,27 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
   const [locationNote, setLocationNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const tagInputRef = useRef<HTMLInputElement>(null);
+
+  // Populate fields when opening in edit mode
+  useEffect(() => {
+    if (!open || !initialData) return;
+    setStep(1);
+    setTitle(initialData.title);
+    setDescription(initialData.description);
+    setCategory(initialData.category as GigCategory);
+    setCompensation(initialData.compensation);
+    setUrgency(initialData.urgency);
+    setTags(initialData.tags);
+    setLocationNote(initialData.locationNote ?? "");
+    setDeadline(
+      initialData.deadline
+        ? new Date(initialData.deadline).toISOString().slice(0, 16)
+        : "",
+    );
+    const { platform, handle } = parseContactMethod(initialData.contactMethod);
+    setContactPlatform(platform);
+    setContactHandle(handle);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open) return;
@@ -190,8 +232,10 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col gap-0 p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>Post a Gig</DialogTitle>
-          <DialogDescription>Find help from the campus community</DialogDescription>
+          <DialogTitle>{isEditMode ? "Edit Gig" : "Post a Gig"}</DialogTitle>
+          <DialogDescription>
+            {isEditMode ? "Update your gig listing" : "Find help from the campus community"}
+          </DialogDescription>
         </DialogHeader>
 
         {/* Step progress bar */}
@@ -557,10 +601,10 @@ export function CreateGigForm({ open, onOpenChange, onSubmit }: CreateGigFormPro
                 {submitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Posting...
+                    {isEditMode ? "Saving..." : "Posting..."}
                   </>
                 ) : (
-                  "Post Gig"
+                  isEditMode ? "Save Changes" : "Post Gig"
                 )}
               </Button>
             )}

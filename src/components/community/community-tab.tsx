@@ -4,7 +4,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal, Bookmark, FileText } from "lucide-react";
+import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal, Bookmark, FileText, Search } from "lucide-react";
+import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ import {
 import { toast } from "sonner";
 import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
 import { usePostHog } from "posthog-js/react";
+import { BannerStrip } from "@/components/banners/banner-strip";
 
 type PostPage = { posts: CommunityPost[]; hasMore: boolean };
 
@@ -415,24 +417,34 @@ export function CommunityTab() {
       <div className="sticky top-12 sm:top-14 z-10 border-b bg-background/80 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 py-2">
           <h2 className="text-lg font-semibold">Community</h2>
-          <button
-            onClick={() => setShowFilters(true)}
-            className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/people"
+              className="flex items-center gap-2 rounded-lg border bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+            >
+              <Search className="h-3.5 w-3.5" />
+              Find people…
+            </Link>
+            <button
+              onClick={() => setShowFilters(true)}
+              className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-5xl gap-4 p-4">
           <div className="min-w-0 flex-1 max-w-2xl mx-auto lg:mx-0">
+            <BannerStrip />
             <div className="w-full mb-3 flex items-center gap-2">
               <button
                 onClick={openCreatePost}

@@ -295,6 +295,10 @@ export function PermalinkPostClient({
     }
   };
 
+  const eventColor = post.eventId && post.eventTitle && post.eventColor
+    ? post.eventColor
+    : undefined;
+
   return (
     <main className="mx-auto flex h-dvh w-full max-w-3xl flex-col overflow-y-auto bg-background pt-2 pb-6 sm:pt-6">
       <button
@@ -306,7 +310,10 @@ export function PermalinkPostClient({
       </button>
 
       <div className="flex flex-col gap-4 p-5">
-        <div className="flex gap-3">
+        <div
+          className="flex gap-3"
+          style={eventColor ? { borderLeft: `3px solid ${eventColor}`, paddingLeft: "12px" } : undefined}
+        >
           <VoteControls
             score={post.score}
             userVote={post.userVote}
@@ -352,14 +359,6 @@ export function PermalinkPostClient({
               >
                 {post.flair}
               </Badge>
-              {post.eventId && post.eventTitle && (
-                <Link href={`/events?event=${post.eventId}`}>
-                  <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 border-primary/40 text-primary">
-                    <CalendarDays className="h-2.5 w-2.5" />
-                    {post.eventTitle}
-                  </Badge>
-                </Link>
-              )}
               <Avatar className="h-5 w-5">
                 {post.authorImage && <AvatarImage src={post.authorImage} alt={post.author} />}
                 <AvatarFallback className="text-[9px] font-medium">
@@ -435,25 +434,37 @@ export function PermalinkPostClient({
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2 border-t pt-4">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleShare}>
-            <Share2 className="h-3.5 w-3.5" />
-            Share
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" disabled={bookmarkPending} onClick={handleToggleBookmark}>
-            <Bookmark className={cn("h-3.5 w-3.5", post.isBookmarked && "fill-current")} />
-            {post.isBookmarked ? "Saved" : "Save"}
-          </Button>
-          {isAuthenticated && post.locationId && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => router.push(`/map?landmark=${post.locationId}`)}
-            >
-              <MapPin className="h-3.5 w-3.5" />
-              View on Map
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleShare}>
+              <Share2 className="h-3.5 w-3.5" />
+              Share
             </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" disabled={bookmarkPending} onClick={handleToggleBookmark}>
+              <Bookmark className={cn("h-3.5 w-3.5", post.isBookmarked && "fill-current")} />
+              {post.isBookmarked ? "Saved" : "Save"}
+            </Button>
+            {isAuthenticated && post.locationId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => router.push(`/map?landmark=${post.locationId}`)}
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                View on Map
+              </Button>
+            )}
+          </div>
+          {eventColor && post.eventTitle && (
+            <Link
+              href={`/events?event=${post.eventId}`}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-white"
+              style={{ backgroundColor: eventColor }}
+            >
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+              <span className="max-w-[160px] truncate">{post.eventTitle}</span>
+            </Link>
           )}
         </div>
 

@@ -17,6 +17,7 @@ import {
   MapPin,
   Briefcase,
   Users,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,12 @@ const navGroups: NavGroup[] = [
     label: "Users",
     items: [
       { href: "/admin/users", label: "All Users", shortLabel: "Users", icon: Users },
+    ],
+  },
+  {
+    label: "Broadcast",
+    items: [
+      { href: "/admin/banners", label: "Banners", shortLabel: "Banners", icon: Megaphone },
     ],
   },
   {

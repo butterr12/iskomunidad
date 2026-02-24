@@ -14,12 +14,16 @@ import {
   type FollowStatus,
 } from "@/actions/follows";
 import { voteOnPost, getUserDrafts, getUserPendingPosts, type DraftPost } from "@/actions/posts";
+import { getUserEventsById } from "@/actions/events";
+import { getUserGigsById } from "@/actions/gigs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PostFeed } from "@/components/community/post-feed";
+import { EventCard } from "@/components/events/event-card";
+import { GigCard } from "@/components/gigs/gig-card";
 import {
   ArrowLeft,
   Clock,
@@ -30,6 +34,7 @@ import {
   CalendarDays,
   Loader2,
   MessageSquare,
+  Hammer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePostHog } from "posthog-js/react";
@@ -37,6 +42,8 @@ import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
 import type { CommunityPost, VoteDirection } from "@/lib/posts";
 import { FLAIR_COLORS, formatRelativeTime, type PostFlair } from "@/lib/posts";
+import type { CampusEvent } from "@/lib/events";
+import type { GigListing } from "@/lib/gigs";
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -133,6 +140,26 @@ export default function ProfilePageClient() {
       return res.success ? res.data : [];
     },
     enabled: isOwnProfile && !!session?.user,
+  });
+
+  const { data: events = [], isLoading: eventsLoading } = useQuery({
+    queryKey: ["user-events-by-id", profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const res = await getUserEventsById(profile.id);
+      return res.success ? (res.data as CampusEvent[]) : [];
+    },
+    enabled: !!profile?.id,
+  });
+
+  const { data: gigs = [], isLoading: gigsLoading } = useQuery({
+    queryKey: ["user-gigs-by-id", profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const res = await getUserGigsById(profile.id);
+      return res.success ? (res.data as GigListing[]) : [];
+    },
+    enabled: !!profile?.id,
   });
 
   async function handleFollow() {
@@ -320,6 +347,12 @@ export default function ProfilePageClient() {
               <TabsTrigger value="posts">
                 Posts ({posts.length})
               </TabsTrigger>
+              <TabsTrigger value="events">
+                Events {events.length > 0 && `(${events.length})`}
+              </TabsTrigger>
+              <TabsTrigger value="gigs">
+                Gigs {gigs.length > 0 && `(${gigs.length})`}
+              </TabsTrigger>
               {isOwnProfile && (
                 <TabsTrigger value="pending">
                   Pending {pendingPosts.length > 0 && `(${pendingPosts.length})`}
@@ -346,6 +379,58 @@ export default function ProfilePageClient() {
                 />
               )}
             </TabsContent>
+
+            <TabsContent value="events" className="mt-3">
+              {eventsLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+                  ))}
+                </div>
+              ) : events.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
+                  <CalendarDays className="h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm font-medium">No events yet</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {events.map((event) => (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      onClick={() => router.push(`/events?event=${event.id}`)}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="gigs" className="mt-3">
+              {gigsLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+                  ))}
+                </div>
+              ) : gigs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
+                  <Hammer className="h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm font-medium">No gigs posted yet</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {gigs.map((gig) => (
+                    <GigCard
+                      key={gig.id}
+                      gig={gig}
+                      onSelect={(g) => router.push(`/gigs?gig=${g.id}`)}
+                      currentUserId={session?.user?.id}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
             {isOwnProfile && (
               <TabsContent value="pending" className="mt-3">
                 {pendingLoading ? (

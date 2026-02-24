@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { Plus, CalendarDays, Search, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ViewToggle } from "./view-toggle";
@@ -148,10 +148,6 @@ export function EventsTab() {
             <div className="mb-4 rounded-2xl bg-gradient-to-r from-violet-500/10 via-violet-500/5 to-transparent border border-violet-500/10 px-5 py-4">
               <div className="flex items-center justify-between">
                 <p className="text-base font-semibold">What&apos;s happening on campus?</p>
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  {events.length} upcoming {events.length === 1 ? "event" : "events"}
-                </span>
               </div>
               {/* Search bar */}
               <div className="relative mt-3">

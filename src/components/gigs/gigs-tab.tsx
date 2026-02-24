@@ -6,13 +6,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bookmark, Plus, Hammer, Briefcase, Search } from "lucide-react";
+import { SlidersHorizontal, Bookmark, Plus, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { CreateGigForm } from "./create-gig-form";
-import { SortToggle } from "./sort-toggle";
-import { CategoryFilter } from "./category-filter";
+import { CreateGigForm, type CreateGigFormData } from "./create-gig-form";
 import { ModeToggle } from "./mode-toggle";
+import { GigFilterSheet } from "./gig-filter-sheet";
 import { GigList } from "./gig-list";
 import { GigDetail } from "./gig-detail";
 import { SwipeDeck } from "./swipe-deck";
@@ -21,11 +20,21 @@ import {
   GIG_CATEGORIES,
   CATEGORY_LABELS,
   CATEGORY_COLORS,
+  parseCompensation,
   type GigListing,
   type GigCategory,
   type GigSortMode,
 } from "@/lib/gigs";
-import { getApprovedGigs, swipeGig, createGig, expressInterestInGig } from "@/actions/gigs";
+import {
+  getApprovedGigs,
+  swipeGig,
+  createGig,
+  expressInterestInGig,
+  closeGig,
+  reopenGig,
+  deleteGig,
+  updateGig,
+} from "@/actions/gigs";
 import { useSession } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { usePostHog } from "posthog-js/react";
@@ -74,8 +83,10 @@ export function GigsTab() {
   const [sortMode, setSortMode] = useState<GigSortMode>("newest");
   const [showSaved, setShowSaved] = useState(false);
   const [showCreateGig, setShowCreateGig] = useState(false);
+  const [showEditGig, setShowEditGig] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [savingGigId, setSavingGigId] = useState<string | null>(null);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   const { data: gigs = [], isLoading } = useQuery({
     queryKey: ["approved-gigs"],
@@ -98,6 +109,11 @@ export function GigsTab() {
   });
 
   const savedCount = gigs.filter((g) => g.swipeAction === "saved").length;
+
+  const activeFilterCount =
+    (sortMode !== "newest" ? 1 : 0) +
+    (showSaved ? 1 : 0) +
+    (activeCategory !== null ? 1 : 0);
 
   const filteredAndSorted = useMemo(() => {
     let filtered = gigs;
@@ -213,43 +229,114 @@ export function GigsTab() {
     return { success: res.success };
   };
 
+  const handleCloseGig = async (gigId: string) => {
+    const res = await closeGig(gigId);
+    if (res.success) {
+      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+        old?.map((g) => (g.id === gigId ? { ...g, isOpen: false } : g)),
+      );
+      setSelectedGig((prev) => (prev?.id === gigId ? { ...prev, isOpen: false } : prev));
+      toast.success("Gig marked as filled.");
+    } else {
+      toast.error(res.error);
+    }
+  };
+
+  const handleReopenGig = async (gigId: string) => {
+    const res = await reopenGig(gigId);
+    if (res.success) {
+      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+        old?.map((g) => (g.id === gigId ? { ...g, isOpen: true } : g)),
+      );
+      setSelectedGig((prev) => (prev?.id === gigId ? { ...prev, isOpen: true } : prev));
+      toast.success("Gig reopened.");
+    } else {
+      toast.error(res.error);
+    }
+  };
+
+  const handleDeleteGig = async (gigId: string) => {
+    const res = await deleteGig(gigId);
+    if (res.success) {
+      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+        old?.filter((g) => g.id !== gigId),
+      );
+      setSelectedGig(null);
+      toast.success("Gig deleted.");
+    } else {
+      toast.error(res.error);
+    }
+  };
+
+  const handleUpdateGig = async (data: CreateGigFormData) => {
+    if (!selectedGig) return { success: false };
+    const res = await updateGig(selectedGig.id, data);
+    if (res.success) {
+      const { value: compensationValue, isPaid } = parseCompensation(data.compensation);
+      const updatedGig: GigListing = {
+        ...selectedGig,
+        title: data.title,
+        description: data.description,
+        category: data.category as GigCategory,
+        compensation: data.compensation,
+        compensationValue,
+        isPaid,
+        urgency: data.urgency,
+        contactMethod: data.contactMethod,
+        deadline: data.deadline,
+        tags: data.tags,
+        locationNote: data.locationNote,
+      };
+      queryClient.setQueryData<GigListing[]>(["approved-gigs"], (old) =>
+        old?.map((g) => (g.id === selectedGig.id ? updatedGig : g)),
+      );
+      setSelectedGig(updatedGig);
+      toast.success("Gig updated.");
+    } else {
+      toast.error(res.error);
+    }
+    return { success: res.success };
+  };
+
+  const editGigInitialData: CreateGigFormData | undefined = selectedGig
+    ? {
+        title: selectedGig.title,
+        description: selectedGig.description,
+        category: selectedGig.category,
+        compensation: selectedGig.compensation,
+        urgency: selectedGig.urgency,
+        contactMethod: selectedGig.contactMethod,
+        deadline: selectedGig.deadline,
+        tags: selectedGig.tags,
+        locationNote: selectedGig.locationNote,
+      }
+    : undefined;
+
   return (
     <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
       {/* Sticky sub-header */}
       {!selectedGig && (
         <div className="sticky top-12 sm:top-14 z-10 border-b bg-background/80 backdrop-blur-sm">
           <div className="flex items-center justify-between px-4 py-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">Gigs</h2>
-              <Button
-                variant={showSaved ? "default" : "ghost"}
-                size="xs"
-                className="gap-1"
-                onClick={() => setShowSaved(!showSaved)}
-              >
-                <Bookmark className="h-3.5 w-3.5" />
-                Saved
-                {savedCount > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 h-4 min-w-4 px-1 text-[10px]">
-                    {savedCount}
-                  </Badge>
-                )}
-              </Button>
-            </div>
+            <h2 className="text-lg font-semibold">Gigs</h2>
             <div className="flex items-center gap-2">
               {viewMode === "list" && (
-                <SortToggle sortMode={sortMode} onSortModeChange={setSortMode} />
+                <button
+                  onClick={() => setShowFilterSheet(true)}
+                  className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Filter
+                  {activeFilterCount > 0 && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
               )}
               <ModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
             </div>
           </div>
-          {/* Category filter visible only on mobile */}
-          {viewMode === "list" && (
-            <div className="lg:hidden">
-              <CategoryFilter activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
-            </div>
-          )}
-          {/* Search input */}
           {viewMode === "list" && (
             <div className="px-4 pb-2">
               <div className="relative">
@@ -282,16 +369,6 @@ export function GigsTab() {
                 </div>
                 <div className="flex-1">
                   <p className="text-base font-semibold">Need help with something?</p>
-                  <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Hammer className="h-3.5 w-3.5" />
-                      {gigs.length} {gigs.length === 1 ? "gig" : "gigs"} available
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Briefcase className="h-3.5 w-3.5" />
-                      Gig Board
-                    </span>
-                  </div>
                 </div>
               </button>
             )}
@@ -306,6 +383,10 @@ export function GigsTab() {
                 onSave={() => handleSaveGig(selectedGig.id)}
                 isSaved={selectedGig.swipeAction === "saved"}
                 isSaving={savingGigId === selectedGig.id}
+                onClose={() => handleCloseGig(selectedGig.id)}
+                onReopen={() => handleReopenGig(selectedGig.id)}
+                onDelete={() => handleDeleteGig(selectedGig.id)}
+                onEdit={() => setShowEditGig(true)}
               />
             ) : isLoading ? (
               <GigListSkeleton />
@@ -323,7 +404,11 @@ export function GigsTab() {
                   <p className="text-xs">Try a different search term or clear the filter.</p>
                 </div>
               ) : (
-                <GigList gigs={filteredAndSorted} onSelectGig={handleSelectGig} />
+                <GigList
+                  gigs={filteredAndSorted}
+                  onSelectGig={handleSelectGig}
+                  currentUserId={session?.user?.id}
+                />
               )
             ) : (
               <SwipeDeck
@@ -408,16 +493,6 @@ export function GigsTab() {
                 </div>
                 <div className="flex flex-col gap-2 p-4 text-xs text-muted-foreground">
                   <p>Find side gigs, tutoring opportunities, errands, and volunteer work posted by fellow iskos and campus organizations.</p>
-                  <div className="mt-1 flex items-center gap-4">
-                    <span className="flex items-center gap-1">
-                      <Hammer className="h-3.5 w-3.5" />
-                      {gigs.length} gigs
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Briefcase className="h-3.5 w-3.5" />
-                      Gig Board
-                    </span>
-                  </div>
                 </div>
               </div>
             </aside>
@@ -441,6 +516,27 @@ export function GigsTab() {
         open={showCreateGig}
         onOpenChange={setShowCreateGig}
         onSubmit={handleCreateGig}
+      />
+
+      {/* Edit gig sheet */}
+      <CreateGigForm
+        open={showEditGig}
+        onOpenChange={setShowEditGig}
+        gigId={selectedGig?.id}
+        initialData={editGigInitialData}
+        onSubmit={handleUpdateGig}
+      />
+
+      <GigFilterSheet
+        open={showFilterSheet}
+        onOpenChange={setShowFilterSheet}
+        sortMode={sortMode}
+        onSortModeChange={setSortMode}
+        showSaved={showSaved}
+        onShowSavedChange={setShowSaved}
+        activeCategory={activeCategory}
+        onCategoryChange={setActiveCategory}
+        savedCount={savedCount}
       />
     </div>
   );

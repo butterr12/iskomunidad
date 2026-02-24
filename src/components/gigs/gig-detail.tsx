@@ -27,6 +27,10 @@ import {
   Bookmark,
   HandHelping,
   Loader2,
+  Pencil,
+  Lock,
+  Unlock,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { siteConfig } from "@/lib/site-config";
@@ -49,6 +53,10 @@ interface GigDetailProps {
   onSave: () => void;
   isSaved: boolean;
   isSaving: boolean;
+  onClose?: () => void;
+  onReopen?: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 export function GigDetail({
@@ -60,12 +68,17 @@ export function GigDetail({
   onSave,
   isSaved,
   isSaving,
+  onClose,
+  onReopen,
+  onDelete,
+  onEdit,
 }: GigDetailProps) {
   const router = useRouter();
   const [showCompose, setShowCompose] = useState(false);
   const [userMessage, setUserMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sentConversationId, setSentConversationId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const systemPart = `📋 About this gig: "${gig.title}" · ${gig.compensation} · ${CATEGORY_LABELS[gig.category]}`;
 
@@ -103,6 +116,7 @@ export function GigDetail({
         toast.error(msgResult.error ?? "Failed to send message");
         return;
       }
+      setShowCompose(false);
       setSentConversationId(conversationId);
       onInterest();
     } finally {
@@ -133,8 +147,13 @@ export function GigDetail({
           <div className="flex items-start justify-between gap-2">
             <h2 className="text-xl font-semibold leading-tight">{gig.title}</h2>
             {isOwner && (
-              <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                Your Gig
+              <span className={cn(
+                "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                gig.isOpen
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted text-muted-foreground",
+              )}>
+                {gig.isOpen ? "Your Gig" : "Filled"}
               </span>
             )}
           </div>
@@ -251,6 +270,64 @@ export function GigDetail({
                   {gig.applicantCount === 1 ? "person" : "people"} expressed interest
                 </span>
               </div>
+
+              {/* Owner management row */}
+              <div className="flex flex-wrap gap-2">
+                {onEdit && (
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={onEdit}>
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                )}
+                {gig.isOpen
+                  ? onClose && (
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={onClose}>
+                        <Lock className="h-3.5 w-3.5" />
+                        Close Gig
+                      </Button>
+                    )
+                  : onReopen && (
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={onReopen}>
+                        <Unlock className="h-3.5 w-3.5" />
+                        Reopen
+                      </Button>
+                    )}
+                {onDelete && (
+                  showDeleteConfirm ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">Are you sure?</span>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setShowDeleteConfirm(false);
+                          onDelete();
+                        }}
+                      >
+                        Delete
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowDeleteConfirm(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-destructive hover:text-destructive"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                  )
+                )}
+              </div>
+
               {gig.locationId && (
                 <Button
                   variant="outline"
@@ -266,15 +343,29 @@ export function GigDetail({
           ) : (
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  className="flex-1 gap-1.5"
-                  onClick={openCompose}
-                  disabled={isInterested}
-                >
-                  <HandHelping className="h-3.5 w-3.5" />
-                  {isInterested ? "Interested ✓" : "I'm Interested"}
-                </Button>
+                {!isInterested ? (
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-1.5"
+                    onClick={openCompose}
+                  >
+                    <HandHelping className="h-3.5 w-3.5" />
+                    I'm Interested
+                  </Button>
+                ) : sentConversationId ? (
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-1.5"
+                    onClick={() => router.push(`/messages?chat=${sentConversationId}`)}
+                  >
+                    Open Chat →
+                  </Button>
+                ) : (
+                  <div className="flex flex-1 items-center gap-1.5 text-sm text-muted-foreground">
+                    <HandHelping className="h-3.5 w-3.5" />
+                    Interested ✓
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -317,75 +408,50 @@ export function GigDetail({
           <DialogHeader>
             <DialogTitle>Message {gig.posterName}</DialogTitle>
             <DialogDescription>
-              {sentConversationId
-                ? "Your message was sent successfully."
-                : "Send a message to express your interest in this gig."}
+              Send a message to express your interest in this gig.
             </DialogDescription>
           </DialogHeader>
 
-          {sentConversationId ? (
-            <div className="flex flex-col gap-3 pt-1">
-              <p className="text-sm text-muted-foreground">
-                Message sent to{" "}
-                <span className="font-medium">
-                  {gig.posterHandle ?? gig.posterName}
-                </span>
-                !
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowCompose(false)}>
-                  Close
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => router.push(`/messages?chat=${sentConversationId}`)}
-                >
-                  Open Conversation
-                </Button>
-              </div>
+          <div className="flex flex-col gap-3 pt-1">
+            {/* Non-editable system header */}
+            <div className="select-none rounded-md bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+              {systemPart}
             </div>
-          ) : (
-            <div className="flex flex-col gap-3 pt-1">
-              {/* Non-editable system header */}
-              <div className="select-none rounded-md bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-                {systemPart}
-              </div>
 
-              {/* Editable user message */}
-              <Textarea
-                value={userMessage}
-                onChange={(e) => setUserMessage(e.target.value)}
-                placeholder="Write your message..."
-                rows={4}
+            {/* Editable user message */}
+            <Textarea
+              value={userMessage}
+              onChange={(e) => setUserMessage(e.target.value)}
+              placeholder="Write your message..."
+              rows={4}
+              disabled={sending}
+            />
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCompose(false)}
                 disabled={sending}
-              />
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCompose(false)}
-                  disabled={sending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={sending || !userMessage.trim()}
-                  onClick={handleSendInterestMessage}
-                >
-                  {sending ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    "Send Message →"
-                  )}
-                </Button>
-              </div>
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={sending || !userMessage.trim()}
+                onClick={handleSendInterestMessage}
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Message →"
+                )}
+              </Button>
             </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -29,7 +29,7 @@ export interface PermalinkPost {
   userId: string;
   eventId: string | null;
   eventTitle: string | null;
-  eventCategory: string | null;
+  eventColor: string | null;
 }
 
 export interface PermalinkComment {
@@ -96,7 +96,7 @@ function mapPost(
     imageKeys: row.images.map((image) => image.imageKey),
     eventId: row.event?.id ?? row.eventId ?? null,
     eventTitle: row.event?.title ?? null,
-    eventCategory: row.event?.category ?? null,
+    eventColor: row.event?.coverColor ?? null,
   };
 }
 
@@ -119,7 +119,7 @@ export async function getApprovedPermalinkPost(
           columns: { imageKey: true, order: true },
           orderBy: (img, { asc }) => [asc(img.order)],
         },
-        event: { columns: { id: true, title: true, category: true } },
+        event: { columns: { id: true, title: true, coverColor: true } },
       },
     });
 
@@ -140,7 +140,7 @@ export async function getApprovedPermalinkPost(
         columns: { imageKey: true, order: true },
         orderBy: (img, { asc }) => [asc(img.order)],
       },
-      event: { columns: { id: true, title: true, category: true } },
+      event: { columns: { id: true, title: true, coverColor: true } },
       comments: {
         with: {
           user: {

@@ -57,6 +57,12 @@ export const POLICY_MAP: Record<AbuseAction, PolicyDefinition> = {
     ],
     dedup: { windowSec: 10 * 60 },
   },
+  "gig.update": {
+    rules: [
+      { keyBy: "userId", windowSec: 10 * 60, softLimit: 10, hardLimit: 20 },
+    ],
+    dedup: { windowSec: 2 * 60 },
+  },
   "gig.swipe": {
     rules: [
       { keyBy: "userId", windowSec: 10 * 60, softLimit: 60, hardLimit: 120 },

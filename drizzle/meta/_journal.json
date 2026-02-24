@@ -155,6 +155,13 @@
       "when": 1771907817630,
       "tag": "0021_giant_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1771948274138,
+      "tag": "0022_strange_justice",
+      "breakpoints": true
     }
   ]
 }

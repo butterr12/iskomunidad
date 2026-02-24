@@ -1,3 +1,4 @@
+import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Users } from "lucide-react";
 import {
@@ -12,9 +13,31 @@ import {
 interface GigCardProps {
   gig: GigListing;
   onSelect: (gig: GigListing) => void;
+  currentUserId?: string;
 }
 
-export function GigCard({ gig, onSelect }: GigCardProps) {
+export function GigCard({ gig, onSelect, currentUserId }: GigCardProps) {
+  // Priority: Filled > Applied > Your Gig
+  let statusBadge: React.ReactNode = null;
+  if (!gig.isOpen && currentUserId === gig.posterId) {
+    statusBadge = (
+      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+        Filled
+      </span>
+    );
+  } else if (gig.swipeAction === "interested") {
+    statusBadge = (
+      <span className="shrink-0 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
+        Applied
+      </span>
+    );
+  } else if (currentUserId === gig.posterId) {
+    statusBadge = (
+      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+        Your Gig
+      </span>
+    );
+  }
   return (
     <button
       onClick={() => onSelect(gig)}
@@ -42,8 +65,11 @@ export function GigCard({ gig, onSelect }: GigCardProps) {
 
       {/* Content */}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        {/* Title */}
-        <h3 className="truncate text-sm font-semibold leading-tight">{gig.title}</h3>
+        {/* Title + status badge */}
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="truncate text-sm font-semibold leading-tight">{gig.title}</h3>
+          {statusBadge}
+        </div>
 
         {/* Badges */}
         <div className="flex flex-wrap gap-1">

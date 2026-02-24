@@ -5,9 +5,10 @@ import type { GigListing } from "@/lib/gigs";
 interface GigListProps {
   gigs: GigListing[];
   onSelectGig: (gig: GigListing) => void;
+  currentUserId?: string;
 }
 
-export function GigList({ gigs, onSelectGig }: GigListProps) {
+export function GigList({ gigs, onSelectGig, currentUserId }: GigListProps) {
   if (gigs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
@@ -21,7 +22,7 @@ export function GigList({ gigs, onSelectGig }: GigListProps) {
   return (
     <div className="flex flex-col gap-3">
       {gigs.map((gig) => (
-        <GigCard key={gig.id} gig={gig} onSelect={onSelectGig} />
+        <GigCard key={gig.id} gig={gig} onSelect={onSelectGig} currentUserId={currentUserId} />
       ))}
     </div>
   );

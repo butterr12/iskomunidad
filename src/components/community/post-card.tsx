@@ -46,6 +46,9 @@ interface PostCardProps {
 export function PostCard({ post, currentUserId, onSelect, onVote, onEdit, onDelete }: PostCardProps) {
   const isAuthor = !!currentUserId && currentUserId === post.userId;
   const [menuOpen, setMenuOpen] = useState(false);
+  const eventColor = post.eventId && post.eventTitle && post.eventColor
+    ? post.eventColor
+    : undefined;
 
   return (
     <div
@@ -53,8 +56,21 @@ export function PostCard({ post, currentUserId, onSelect, onVote, onEdit, onDele
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(); }}
-      className="w-full cursor-pointer rounded-2xl border bg-card text-left shadow-sm transition-all hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
+      className="relative w-full cursor-pointer rounded-2xl border bg-card text-left shadow-sm transition-all hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
+      style={eventColor ? { borderColor: eventColor } : undefined}
     >
+      {eventColor && post.eventTitle && (
+        <div className="absolute bottom-0 right-0" onClick={(e) => e.stopPropagation()}>
+          <Link
+            href={`/events?event=${post.eventId}`}
+            className="flex items-center gap-1 rounded-br-2xl rounded-tl-xl px-3 py-1.5 text-xs font-medium text-white"
+            style={{ backgroundColor: eventColor }}
+          >
+            <CalendarDays className="h-3 w-3 shrink-0" />
+            <span className="max-w-[140px] truncate">{post.eventTitle}</span>
+          </Link>
+        </div>
+      )}
       <div className="flex gap-3 p-4">
         <VoteControls score={post.score} userVote={post.userVote} onVote={onVote} />
 
@@ -113,16 +129,6 @@ export function PostCard({ post, currentUserId, onSelect, onVote, onEdit, onDele
             >
               {post.flair}
             </Badge>
-            {post.eventId && post.eventTitle && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <Link href={`/events?event=${post.eventId}`}>
-                  <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 border-primary/40 text-primary">
-                    <CalendarDays className="h-2.5 w-2.5" />
-                    {post.eventTitle}
-                  </Badge>
-                </Link>
-              </div>
-            )}
             <Avatar className="h-5 w-5">
               {post.authorImage && <AvatarImage src={post.authorImage} alt={post.author} />}
               <AvatarFallback className="text-[9px] font-medium">{getInitials(post.author)}</AvatarFallback>

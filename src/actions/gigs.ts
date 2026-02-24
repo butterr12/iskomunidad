@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { gigListing, gigSwipe } from "@/lib/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, or, sql } from "drizzle-orm";
 import {
   type ActionResult,
   getSession,
@@ -45,10 +45,22 @@ export async function getApprovedGigs(
   const session = await getOptionalSession();
 
   const rows = await db.query.gigListing.findMany({
-    where: (g, { eq: eqFn, and: andFn }) => {
-      const conditions = [eqFn(g.status, "approved"), eqFn(g.isOpen, true)];
-      if (opts?.category) conditions.push(eqFn(g.category, opts.category));
-      return andFn(...conditions);
+    where: (g, { eq: eqFn, and: andFn, or: orFn }) => {
+      const categoryFilter = opts?.category ? eqFn(g.category, opts.category) : undefined;
+      const publicGigs = andFn(
+        eqFn(g.status, "approved"),
+        eqFn(g.isOpen, true),
+        ...(categoryFilter ? [categoryFilter] : []),
+      );
+      if (session?.user) {
+        const ownApproved = andFn(
+          eqFn(g.userId, session.user.id),
+          eqFn(g.status, "approved"),
+          ...(categoryFilter ? [categoryFilter] : []),
+        );
+        return orFn(publicGigs, ownApproved);
+      }
+      return publicGigs;
     },
     with: {
       user: { columns: { name: true, username: true, image: true } },
@@ -284,4 +296,158 @@ export async function expressInterestInGig(
   }
 
   return { success: true, data: result };
+}
+
+export async function closeGig(gigId: string): Promise<ActionResult<void>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const gig = await db.query.gigListing.findFirst({
+    where: eq(gigListing.id, gigId),
+    columns: { userId: true },
+  });
+  if (!gig) return { success: false, error: "Gig not found" };
+  if (gig.userId !== session.user.id) return { success: false, error: "Not authorized" };
+
+  await db.update(gigListing).set({ isOpen: false }).where(eq(gigListing.id, gigId));
+  return { success: true, data: undefined };
+}
+
+export async function reopenGig(gigId: string): Promise<ActionResult<void>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const gig = await db.query.gigListing.findFirst({
+    where: eq(gigListing.id, gigId),
+    columns: { userId: true },
+  });
+  if (!gig) return { success: false, error: "Gig not found" };
+  if (gig.userId !== session.user.id) return { success: false, error: "Not authorized" };
+
+  await db.update(gigListing).set({ isOpen: true }).where(eq(gigListing.id, gigId));
+  return { success: true, data: undefined };
+}
+
+export async function deleteGig(gigId: string): Promise<ActionResult<void>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const gig = await db.query.gigListing.findFirst({
+    where: eq(gigListing.id, gigId),
+    columns: { userId: true },
+  });
+  if (!gig) return { success: false, error: "Gig not found" };
+
+  const isAdmin = (session.user as { role?: string }).role === "admin";
+  if (gig.userId !== session.user.id && !isAdmin) {
+    return { success: false, error: "Not authorized" };
+  }
+
+  await db.delete(gigListing).where(eq(gigListing.id, gigId));
+  return { success: true, data: undefined };
+}
+
+export async function updateGig(
+  gigId: string,
+  input: z.infer<typeof createGigSchema>,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = createGigSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const gig = await db.query.gigListing.findFirst({
+    where: eq(gigListing.id, gigId),
+    columns: { userId: true, status: true },
+  });
+  if (!gig) return { success: false, error: "Gig not found" };
+  if (gig.userId !== session.user.id) return { success: false, error: "Not authorized" };
+
+  const limited = await guardAction("gig.update", {
+    userId: session.user.id,
+    contentBody: parsed.data.title + parsed.data.description,
+  });
+  if (limited) return limited;
+
+  const { value: compensationValue, isPaid } = parseCompensation(parsed.data.compensation);
+
+  const mode = await getApprovalMode();
+  let newStatus = gig.status;
+  let rejectionReason: string | undefined;
+
+  if (mode === "ai") {
+    const result = await moderateContent({ type: "gig", title: parsed.data.title, body: parsed.data.description });
+    newStatus = result.approved ? "approved" : "draft";
+    rejectionReason = result.reason;
+  }
+
+  await db
+    .update(gigListing)
+    .set({
+      title: parsed.data.title,
+      description: parsed.data.description,
+      posterCollege: parsed.data.posterCollege ?? null,
+      compensation: parsed.data.compensation,
+      compensationValue,
+      isPaid,
+      category: parsed.data.category,
+      tags: parsed.data.tags,
+      locationId: parsed.data.locationId ?? null,
+      locationNote: parsed.data.locationNote ?? null,
+      deadline: parsed.data.deadline ? new Date(parsed.data.deadline) : null,
+      urgency: parsed.data.urgency,
+      contactMethod: parsed.data.contactMethod,
+      status: newStatus,
+      rejectionReason: rejectionReason ?? null,
+    })
+    .where(eq(gigListing.id, gigId));
+
+  return { success: true, data: { id: gigId } };
+}
+
+// ─── Get gigs by user ID (for profile page) ──────────────────────────────────
+
+export async function getUserGigsById(
+  userId: string,
+): Promise<ActionResult<unknown[]>> {
+  const session = await getOptionalSession();
+  const isOwner = session?.user?.id === userId;
+
+  const rows = await db.query.gigListing.findMany({
+    where: (g, { eq: eqFn, and: andFn, or: orFn }) => {
+      const approved = andFn(eqFn(g.userId, userId), eqFn(g.status, "approved"));
+      if (isOwner) {
+        return eqFn(g.userId, userId);
+      }
+      return approved;
+    },
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+    },
+    orderBy: (g, { desc: d }) => [d(g.createdAt)],
+  });
+
+  let userSwipes: Record<string, string> = {};
+  if (session?.user) {
+    const swipes = await db.query.gigSwipe.findMany({
+      where: eq(gigSwipe.userId, session.user.id),
+    });
+    userSwipes = Object.fromEntries(swipes.map((s) => [s.gigId, s.action]));
+  }
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      deadline: r.deadline?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      author: r.user.name,
+      authorHandle: r.user.username ? `@${r.user.username}` : null,
+      authorImage: r.user.image,
+      userSwipe: userSwipes[r.id] ?? null,
+      posterId: r.userId,
+    })),
+  };
 }

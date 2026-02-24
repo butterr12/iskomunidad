@@ -122,7 +122,7 @@ export async function getApprovedPosts(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
-      event: { columns: { id: true, title: true, category: true } },
+      event: { columns: { id: true, title: true, coverColor: true } },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -162,7 +162,7 @@ export async function getApprovedPosts(
       isBookmarked: userBookmarks[r.id] ?? false,
       eventId: r.eventId ?? null,
       eventTitle: r.event?.title ?? null,
-      eventCategory: r.event?.category ?? null,
+      eventColor: r.event?.coverColor ?? null,
     })),
   };
 }
@@ -178,7 +178,7 @@ export async function getPostsForLandmark(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
-      event: { columns: { id: true, title: true, category: true } },
+      event: { columns: { id: true, title: true, coverColor: true } },
     },
     orderBy: (p, { desc: d }) => [d(p.score), d(p.createdAt)],
   });
@@ -212,7 +212,7 @@ export async function getPostsForLandmark(
       isBookmarked: userBookmarks[r.id] ?? false,
       eventId: r.eventId ?? null,
       eventTitle: r.event?.title ?? null,
-      eventCategory: r.event?.category ?? null,
+      eventColor: r.event?.coverColor ?? null,
     })),
   };
 }
@@ -261,7 +261,7 @@ export async function getPostsForEvent(
       isBookmarked: userBookmarks[r.id] ?? false,
       eventId: r.eventId ?? null,
       eventTitle: null,
-      eventCategory: null,
+      eventColor: null,
     })),
   };
 }
@@ -287,7 +287,7 @@ export async function getFollowingPosts(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
-      event: { columns: { id: true, title: true, category: true } },
+      event: { columns: { id: true, title: true, coverColor: true } },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -322,7 +322,7 @@ export async function getFollowingPosts(
       isBookmarked: userBookmarks[r.id] ?? false,
       eventId: r.eventId ?? null,
       eventTitle: r.event?.title ?? null,
-      eventCategory: r.event?.category ?? null,
+      eventColor: r.event?.coverColor ?? null,
     })),
   };
 }
@@ -343,7 +343,7 @@ export async function getApprovedPostsPaginated(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
-      event: { columns: { id: true, title: true, category: true } },
+      event: { columns: { id: true, title: true, coverColor: true } },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -387,7 +387,7 @@ export async function getApprovedPostsPaginated(
         isBookmarked: userBookmarks[r.id] ?? false,
         eventId: r.eventId ?? null,
         eventTitle: r.event?.title ?? null,
-        eventCategory: r.event?.category ?? null,
+        eventColor: r.event?.coverColor ?? null,
       })),
       hasMore,
     },
@@ -1171,7 +1171,7 @@ export async function getBookmarkedPosts(
     with: {
       user: { columns: { name: true, username: true, image: true } },
       images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
-      event: { columns: { id: true, title: true, category: true } },
+      event: { columns: { id: true, title: true, coverColor: true } },
     },
     orderBy: (p, { desc: d }) => {
       if (opts?.sort === "top") return [d(p.score)];
@@ -1199,7 +1199,7 @@ export async function getBookmarkedPosts(
       isBookmarked: true,
       eventId: r.eventId ?? null,
       eventTitle: r.event?.title ?? null,
-      eventCategory: r.event?.category ?? null,
+      eventColor: r.event?.coverColor ?? null,
     })),
   };
 }

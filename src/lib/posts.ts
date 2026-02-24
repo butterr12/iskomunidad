@@ -26,7 +26,7 @@ export interface CommunityPost {
   draftSource?: string | null;
   eventId?: string | null;
   eventTitle?: string | null;
-  eventCategory?: string | null;
+  eventColor?: string | null;
 }
 
 export interface PostComment {
@@ -65,6 +65,16 @@ export const FLAIR_COLORS: Record<PostFlair, string> = {
   Meme: "#ec4899",
   Help: "#06b6d4",
   Rant: "#ef4444",
+};
+
+export type EventCategory = "academic" | "cultural" | "social" | "sports" | "org";
+
+export const EVENT_CATEGORY_COLORS: Record<EventCategory, string> = {
+  academic: "#60a5fa",   // blue
+  cultural: "#c084fc",   // purple
+  social:   "#f472b6",   // pink
+  sports:   "#34d399",   // emerald
+  org:      "#fb923c",   // orange
 };
 
 export function getPostsAtLandmark(landmarkId: string, posts: CommunityPost[]): CommunityPost[] {
