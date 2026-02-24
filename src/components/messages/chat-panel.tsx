@@ -24,6 +24,7 @@ import {
   Loader2,
   X,
   Info,
+  ChevronDown,
 } from "lucide-react";
 import { UserFlairs } from "@/components/user-flairs";
 import { BorderedAvatar } from "@/components/bordered-avatar";
@@ -78,6 +79,7 @@ export function ChatPanel({
   optimisticMessagesRef.current = optimisticMessages;
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [readBy, setReadBy] = useState<string | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -140,7 +142,9 @@ export function ChatPanel({
     const updateStickiness = () => {
       const distanceFromBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight;
-      shouldStickToBottomRef.current = distanceFromBottom < 120;
+      const atBottom = distanceFromBottom < 120;
+      shouldStickToBottomRef.current = atBottom;
+      setIsAtBottom(atBottom);
     };
 
     updateStickiness();
@@ -260,7 +264,7 @@ export function ChatPanel({
       socket.off("message_read", handleMessageRead);
       socket.off("conversation_deleted", handleConversationDeleted);
     };
-  }, [socket, conversation.id, conversation.otherUser.name, userId, queryClient, data, onBack]);
+  }, [socket, conversation.id, conversation.otherUser.name, userId, queryClient, onBack]);
 
   // Mark as read on open
   useEffect(() => {
@@ -272,11 +276,12 @@ export function ChatPanel({
   // Initialize readBy from persisted data so "Seen" shows on mount
   // when the other user already read messages before this session.
   useEffect(() => {
-    if (
-      conversation.otherUserLastReadAt !== null &&
-      allMessages.length > 0 &&
-      allMessages[allMessages.length - 1]?.senderId === userId
-    ) {
+    if (!conversation.otherUserLastReadAt || !allMessages.length) return;
+
+    const otherReadAt = new Date(conversation.otherUserLastReadAt);
+    const lastMsg = allMessages[allMessages.length - 1];
+
+    if (lastMsg?.senderId === userId && otherReadAt >= new Date(lastMsg.createdAt)) {
       setReadBy(conversation.otherUser.name);
     }
   }, [
@@ -285,6 +290,11 @@ export function ChatPanel({
     allMessages,
     userId,
   ]);
+
+  // Scroll to bottom when "Seen" receipt appears so it's visible
+  useEffect(() => {
+    if (readBy) scrollToBottom("smooth");
+  }, [readBy, scrollToBottom]);
 
   // Cleanup remaining blob URLs on unmount
   useEffect(() => {
@@ -531,7 +541,7 @@ export function ChatPanel({
     requestStatus === "accepted";
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 border-b px-4 py-3 shrink-0">
         <Button variant="ghost" size="sm" onClick={onBack} className="sm:hidden">
@@ -736,6 +746,16 @@ export function ChatPanel({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Scroll to bottom button */}
+      {!isAtBottom && (
+        <button
+          onClick={() => scrollToBottom("smooth")}
+          className="absolute bottom-20 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border bg-background shadow-md text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
       )}
 
       <ChatDetailsSheet

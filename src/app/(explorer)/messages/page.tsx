@@ -168,6 +168,11 @@ export default function MessagesPage() {
     allConversations,
   ]);
 
+  const handleBack = useCallback(
+    () => selectConversation(null),
+    [selectConversation],
+  );
+
   if (!session?.user) {
     return (
       <div className="flex flex-1 items-center justify-center pt-12 sm:pt-14">
@@ -211,7 +216,7 @@ export default function MessagesPage() {
           <ChatPanel
             key={activeConversation.id}
             conversation={activeConversation}
-            onBack={() => selectConversation(null)}
+            onBack={handleBack}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
