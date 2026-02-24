@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSession } from "@/lib/auth-client";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -109,17 +109,26 @@ export function ChatPanel({
     initialPageParam: undefined as string | undefined,
   });
 
-  const allMessages =
-    data?.pages.flatMap((p) => p.messages).reduce((acc, msg) => {
-      // Deduplicate messages
-      if (!acc.find((m) => m.id === msg.id)) acc.push(msg);
-      return acc;
-    }, [] as MessageData[]) ?? [];
+  const allMessages = useMemo(() => {
+    if (!data) return [];
 
-  // Sort by createdAt ascending
-  allMessages.sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-  );
+    const msgs: MessageData[] = [];
+    const seen = new Set<string>();
+    for (const page of data.pages) {
+      for (const message of page.messages) {
+        if (seen.has(message.id)) continue;
+        seen.add(message.id);
+        msgs.push(message);
+      }
+    }
+
+    msgs.sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+
+    return msgs;
+  }, [data]);
 
   // Hide mobile bottom nav while chat panel is open
   useEffect(() => {
@@ -164,6 +173,14 @@ export function ChatPanel({
     scrollToBottom(hasInitialAutoScrollRef.current ? "smooth" : "auto");
     hasInitialAutoScrollRef.current = true;
   }, [isLoading, allMessages.length, optimisticMessages.length, scrollToBottom]);
+
+  // Auto-resize textarea on content change
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [messageText]);
 
   // Join conversation room
   useEffect(() => {
@@ -684,6 +701,7 @@ export function ChatPanel({
       {imagePreview && (
         <div className="border-t px-4 py-2">
           <div className="relative inline-block">
+            {/* eslint-disable-next-line @next/next/no-img-element -- blob URL from file input */}
             <img
               src={imagePreview}
               alt="Preview"
@@ -731,10 +749,14 @@ export function ChatPanel({
                 handleTypingStart();
               }}
               onKeyDown={handleKeyDown}
+              onFocus={() => {
+                setTimeout(() => scrollToBottom("smooth"), 100);
+              }}
+              enterKeyHint="send"
               placeholder="Type a message..."
               rows={1}
-              className="flex-1 resize-none rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
-              style={{ maxHeight: 120 }}
+              className="flex-1 resize-none rounded-xl border bg-background px-3 py-2 text-base sm:text-sm outline-none focus:ring-1 focus:ring-ring"
+              style={{ overflowY: "auto" }}
             />
             <Button
               size="icon"
