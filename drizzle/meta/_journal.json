@@ -162,6 +162,13 @@
       "when": 1771948274138,
       "tag": "0022_strange_justice",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1771950303063,
+      "tag": "0023_confused_kang",
+      "breakpoints": true
     }
   ]
 }

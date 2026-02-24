@@ -33,7 +33,7 @@ export function PeopleTab() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
-  const [followState, setFollowState] = useState<Record<string, boolean>>({});
+  const [followOverrides, setFollowOverrides] = useState<Record<string, boolean>>({});
 
   const { data: results = [], isLoading } = useQuery({
     queryKey: ["people-search", debouncedQuery],
@@ -44,28 +44,17 @@ export function PeopleTab() {
     staleTime: 30_000,
   });
 
-  // Seed follow state from query results
-  useEffect(() => {
-    if (results.length === 0) return;
-    setFollowState((prev) => {
-      const next = { ...prev };
-      for (const u of results) {
-        if (!(u.id in next)) {
-          next[u.id] = u.isFollowing;
-        }
-      }
-      return next;
-    });
-  }, [results]);
+  const getFollowStatus = (u: MentionCandidate) =>
+    u.id in followOverrides ? followOverrides[u.id] : u.isFollowing;
 
   const handleFollowToggle = async (e: React.MouseEvent, u: MentionCandidate) => {
     e.stopPropagation();
-    const current = followState[u.id] ?? u.isFollowing;
-    setFollowState((prev) => ({ ...prev, [u.id]: !current }));
+    const current = getFollowStatus(u);
+    setFollowOverrides((prev) => ({ ...prev, [u.id]: !current }));
     const res = current ? await unfollowUser(u.id) : await followUser(u.id);
     if (!res.success) {
       // Revert on failure
-      setFollowState((prev) => ({ ...prev, [u.id]: current }));
+      setFollowOverrides((prev) => ({ ...prev, [u.id]: current }));
     }
   };
 
@@ -95,6 +84,7 @@ export function PeopleTab() {
               <button
                 onClick={() => setQuery("")}
                 className="shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -144,7 +134,7 @@ export function PeopleTab() {
               </p>
               <div className="space-y-0.5">
                 {results.map((u) => {
-                  const isFollowing = followState[u.id] ?? u.isFollowing;
+                  const isFollowing = getFollowStatus(u);
                   return (
                     <div
                       key={u.id}

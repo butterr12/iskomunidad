@@ -11,6 +11,7 @@ export interface CommunityPost {
   authorHandle: string;
   authorImage?: string | null;
   flair: PostFlair;
+  tags: string[];
   locationId?: string;
   createdAt: string;
   updatedAt?: string;

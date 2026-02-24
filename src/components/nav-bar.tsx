@@ -50,6 +50,12 @@ const coreTabs = [
   { label: "Events", href: "/events", icon: CalendarDays },
 ] as const;
 
+const moreItems = [
+  { label: "Gigs", href: "/gigs", icon: Hammer },
+  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "People", href: "/people", icon: Users2 },
+];
+
 function getInitials(name?: string | null): string {
   if (!name) return "?";
   return name
@@ -87,11 +93,6 @@ export function NavBar() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  const moreItems = [
-    { label: "Gigs", href: "/gigs", icon: Hammer },
-    { label: "Settings", href: "/settings", icon: Settings },
-    { label: "People", href: "/people", icon: Users2 },
-  ];
   const activeMoreItem = moreItems.find((item) => pathname.startsWith(item.href));
   const isMoreActive = !!activeMoreItem;
 

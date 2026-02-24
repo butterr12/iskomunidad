@@ -41,7 +41,9 @@ export const landmark = pgTable("landmark", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
-});
+}, (table) => [
+  index("landmark_tags_gin_idx").using("gin", table.tags),
+]);
 
 // ─── Landmark Photo ────────────────────────────────────────────────────────────
 
@@ -100,6 +102,7 @@ export const communityPost = pgTable("community_post", {
   score: integer("score").notNull().default(0),
   commentCount: integer("comment_count").notNull().default(0),
   linkUrl: text("link_url"),
+  tags: text("tags").array().notNull().default([]),
   imageColor: text("image_color"),
   imageEmoji: text("image_emoji"),
   status: text("status").notNull().default("draft"),
@@ -110,7 +113,9 @@ export const communityPost = pgTable("community_post", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
-});
+}, (table) => [
+  index("community_post_tags_gin_idx").using("gin", table.tags),
+]);
 
 // ─── Post Image ───────────────────────────────────────────────────────────────
 
@@ -231,7 +236,9 @@ export const campusEvent = pgTable("campus_event", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
-});
+}, (table) => [
+  index("campus_event_tags_gin_idx").using("gin", table.tags),
+]);
 
 // ─── Event RSVP ────────────────────────────────────────────────────────────────
 
@@ -288,7 +295,9 @@ export const gigListing = pgTable("gig_listing", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
-});
+}, (table) => [
+  index("gig_listing_tags_gin_idx").using("gin", table.tags),
+]);
 
 // ─── Gig Swipe ─────────────────────────────────────────────────────────────────
 

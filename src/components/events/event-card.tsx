@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Clock, MapPin, Globe, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -32,7 +33,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
   return (
     <button
       onClick={onClick}
-      className="group flex w-full flex-col overflow-hidden rounded-2xl border bg-card text-left shadow-sm transition-all hover:shadow-lg hover:scale-[1.02]"
+      className="group flex w-full flex-col overflow-hidden rounded-2xl border bg-card text-left shadow-sm transition-[transform,box-shadow] hover:shadow-lg hover:scale-[1.02]"
     >
       {/* Large cover area */}
       <div
@@ -40,10 +41,13 @@ export function EventCard({ event, onClick }: EventCardProps) {
         style={{ backgroundColor: event.coverColor }}
       >
         {event.coverImageKey && (
-          <img
+          <Image
             src={`/api/photos/${event.coverImageKey}`}
             alt=""
-            className="absolute inset-0 h-full w-full object-cover"
+            fill
+            unoptimized
+            sizes="(max-width: 640px) 100vw, 600px"
+            className="object-cover"
           />
         )}
         {/* Category badge */}

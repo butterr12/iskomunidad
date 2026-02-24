@@ -43,10 +43,12 @@ import {
   publishDraft,
   type DraftPost,
 } from "@/actions/posts";
+import { getPopularTags } from "@/actions/tags";
 import { toast } from "sonner";
 import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
 import { usePostHog } from "posthog-js/react";
 import { BannerStrip } from "@/components/banners/banner-strip";
+import { PopularTagsPanel, PopularTagsPanelHeader } from "@/components/tags/popular-tags-panel";
 
 type PostPage = { posts: CommunityPost[]; hasMore: boolean };
 
@@ -94,6 +96,7 @@ export function CommunityTab() {
   const [feedMode, setFeedMode] = useState<"all" | "following" | "saved">("all");
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showDrafts, setShowDrafts] = useState(false);
@@ -111,12 +114,23 @@ export function CommunityTab() {
   const activeFilterCount =
     (sortMode !== "new" ? 1 : 0) +
     (feedMode !== "all" ? 1 : 0) +
-    (activeFlair !== null ? 1 : 0);
+    (activeFlair !== null ? 1 : 0) +
+    (activeTag !== null ? 1 : 0);
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
     ?.displayUsername as string | undefined;
   const promptName = displayUsername?.trim() || user?.name?.trim() || undefined;
+
+  const { data: popularTagsData = [] } = useQuery({
+    queryKey: ["popular-tags", 15],
+    queryFn: async () => {
+      const res = await getPopularTags(15);
+      return res.success ? res.data : [];
+    },
+    staleTime: 5 * 60 * 1000,
+    select: (data) => data.map((d) => d.tag),
+  });
 
   const {
     data: postsData,
@@ -125,11 +139,12 @@ export function CommunityTab() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["approved-posts", sortMode, activeFlair],
+    queryKey: ["approved-posts", sortMode, activeFlair, activeTag],
     queryFn: async ({ pageParam }) => {
       const res = await getApprovedPostsPaginated({
         sort: sortMode,
         flair: activeFlair ?? undefined,
+        tag: activeTag ?? undefined,
         page: pageParam,
       });
       if (!res.success) return { posts: [] as CommunityPost[], hasMore: false };
@@ -174,19 +189,17 @@ export function CommunityTab() {
 
   const displayPosts = useMemo(() => {
     if (feedMode === "following") {
-      const filtered = activeFlair
-        ? followingPosts.filter((p) => p.flair === activeFlair)
-        : followingPosts;
+      let filtered = activeFlair ? followingPosts.filter((p) => p.flair === activeFlair) : followingPosts;
+      if (activeTag) filtered = filtered.filter((p) => p.tags?.includes(activeTag));
       return sortPosts(filtered, sortMode);
     }
     if (feedMode === "saved") {
-      const filtered = activeFlair
-        ? savedPosts.filter((p) => p.flair === activeFlair)
-        : savedPosts;
+      let filtered = activeFlair ? savedPosts.filter((p) => p.flair === activeFlair) : savedPosts;
+      if (activeTag) filtered = filtered.filter((p) => p.tags?.includes(activeTag));
       return sortPosts(filtered, sortMode);
     }
     return posts;
-  }, [feedMode, posts, followingPosts, savedPosts, activeFlair, sortMode]);
+  }, [feedMode, posts, followingPosts, savedPosts, activeFlair, activeTag, sortMode]);
 
   usePrefetchUserFlairs(displayPosts.map((p) => p.authorHandle?.replace("@", "")));
 
@@ -219,7 +232,7 @@ export function CommunityTab() {
     }
 
     queryClient.setQueryData(
-      ["approved-posts", sortMode, activeFlair],
+      ["approved-posts", sortMode, activeFlair, activeTag],
       (old: typeof postsData) => {
         if (!old) return old;
         return {
@@ -384,6 +397,7 @@ export function CommunityTab() {
           body: editingDraft.body ?? undefined,
           linkUrl: editingDraft.linkUrl ?? undefined,
           imageKeys: editingDraft.imageKeys,
+          tags: editingDraft.tags,
         },
         submitLabel: "Publish",
         onSubmit: handlePublishEditedDraft,
@@ -398,6 +412,7 @@ export function CommunityTab() {
           body: editingPost.body,
           linkUrl: editingPost.linkUrl,
           imageKeys: editingPost.imageKeys,
+          tags: editingPost.tags,
         },
         submitLabel: "Save",
         onSubmit: handleUpdatePost,
@@ -506,6 +521,15 @@ export function CommunityTab() {
           </div>
 
           <aside className="hidden lg:flex w-72 shrink-0 flex-col gap-4">
+            <div className="rounded-2xl border bg-card shadow-sm">
+              <PopularTagsPanelHeader />
+              <div className="flex flex-col p-2">
+                <PopularTagsPanel
+                  onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
+                />
+              </div>
+            </div>
+
             <div className="rounded-2xl border bg-card shadow-sm">
               <div className="border-b px-4 py-3">
                 <h3 className="text-sm font-semibold">Filter by Flair</h3>
@@ -650,6 +674,9 @@ export function CommunityTab() {
         activeFlair={activeFlair}
         onFlairChange={setActiveFlair}
         showFeedMode={!!user}
+        activeTag={activeTag}
+        onTagChange={setActiveTag}
+        popularTags={popularTagsData}
       />
     </div>
   );

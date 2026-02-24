@@ -1,7 +1,7 @@
 /* eslint-disable */
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -298,19 +298,23 @@ export function GigsTab() {
     return { success: res.success };
   };
 
-  const editGigInitialData: CreateGigFormData | undefined = selectedGig
-    ? {
-        title: selectedGig.title,
-        description: selectedGig.description,
-        category: selectedGig.category,
-        compensation: selectedGig.compensation,
-        urgency: selectedGig.urgency,
-        contactMethod: selectedGig.contactMethod,
-        deadline: selectedGig.deadline,
-        tags: selectedGig.tags,
-        locationNote: selectedGig.locationNote,
-      }
-    : undefined;
+  const editGigInitialData = useMemo<CreateGigFormData | undefined>(
+    () =>
+      selectedGig
+        ? {
+            title: selectedGig.title,
+            description: selectedGig.description,
+            category: selectedGig.category,
+            compensation: selectedGig.compensation,
+            urgency: selectedGig.urgency,
+            contactMethod: selectedGig.contactMethod,
+            deadline: selectedGig.deadline,
+            tags: selectedGig.tags,
+            locationNote: selectedGig.locationNote,
+          }
+        : undefined,
+    [selectedGig],
+  );
 
   return (
     <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
@@ -383,10 +387,10 @@ export function GigsTab() {
                 onSave={() => handleSaveGig(selectedGig.id)}
                 isSaved={selectedGig.swipeAction === "saved"}
                 isSaving={savingGigId === selectedGig.id}
-                onClose={() => handleCloseGig(selectedGig.id)}
-                onReopen={() => handleReopenGig(selectedGig.id)}
-                onDelete={() => handleDeleteGig(selectedGig.id)}
-                onEdit={() => setShowEditGig(true)}
+                onClose={session?.user?.id === selectedGig.posterId ? () => handleCloseGig(selectedGig.id) : undefined}
+                onReopen={session?.user?.id === selectedGig.posterId ? () => handleReopenGig(selectedGig.id) : undefined}
+                onDelete={session?.user?.id === selectedGig.posterId ? () => handleDeleteGig(selectedGig.id) : undefined}
+                onEdit={session?.user?.id === selectedGig.posterId ? () => setShowEditGig(true) : undefined}
               />
             ) : isLoading ? (
               <GigListSkeleton />

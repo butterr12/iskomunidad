@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { getActiveBanners, dismissBanner } from "@/actions/banners";
 import type { Banner } from "@/actions/banners";
 
+export const ACTIVE_BANNERS_QUERY_KEY = ["active-banners"] as const;
+
 const VARIANT_STYLES: Record<string, string> = {
   info: "bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-100",
   warning:
@@ -33,7 +35,7 @@ function BannerItem({ banner }: { banner: Banner }) {
   const variant = banner.variant;
 
   const handleDismiss = async () => {
-    queryClient.setQueryData<Banner[]>(["active-banners"], (old) =>
+    queryClient.setQueryData<Banner[]>(ACTIVE_BANNERS_QUERY_KEY, (old) =>
       old?.filter((b) => b.id !== banner.id) ?? [],
     );
     if (session) {
@@ -83,7 +85,7 @@ function BannerItem({ banner }: { banner: Banner }) {
 
 export function BannerStrip() {
   const { data: banners = [], isLoading } = useQuery({
-    queryKey: ["active-banners"],
+    queryKey: ACTIVE_BANNERS_QUERY_KEY,
     queryFn: async () => {
       const res = await getActiveBanners();
       return res.success ? res.data : [];

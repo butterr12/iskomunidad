@@ -27,6 +27,9 @@ interface FilterSheetProps {
   activeFlair: PostFlair | null;
   onFlairChange: (flair: PostFlair | null) => void;
   showFeedMode: boolean;
+  activeTag: string | null;
+  onTagChange: (tag: string | null) => void;
+  popularTags: string[];
 }
 
 export function FilterSheet({
@@ -39,6 +42,9 @@ export function FilterSheet({
   activeFlair,
   onFlairChange,
   showFeedMode,
+  activeTag,
+  onTagChange,
+  popularTags,
 }: FilterSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -137,6 +143,28 @@ export function FilterSheet({
               ))}
             </div>
           </div>
+
+          {/* Tags section */}
+          {popularTags.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-2">Tag</h3>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => onTagChange(null)}>
+                  <Badge variant={activeTag === null ? "default" : "outline"}>All</Badge>
+                </button>
+                {popularTags.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => onTagChange(activeTag === tag ? null : tag)}
+                  >
+                    <Badge variant={activeTag === tag ? "default" : "outline"}>
+                      #{tag}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

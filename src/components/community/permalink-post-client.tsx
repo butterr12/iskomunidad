@@ -37,6 +37,7 @@ import { CommentSection } from "@/components/community/comment-section";
 import { CreatePostForm, type PostFormValues } from "@/components/community/create-post-form";
 import { UserFlairs } from "@/components/user-flairs";
 import { MentionText } from "@/components/community/mention-text";
+import { TagChips } from "@/components/shared/tag-chips";
 import { cn } from "@/lib/utils";
 import {
   FLAIR_COLORS,
@@ -274,6 +275,7 @@ export function PermalinkPostClient({
       body: data.body ?? undefined,
       linkUrl: data.linkUrl ?? undefined,
       imageKeys: data.imageKeys ?? [],
+      tags: data.tags ?? [],
       updatedAt: new Date().toISOString(),
     }));
     toast.success("Post updated.");
@@ -434,6 +436,12 @@ export function PermalinkPostClient({
           </div>
         )}
 
+        {/* Tags */}
+        <TagChips
+          tags={post.tags ?? []}
+          chipClassName="text-xs"
+        />
+
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleShare}>
@@ -505,6 +513,7 @@ export function PermalinkPostClient({
           body: post.body ?? undefined,
           linkUrl: post.linkUrl ?? undefined,
           imageKeys: post.imageKeys ?? [],
+          tags: post.tags ?? [],
         }}
         submitLabel="Save"
         onSubmit={handleUpdatePost}

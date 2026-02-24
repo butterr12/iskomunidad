@@ -22,8 +22,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PhotoUpload, type UploadedPhoto } from "@/components/admin/photo-upload";
 import { MentionInput } from "@/components/community/mention-input";
+import { TagInput } from "@/components/shared/tag-input";
 import { POST_FLAIRS, FLAIR_COLORS, type PostFlair } from "@/lib/posts";
 import { getApprovedEvents } from "@/actions/events";
+import { getTagSuggestions } from "@/actions/tags";
 import type { CampusEvent } from "@/lib/events";
 
 export interface PostFormValues {
@@ -33,6 +35,7 @@ export interface PostFormValues {
   linkUrl?: string;
   imageKeys?: string[];
   eventId?: string | null;
+  tags: string[];
 }
 
 interface CreatePostFormProps {
@@ -60,6 +63,8 @@ export function CreatePostForm({
   const [body, setBody] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [eventId, setEventId] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<CampusEvent[]>([]);
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -73,6 +78,7 @@ export function CreatePostForm({
       setBody(initialValues?.body ?? "");
       setLinkUrl(initialValues?.linkUrl ?? "");
       setEventId(initialValues?.eventId ?? null);
+      setTags(initialValues?.tags ?? []);
       setPhotos(
         initialValues?.imageKeys?.map((key) => ({
           key,
@@ -89,6 +95,9 @@ export function CreatePostForm({
     getApprovedEvents().then((res) => {
       if (res.success) setUpcomingEvents(res.data as CampusEvent[]);
     });
+    getTagSuggestions().then((res) => {
+      if (res.success) setTagSuggestions(res.data);
+    });
   }, []);
 
   const canSubmit = title.trim() && flair && !submitting && !savingDraft;
@@ -104,6 +113,7 @@ export function CreatePostForm({
       linkUrl: linkUrl.trim() || undefined,
       imageKeys: photos.length > 0 ? photos.map((p) => p.key) : undefined,
       eventId: eventId || null,
+      tags,
     };
   }
 
@@ -219,6 +229,24 @@ export function CreatePostForm({
               value={body}
               onChange={setBody}
               rows={4}
+            />
+          </div>
+
+          {/* Tags */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">
+                Tags <span className="text-muted-foreground font-normal">(optional)</span>
+              </p>
+              {tags.length > 0 && (
+                <span className="text-xs text-muted-foreground">{tags.length}/10</span>
+              )}
+            </div>
+            <TagInput
+              value={tags}
+              onChange={setTags}
+              suggestions={tagSuggestions}
+              placeholder="#academic, #tips…"
             />
           </div>
 

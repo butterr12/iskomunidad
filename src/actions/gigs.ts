@@ -16,6 +16,7 @@ import {
 import { moderateContent } from "@/lib/ai-moderation";
 import { parseCompensation } from "@/lib/gigs";
 import { isoDateString } from "@/lib/validation/date";
+import { tagsSchema } from "@/lib/tags";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ const createGigSchema = z.object({
   posterCollege: z.string().optional(),
   compensation: z.string().min(1).max(200),
   category: z.string().min(1),
-  tags: z.array(z.string()).default([]),
+  tags: tagsSchema,
   locationId: z.string().uuid().optional(),
   locationNote: z.string().optional(),
   deadline: isoDateString.optional(),
@@ -338,7 +339,7 @@ export async function deleteGig(gigId: string): Promise<ActionResult<void>> {
   });
   if (!gig) return { success: false, error: "Gig not found" };
 
-  const isAdmin = (session.user as { role?: string }).role === "admin";
+  const isAdmin = session.user.role === "admin";
   if (gig.userId !== session.user.id && !isAdmin) {
     return { success: false, error: "Not authorized" };
   }
@@ -351,11 +352,11 @@ export async function updateGig(
   gigId: string,
   input: z.infer<typeof createGigSchema>,
 ): Promise<ActionResult<{ id: string }>> {
-  const parsed = createGigSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
+
+  const parsed = createGigSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
   const gig = await db.query.gigListing.findFirst({
     where: eq(gigListing.id, gigId),
@@ -415,7 +416,7 @@ export async function getUserGigsById(
   const isOwner = session?.user?.id === userId;
 
   const rows = await db.query.gigListing.findMany({
-    where: (g, { eq: eqFn, and: andFn, or: orFn }) => {
+    where: (g, { eq: eqFn, and: andFn }) => {
       const approved = andFn(eqFn(g.userId, userId), eqFn(g.status, "approved"));
       if (isOwner) {
         return eqFn(g.userId, userId);

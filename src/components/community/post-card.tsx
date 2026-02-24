@@ -11,6 +11,7 @@ import { MessageCircle, MapPin, ExternalLink, MoreHorizontal, Pencil, Trash2, Ca
 import { VoteControls } from "./vote-controls";
 import { UserFlairs } from "@/components/user-flairs";
 import { MentionText } from "./mention-text";
+import { TagChips } from "@/components/shared/tag-chips";
 import {
   FLAIR_COLORS,
   formatRelativeTime,
@@ -56,7 +57,7 @@ export function PostCard({ post, currentUserId, onSelect, onVote, onEdit, onDele
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(); }}
-      className="relative w-full cursor-pointer rounded-2xl border bg-card text-left shadow-sm transition-all hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
+      className="relative w-full cursor-pointer rounded-2xl border bg-card text-left shadow-sm transition-[transform,box-shadow,background-color] hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
       style={eventColor ? { borderColor: eventColor } : undefined}
     >
       {eventColor && post.eventTitle && (
@@ -193,6 +194,13 @@ export function PostCard({ post, currentUserId, onSelect, onVote, onEdit, onDele
               )}
             </div>
           )}
+
+          {/* Tags */}
+          <TagChips
+            tags={post.tags ?? []}
+            maxVisible={4}
+            onTagClick={(e) => e.stopPropagation()}
+          />
 
           {/* Footer */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

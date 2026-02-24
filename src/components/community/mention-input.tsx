@@ -116,13 +116,10 @@ export function MentionInput({
   const mentionQuery = activeMention?.query ?? "";
 
   useEffect(() => {
-    if (!mentionQuery) {
-      setDebouncedQuery("");
-      return;
-    }
+    const delay = mentionQuery ? 200 : 0;
     const timer = window.setTimeout(
       () => setDebouncedQuery(mentionQuery),
-      200,
+      delay,
     );
     return () => window.clearTimeout(timer);
   }, [mentionQuery]);

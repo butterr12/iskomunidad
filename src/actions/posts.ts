@@ -25,6 +25,7 @@ import {
 import { moderateContent } from "@/lib/ai-moderation";
 import { extractMentionUsernames } from "@/lib/mentions";
 import { safeLinkUrl } from "@/lib/validation/url";
+import { tagsSchema } from "@/lib/tags";
 
 function getActorLabel(user: { username?: string | null; name?: string | null }): string {
   return user.username ? `@${user.username}` : (user.name ?? "Someone");
@@ -94,6 +95,7 @@ const createPostSchema = z.object({
   eventId: z.string().uuid().optional().nullable(),
   linkUrl: safeLinkUrl,
   imageKeys: z.array(z.string()).max(4).optional(),
+  tags: tagsSchema,
 });
 
 const voteSchema = z.object({
@@ -328,7 +330,7 @@ export async function getFollowingPosts(
 }
 
 export async function getApprovedPostsPaginated(
-  opts?: { sort?: "hot" | "new" | "top"; flair?: string; page?: number },
+  opts?: { sort?: "hot" | "new" | "top"; flair?: string; tag?: string; page?: number },
 ): Promise<ActionResult<{ posts: unknown[]; hasMore: boolean }>> {
   const session = await getOptionalSession();
   const PAGE_SIZE = 20;
@@ -336,8 +338,9 @@ export async function getApprovedPostsPaginated(
 
   const rows = await db.query.communityPost.findMany({
     where: (p, { eq: e, and: a }) => {
-      const conditions = [e(p.status, "approved")];
+      const conditions: ReturnType<typeof e>[] = [e(p.status, "approved")];
       if (opts?.flair) conditions.push(e(p.flair, opts.flair));
+      if (opts?.tag) conditions.push(sql`${p.tags} @> ARRAY[${opts.tag}]::text[]` as ReturnType<typeof e>);
       return conditions.length === 1 ? conditions[0] : a(...conditions);
     },
     with: {
@@ -503,12 +506,13 @@ export async function createPost(
     status = mode === "auto" ? "approved" : "draft";
   }
 
-  const { imageKeys, ...postData } = parsed.data;
+  const { imageKeys, tags, ...postData } = parsed.data;
   const [created] = await db
     .insert(communityPost)
     .values({
       ...postData,
       type: "text",
+      tags: tags ?? [],
       locationId: postData.locationId ?? null,
       eventId: postData.eventId ?? null,
       linkUrl: postData.linkUrl ?? null,
@@ -916,12 +920,13 @@ export async function saveDraft(
   const session = await getSession();
   if (!session) return { success: false, error: "Not authenticated" };
 
-  const { imageKeys, ...postData } = parsed.data;
+  const { imageKeys, tags, ...postData } = parsed.data;
   const [created] = await db
     .insert(communityPost)
     .values({
       ...postData,
       type: "text",
+      tags: tags ?? [],
       locationId: postData.locationId ?? null,
       linkUrl: postData.linkUrl ?? null,
       status: "draft",
@@ -946,6 +951,7 @@ export interface DraftPost {
   body?: string | null;
   linkUrl?: string | null;
   imageKeys: string[];
+  tags: string[];
   updatedAt: string;
   draftSource: string | null;
 }
@@ -972,6 +978,7 @@ export async function getUserDrafts(): Promise<ActionResult<DraftPost[]>> {
       body: r.body,
       linkUrl: r.linkUrl,
       imageKeys: r.images.map((img) => img.imageKey),
+      tags: r.tags ?? [],
       updatedAt: r.updatedAt.toISOString(),
       draftSource: r.draftSource,
     })),
@@ -1030,7 +1037,7 @@ export async function updatePost(
   if (!post) return { success: false, error: "Post not found" };
   if (post.userId !== session.user.id) return { success: false, error: "Not authorized" };
 
-  const { imageKeys, ...postData } = parsed.data;
+  const { imageKeys, tags, ...postData } = parsed.data;
 
   await db
     .update(communityPost)
@@ -1038,6 +1045,7 @@ export async function updatePost(
       title: postData.title,
       body: postData.body ?? null,
       flair: postData.flair,
+      tags: tags ?? [],
       locationId: postData.locationId ?? null,
       eventId: postData.eventId ?? null,
       linkUrl: postData.linkUrl ?? null,

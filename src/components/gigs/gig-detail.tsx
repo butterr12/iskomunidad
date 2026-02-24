@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TagChips } from "@/components/shared/tag-chips";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -174,18 +175,10 @@ export function GigDetail({
         </div>
 
         {/* Tags */}
-        {gig.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {gig.tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-foreground/80"
-              >
-                <span className="mr-0.5 text-muted-foreground">#</span>{tag}
-              </span>
-            ))}
-          </div>
-        )}
+        <TagChips
+          tags={gig.tags}
+          chipClassName="text-xs rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-foreground/70 hover:text-primary hover:no-underline hover:border-primary/50"
+        />
 
         {/* Info rows */}
         <div className="flex flex-col gap-2 text-sm text-muted-foreground">
@@ -350,7 +343,7 @@ export function GigDetail({
                     onClick={openCompose}
                   >
                     <HandHelping className="h-3.5 w-3.5" />
-                    I'm Interested
+                    I&apos;m Interested
                   </Button>
                 ) : sentConversationId ? (
                   <Button

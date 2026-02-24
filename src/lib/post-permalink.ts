@@ -14,6 +14,7 @@ export interface PermalinkPost {
   title: string;
   body: string | null;
   flair: string;
+  tags: string[];
   author: string;
   authorHandle: string | null;
   authorImage: string | null;
@@ -62,6 +63,7 @@ function mapPost(
     title: string;
     body: string | null;
     flair: string;
+    tags: string[];
     score: number;
     commentCount: number;
     locationId: string | null;
@@ -71,7 +73,7 @@ function mapPost(
     updatedAt: Date;
     user: { name: string | null; username: string | null; image: string | null };
     images: { imageKey: string; order: number }[];
-    event?: { id: string; title: string; category: string } | null;
+    event?: { id: string; title: string; coverColor: string } | null;
   },
   userVote: VoteDirection,
   isBookmarked: boolean,
@@ -94,6 +96,7 @@ function mapPost(
     locationId: row.locationId,
     linkUrl: row.linkUrl,
     imageKeys: row.images.map((image) => image.imageKey),
+    tags: row.tags,
     eventId: row.event?.id ?? row.eventId ?? null,
     eventTitle: row.event?.title ?? null,
     eventColor: row.event?.coverColor ?? null,

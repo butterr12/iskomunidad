@@ -15,6 +15,7 @@ import {
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 import { isoDateString } from "@/lib/validation/date";
+import { tagsSchema } from "@/lib/tags";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ const createEventSchema = z.object({
   startDate: isoDateString,
   endDate: isoDateString,
   locationId: z.string().uuid().optional(),
-  tags: z.array(z.string()).default([]),
+  tags: tagsSchema,
   coverColor: z.string().default("#3b82f6"),
   coverImageKey: z.string().optional().nullable(),
   externalLinks: z.array(externalLinkSchema).max(5).default([]),
@@ -48,7 +49,7 @@ const updateEventSchema = z.object({
   startDate: isoDateString.optional(),
   endDate: isoDateString.optional(),
   locationId: z.string().uuid().optional().nullable(),
-  tags: z.array(z.string()).optional(),
+  tags: tagsSchema.optional(),
   coverColor: z.string().optional(),
   coverImageKey: z.string().optional().nullable(),
   externalLinks: z.array(externalLinkSchema).max(5).optional(),
@@ -520,11 +521,10 @@ export async function getUserEventsById(
   const isOwner = session?.user?.id === userId;
 
   const rows = await db.query.campusEvent.findMany({
-    where: (e, { eq: eqFn, and: andFn, or: orFn }) => {
+    where: (e, { eq: eqFn, and: andFn }) => {
       const approved = andFn(eqFn(e.userId, userId), eqFn(e.status, "approved"));
       if (isOwner) {
-        const own = eqFn(e.userId, userId);
-        return own;
+        return eqFn(e.userId, userId);
       }
       return approved;
     },

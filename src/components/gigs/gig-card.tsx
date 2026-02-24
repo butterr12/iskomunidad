@@ -1,6 +1,7 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Users } from "lucide-react";
+import { TagChips } from "@/components/shared/tag-chips";
 import {
   CATEGORY_LABELS,
   CATEGORY_COLORS,
@@ -41,7 +42,7 @@ export function GigCard({ gig, onSelect, currentUserId }: GigCardProps) {
   return (
     <button
       onClick={() => onSelect(gig)}
-      className="flex w-full gap-3 rounded-2xl border bg-card p-3 text-left shadow-sm transition-all hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
+      className="flex w-full gap-3 rounded-2xl border bg-card p-3 text-left shadow-sm transition-[transform,box-shadow,background-color] hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]"
     >
       {/* Compensation box */}
       <div className="flex shrink-0 flex-col items-center justify-center rounded-lg bg-emerald-500/10 px-3 py-2 text-center">
@@ -90,20 +91,11 @@ export function GigCard({ gig, onSelect, currentUserId }: GigCardProps) {
         </div>
 
         {/* Tags */}
-        {gig.tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            {gig.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="text-[10px] text-muted-foreground/60 font-medium">
-                #{tag}
-              </span>
-            ))}
-            {gig.tags.length > 3 && (
-              <span className="text-[10px] text-muted-foreground/40">
-                +{gig.tags.length - 3}
-              </span>
-            )}
-          </div>
-        )}
+        <TagChips
+          tags={gig.tags}
+          maxVisible={3}
+          onTagClick={(e) => e.stopPropagation()}
+        />
 
         {/* Description preview */}
         <p className="line-clamp-2 text-xs text-muted-foreground">{gig.description}</p>

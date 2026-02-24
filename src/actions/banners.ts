@@ -67,7 +67,7 @@ export async function adminUpdateBanner(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
-  const { ctaUrl, expiresAt, ...rest } = parsed.data;
+  const { ctaUrl, expiresAt, isActive, ...rest } = parsed.data;
 
   const [updated] = await db
     .update(banner)
@@ -75,6 +75,7 @@ export async function adminUpdateBanner(
       ...rest,
       ctaUrl: ctaUrl || null,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
+      ...(isActive !== undefined ? { isActive } : {}),
     })
     .where(eq(banner.id, id))
     .returning();

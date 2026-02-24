@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Clock, MapPin, Globe, Users, User, Share2, Star, Check, Pencil, Trash2, ExternalLink } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
@@ -113,11 +114,14 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
       <div className="flex flex-col gap-4 p-5">
         {/* Hero banner */}
         {event.coverImageKey && (
-          <div className="w-full aspect-video overflow-hidden rounded-xl">
-            <img
+          <div className="relative w-full aspect-video overflow-hidden rounded-xl">
+            <Image
               src={`/api/photos/${event.coverImageKey}`}
               alt={event.title}
-              className="w-full h-full object-cover"
+              fill
+              unoptimized
+              sizes="(max-width: 640px) 100vw, 600px"
+              className="object-cover"
             />
           </div>
         )}

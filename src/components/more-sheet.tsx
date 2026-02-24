@@ -19,10 +19,10 @@ const items = [
   { label: "People", href: "/people", icon: Users2, comingSoon: false, toastMessage: "" },
   { label: "Gigs", href: "/gigs", icon: Hammer, comingSoon: false, toastMessage: "" },
   { label: "Match", href: null, icon: HeartHandshake, comingSoon: true, toastMessage: "" },
-  { label: "Settings", href: "/settings", icon: Settings, comingSoon: false, toastMessage: "" },
   { label: "Isko AI", href: null, icon: Bot, comingSoon: true, toastMessage: "Isko AI chatbot is coming soon! Your all-in-one uni assistant." },
   { label: "Orgs", href: null, icon: UsersRound, comingSoon: true, toastMessage: "Orgs directory is coming soon! Discover and join student organizations." },
   { label: "Housing", href: null, icon: Building2, comingSoon: true, toastMessage: "Housing portal & Rate My Dorm is coming soon!" },
+  { label: "Settings", href: "/settings", icon: Settings, comingSoon: false, toastMessage: "" },
 ];
 
 interface MoreSheetProps {
