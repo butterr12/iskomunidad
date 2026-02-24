@@ -170,7 +170,7 @@ export function ChatPanel({
     if (!hasDisplayMessages) return;
     if (!shouldStickToBottomRef.current && hasInitialAutoScrollRef.current) return;
 
-    scrollToBottom(hasInitialAutoScrollRef.current ? "smooth" : "auto");
+    scrollToBottom("auto");
     hasInitialAutoScrollRef.current = true;
   }, [isLoading, allMessages.length, optimisticMessages.length, scrollToBottom]);
 
@@ -307,11 +307,6 @@ export function ChatPanel({
     allMessages,
     userId,
   ]);
-
-  // Scroll to bottom when "Seen" receipt appears so it's visible
-  useEffect(() => {
-    if (readBy) scrollToBottom("smooth");
-  }, [readBy, scrollToBottom]);
 
   // Cleanup remaining blob URLs on unmount
   useEffect(() => {
@@ -749,9 +744,6 @@ export function ChatPanel({
                 handleTypingStart();
               }}
               onKeyDown={handleKeyDown}
-              onFocus={() => {
-                setTimeout(() => scrollToBottom("smooth"), 100);
-              }}
               enterKeyHint="send"
               placeholder="Type a message..."
               rows={1}
