@@ -33,6 +33,7 @@ export type ConversationPreview = {
     createdAt: string;
   } | null;
   unreadCount: number;
+  otherUserLastReadAt: string | null;
   requestStatus?: string;
   requestFromUserId?: string;
   requestToUserId?: string;
@@ -508,6 +509,7 @@ export async function getConversations(): Promise<
       otherUserName: user.name,
       otherUserUsername: user.username,
       otherUserImage: user.image,
+      otherUserLastReadAt: conversationParticipant.lastReadAt,
     })
     .from(conversation)
     .innerJoin(
@@ -635,6 +637,9 @@ export async function getConversations(): Promise<
             }
           : null,
         unreadCount: unreadMap.get(row.convId) ?? 0,
+        otherUserLastReadAt: row.otherUserLastReadAt
+          ? row.otherUserLastReadAt.toISOString()
+          : null,
         requestStatus: request?.status,
         requestFromUserId: request?.fromUserId,
         requestToUserId: request?.toUserId,

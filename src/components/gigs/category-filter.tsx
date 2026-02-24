@@ -36,7 +36,7 @@ export function CategoryFilter({ activeCategory, onCategoryChange }: CategoryFil
               "All Categories"
             )}
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" sideOffset={4}>
             <SelectItem value="all">All Categories</SelectItem>
             {GIG_CATEGORIES.map((cat) => (
               <SelectItem key={cat} value={cat}>

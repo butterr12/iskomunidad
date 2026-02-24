@@ -32,7 +32,7 @@ export function SortToggle({ sortMode, onSortModeChange }: SortToggleProps) {
             <current.Icon className="size-4" />
             {current.label}
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" sideOffset={4}>
             {modes.map((m) => (
               <SelectItem key={m.value} value={m.value}>
                 <m.Icon className="size-4" />

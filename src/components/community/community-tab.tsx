@@ -445,16 +445,6 @@ export function CommunityTab() {
                   <p className="text-base font-semibold">
                     {`What's on your mind${promptName ? `, ${promptName}` : ""}?`}
                   </p>
-                  <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      {activePosts.length} {activePosts.length === 1 ? "post" : "posts"}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" />
-                      Community
-                    </span>
-                  </div>
                 </div>
               </button>
               {user && draftCount > 0 && (

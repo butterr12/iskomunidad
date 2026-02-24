@@ -124,6 +124,7 @@ export default function MessagesPage() {
                   otherUser: { id: withUserId!, name: "", username: null, image: null },
                   lastMessage: null,
                   unreadCount: 0,
+                  otherUserLastReadAt: null,
                   requestStatus: res.data.isRequest ? "pending" : undefined,
                   requestFromUserId: res.data.isRequest ? session!.user.id : undefined,
                   requestToUserId: res.data.isRequest ? withUserId! : undefined,

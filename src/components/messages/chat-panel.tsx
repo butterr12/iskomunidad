@@ -269,6 +269,23 @@ export function ChatPanel({
     }
   }, [conversation.id, conversation.unreadCount]);
 
+  // Initialize readBy from persisted data so "Seen" shows on mount
+  // when the other user already read messages before this session.
+  useEffect(() => {
+    if (
+      conversation.otherUserLastReadAt !== null &&
+      allMessages.length > 0 &&
+      allMessages[allMessages.length - 1]?.senderId === userId
+    ) {
+      setReadBy(conversation.otherUser.name);
+    }
+  }, [
+    conversation.otherUserLastReadAt,
+    conversation.otherUser.name,
+    allMessages,
+    userId,
+  ]);
+
   // Cleanup remaining blob URLs on unmount
   useEffect(() => {
     return () => {
@@ -438,6 +455,7 @@ export function ChatPanel({
     const body = messageText.trim();
     if (!body && !imageFile) return;
 
+    setReadBy(null);
     shouldStickToBottomRef.current = true;
 
     const tempId = crypto.randomUUID();
