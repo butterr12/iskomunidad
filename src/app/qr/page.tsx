@@ -27,7 +27,7 @@ export default async function QrPage() {
             iskomunidad
           </p>
           <p className="mt-1 text-sm text-neutral-500">
-            The community app for UP campuses
+            the university social network
           </p>
         </div>
 
