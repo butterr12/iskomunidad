@@ -28,6 +28,7 @@ import { formatRelativeTime } from "@/lib/posts";
 import { ComposeDialog } from "./compose-dialog";
 import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
 import { useSession } from "@/lib/auth-client";
+import { useSocket } from "@/components/providers/socket-provider";
 import { toast } from "sonner";
 
 function getInitials(name?: string | null): string {
@@ -55,8 +56,10 @@ function ConversationItem({
   currentUserId?: string;
 }) {
   const queryClient = useQueryClient();
+  const { activeUserIds } = useSocket();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const isUserActive = activeUserIds.has(conversation.otherUser.id);
 
   const lastMessagePreview = conversation.lastMessage
     ? conversation.lastMessage.imageUrl
@@ -101,6 +104,9 @@ function ConversationItem({
           </BorderedAvatar>
           {conversation.unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-primary border-2 border-background" />
+          )}
+          {isUserActive && (
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-background" />
           )}
         </div>
 

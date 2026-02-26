@@ -95,7 +95,7 @@ export function ChatPanel({
   onBack: () => void;
 }) {
   const { data: session } = useSession();
-  const { socket } = useSocket();
+  const { socket, activeUserIds } = useSocket();
   const queryClient = useQueryClient();
   const posthog = usePostHog();
   const userId = session?.user?.id;
@@ -623,17 +623,22 @@ export function ChatPanel({
         <Button variant="ghost" size="sm" onClick={onBack} className="sm:hidden">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <BorderedAvatar avatarSize={24}>
-          <Avatar size="sm">
-            <AvatarImage
-              src={conversation.otherUser.image ?? undefined}
-              alt={conversation.otherUser.name}
-            />
-            <AvatarFallback className="text-xs">
-              {getInitials(conversation.otherUser.name)}
-            </AvatarFallback>
-          </Avatar>
-        </BorderedAvatar>
+        <div className="relative shrink-0">
+          <BorderedAvatar avatarSize={24}>
+            <Avatar size="sm">
+              <AvatarImage
+                src={conversation.otherUser.image ?? undefined}
+                alt={conversation.otherUser.name}
+              />
+              <AvatarFallback className="text-xs">
+                {getInitials(conversation.otherUser.name)}
+              </AvatarFallback>
+            </Avatar>
+          </BorderedAvatar>
+          {activeUserIds.has(conversation.otherUser.id) && (
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-background" />
+          )}
+        </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-semibold truncate">

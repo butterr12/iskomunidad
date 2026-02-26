@@ -18,13 +18,17 @@ type SocketContextValue = {
   isConnected: boolean;
   unreadCount: number;
   refreshUnreadCount: () => void;
+  activeUserIds: Set<string>;
 };
+
+const EMPTY_SET = new Set<string>();
 
 const SocketContext = createContext<SocketContextValue>({
   socket: null,
   isConnected: false,
   unreadCount: 0,
   refreshUnreadCount: () => {},
+  activeUserIds: EMPTY_SET,
 });
 
 export function useSocket() {
@@ -37,7 +41,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activeUserIds, setActiveUserIds] = useState<Set<string>>(EMPTY_SET);
   const socketRef = useRef<Socket | null>(null);
+  const removalTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const refreshUnreadCount = useCallback(async () => {
     const res = await getUnreadCount();
@@ -114,17 +120,65 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void refreshUnreadCount();
     });
 
+    // Presence events
+    newSocket.on("presence_sync", (data: { onlineUserIds: string[] }) => {
+      // Clear all pending removal timeouts — the server's snapshot is authoritative
+      for (const timeout of removalTimeoutsRef.current.values()) {
+        clearTimeout(timeout);
+      }
+      removalTimeoutsRef.current.clear();
+      setActiveUserIds(new Set(data.onlineUserIds));
+    });
+
+    newSocket.on("user_online", (data: { userId: string }) => {
+      // Clear any pending removal timeout
+      const existing = removalTimeoutsRef.current.get(data.userId);
+      if (existing) {
+        clearTimeout(existing);
+        removalTimeoutsRef.current.delete(data.userId);
+      }
+      setActiveUserIds((prev) => {
+        if (prev.has(data.userId)) return prev;
+        const next = new Set(prev);
+        next.add(data.userId);
+        return next;
+      });
+    });
+
+    newSocket.on("user_offline", (data: { userId: string }) => {
+      // Clear any existing timeout for this user before setting a new one
+      const existing = removalTimeoutsRef.current.get(data.userId);
+      if (existing) clearTimeout(existing);
+      // Delay removal by 3 minutes to prevent flicker on page refresh
+      const timeout = setTimeout(() => {
+        removalTimeoutsRef.current.delete(data.userId);
+        setActiveUserIds((prev) => {
+          if (!prev.has(data.userId)) return prev;
+          const next = new Set(prev);
+          next.delete(data.userId);
+          return next;
+        });
+      }, 3 * 60 * 1000);
+      removalTimeoutsRef.current.set(data.userId, timeout);
+    });
+
     socketRef.current = newSocket;
+    const timeouts = removalTimeoutsRef.current;
 
     return () => {
       newSocket.disconnect();
       socketRef.current = null;
+      // Clear all pending removal timeouts
+      for (const timeout of timeouts.values()) {
+        clearTimeout(timeout);
+      }
+      timeouts.clear();
     };
   }, [session?.session?.token, queryClient, refreshUnreadCount]);
 
   return (
     <SocketContext.Provider
-      value={{ socket, isConnected, unreadCount, refreshUnreadCount }}
+      value={{ socket, isConnected, unreadCount, refreshUnreadCount, activeUserIds }}
     >
       {children}
     </SocketContext.Provider>

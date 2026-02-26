@@ -4,7 +4,7 @@ loadEnvConfig(process.cwd());
 import { createServer } from "node:http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
-import { eq, and, gt, isNull } from "drizzle-orm";
+import { eq, and, gt, isNull, ne, inArray } from "drizzle-orm";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME ?? "0.0.0.0";
@@ -52,6 +52,35 @@ app.prepare().then(async () => {
       .limit(1);
 
     return participant.length > 0;
+  }
+
+  async function getConversationPartnerIds(userId: string): Promise<string[]> {
+    const userConvs = await db
+      .select({ conversationId: conversationParticipant.conversationId })
+      .from(conversationParticipant)
+      .innerJoin(
+        conversation,
+        and(
+          eq(conversation.id, conversationParticipant.conversationId),
+          isNull(conversation.deletedAt),
+        ),
+      )
+      .where(eq(conversationParticipant.userId, userId));
+
+    const convIds = userConvs.map((r) => r.conversationId);
+    if (convIds.length === 0) return [];
+
+    const partners = await db
+      .selectDistinct({ userId: conversationParticipant.userId })
+      .from(conversationParticipant)
+      .where(
+        and(
+          inArray(conversationParticipant.conversationId, convIds),
+          ne(conversationParticipant.userId, userId),
+        ),
+      );
+
+    return partners.map((r) => r.userId);
   }
 
   const httpServer = createServer(handle);
@@ -125,7 +154,7 @@ app.prepare().then(async () => {
   const { guard: abuseGuard } = await import("./src/lib/abuse/guard");
   const { resolveIdentityFromRaw } = await import("./src/lib/abuse/identity");
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const userId = socket.data.user?.id as string;
     if (!userId) return;
 
@@ -141,6 +170,23 @@ app.prepare().then(async () => {
 
     // Join personal notification room
     socket.join(`user:${userId}`);
+
+    // Broadcast presence to conversation partners
+    try {
+      const partnerIds = await getConversationPartnerIds(userId);
+
+      for (const partnerId of partnerIds) {
+        io.to(`user:${partnerId}`).emit("user_online", { userId });
+      }
+
+      const onlinePartnerIds = partnerIds.filter((partnerId) => {
+        const room = io.sockets.adapter.rooms.get(`user:${partnerId}`);
+        return room && room.size > 0;
+      });
+      socket.emit("presence_sync", { onlineUserIds: onlinePartnerIds });
+    } catch (err) {
+      console.error("[socket] Presence error:", err);
+    }
 
     // Join a conversation room
     socket.on("join_conversation", async (conversationId: unknown) => {
@@ -219,8 +265,19 @@ app.prepare().then(async () => {
       });
     });
 
-    socket.on("disconnect", () => {
-      // Cleanup handled automatically by Socket.io room management
+    socket.on("disconnect", async () => {
+      // Check if user still has other connected sockets
+      const userRoom = io.sockets.adapter.rooms.get(`user:${userId}`);
+      if (!userRoom || userRoom.size === 0) {
+        try {
+          const partnerIds = await getConversationPartnerIds(userId);
+          for (const partnerId of partnerIds) {
+            io.to(`user:${partnerId}`).emit("user_offline", { userId });
+          }
+        } catch (err) {
+          console.error("[socket] Presence disconnect error:", err);
+        }
+      }
     });
   });
 
