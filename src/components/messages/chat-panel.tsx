@@ -20,6 +20,7 @@ import {
 import { useSocket } from "@/components/providers/socket-provider";
 import { MessageBubble } from "./message-bubble";
 import { RequestBanner } from "./request-banner";
+import { TypingIndicator } from "./typing-indicator";
 import { ChatDetailsSheet } from "./chat-details-sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -204,6 +205,13 @@ export function ChatPanel({
     scrollToBottom("auto");
     hasInitialAutoScrollRef.current = true;
   }, [isLoading, displayMessageCount, scrollToBottom]);
+
+  // Scroll to bottom when typing indicator appears/disappears (prevents jank)
+  useEffect(() => {
+    if (shouldStickToBottomRef.current) {
+      scrollToBottom("auto");
+    }
+  }, [typingUser, scrollToBottom]);
 
   // Auto-resize textarea on content change
   useEffect(() => {
@@ -686,7 +694,12 @@ export function ChatPanel({
           return displayMessages.map((msg, i) => {
             const isOwn = msg.senderId === userId;
             const nextMsg = i < displayMessages.length - 1 ? displayMessages[i + 1] : null;
-            const showAvatar = !nextMsg || nextMsg.senderId !== msg.senderId;
+            const isLast = i === displayMessages.length - 1;
+            // If the other user is typing and this is their last message,
+            // hide the avatar here — the typing indicator will show it instead.
+            const showAvatar = isLast && !isOwn && !!typingUser
+              ? false
+              : !nextMsg || nextMsg.senderId !== msg.senderId;
             const isOptimistic = "_optimistic" in msg;
             const optimisticMsg = isOptimistic ? (msg as OptimisticMessage) : null;
             return (
@@ -709,11 +722,10 @@ export function ChatPanel({
 
         {/* Typing indicator */}
         {typingUser && (
-          <div className="px-4 py-1">
-            <span className="text-xs text-muted-foreground italic">
-              {typingUser} is typing...
-            </span>
-          </div>
+          <TypingIndicator
+            showAvatar
+            user={conversation.otherUser}
+          />
         )}
 
         {/* Read receipt */}
