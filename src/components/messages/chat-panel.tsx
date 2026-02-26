@@ -54,6 +54,28 @@ type OptimisticMessage = MessageData & {
   _imageFile?: File;
 };
 
+function formatTimeDivider(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const time = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const isToday = date.toDateString() === now.toDateString();
+  if (isToday) return time;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`;
+
+  const month = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (date.getFullYear() === now.getFullYear()) return `${month}, ${time}`;
+
+  return `${month}, ${date.getFullYear()}, ${time}`;
+}
+
 function getInitials(name?: string | null): string {
   if (!name) return "?";
   return name
@@ -206,12 +228,12 @@ export function ChatPanel({
     hasInitialAutoScrollRef.current = true;
   }, [isLoading, displayMessageCount, scrollToBottom]);
 
-  // Scroll to bottom when typing indicator appears/disappears (prevents jank)
+  // Scroll to bottom when typing indicator or read receipt appears/disappears (prevents jank)
   useEffect(() => {
     if (shouldStickToBottomRef.current) {
       scrollToBottom("auto");
     }
-  }, [typingUser, scrollToBottom]);
+  }, [typingUser, readBy, scrollToBottom]);
 
   // Auto-resize textarea on content change
   useEffect(() => {
@@ -691,6 +713,15 @@ export function ChatPanel({
             );
           }
 
+          // Find the last message sent by the current user (for "Seen" placement)
+          let lastOwnMsgIndex = -1;
+          for (let j = displayMessages.length - 1; j >= 0; j--) {
+            if (displayMessages[j].senderId === userId) {
+              lastOwnMsgIndex = j;
+              break;
+            }
+          }
+
           return displayMessages.map((msg, i) => {
             const isOwn = msg.senderId === userId;
             const nextMsg = i < displayMessages.length - 1 ? displayMessages[i + 1] : null;
@@ -702,20 +733,37 @@ export function ChatPanel({
               : !nextMsg || nextMsg.senderId !== msg.senderId;
             const isOptimistic = "_optimistic" in msg;
             const optimisticMsg = isOptimistic ? (msg as OptimisticMessage) : null;
+
+            // Time divider: show for first message, or when 1hr+ gap from previous
+            const prevMsg = i > 0 ? displayMessages[i - 1] : null;
+            const showTimeDivider = !prevMsg ||
+              new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() >= 3600000;
+
             return (
-              <MessageBubble
-                key={isOptimistic ? (msg as OptimisticMessage)._tempId : msg.id}
-                message={msg}
-                isOwn={isOwn}
-                showAvatar={showAvatar}
-                status={optimisticMsg?._status}
-                onRetry={
-                  optimisticMsg?._status === "failed"
-                    ? () => handleRetry(optimisticMsg._tempId)
-                    : undefined
-                }
-                imagePreviewUrl={optimisticMsg?._imagePreviewUrl}
-              />
+              <div key={isOptimistic ? (msg as OptimisticMessage)._tempId : msg.id}>
+                {showTimeDivider && (
+                  <div className="flex items-center gap-3 px-8 py-2">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {formatTimeDivider(msg.createdAt)}
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                )}
+                <MessageBubble
+                  message={msg}
+                  isOwn={isOwn}
+                  showAvatar={showAvatar}
+                  seen={!!readBy && i === lastOwnMsgIndex}
+                  status={optimisticMsg?._status}
+                  onRetry={
+                    optimisticMsg?._status === "failed"
+                      ? () => handleRetry(optimisticMsg._tempId)
+                      : undefined
+                  }
+                  imagePreviewUrl={optimisticMsg?._imagePreviewUrl}
+                />
+              </div>
             );
           });
         })()}
@@ -726,13 +774,6 @@ export function ChatPanel({
             showAvatar
             user={conversation.otherUser}
           />
-        )}
-
-        {/* Read receipt */}
-        {readBy && allMessages.length > 0 && allMessages[allMessages.length - 1]?.senderId === userId && (
-          <div className="px-4 py-0.5 text-right">
-            <span className="text-[10px] text-muted-foreground">Seen</span>
-          </div>
         )}
 
       </div>

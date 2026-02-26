@@ -22,7 +22,7 @@ export function TypingIndicator({
     <div className="px-4 py-0.5 animate-in fade-in duration-200">
       <div className="flex items-end gap-2 flex-row">
         {showAvatar ? (
-          <Avatar size="sm" className="shrink-0">
+          <Avatar size="sm" className="shrink-0 mb-px">
             <AvatarImage src={user.image ?? undefined} alt={user.name} />
             <AvatarFallback className="text-xs">
               {getInitials(user.name)}

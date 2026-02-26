@@ -16,19 +16,11 @@ function getInitials(name?: string | null): string {
     .toUpperCase();
 }
 
-function formatTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
 export function MessageBubble({
   message,
   isOwn,
   showAvatar,
+  seen,
   status,
   onRetry,
   imagePreviewUrl,
@@ -36,6 +28,7 @@ export function MessageBubble({
   message: MessageData;
   isOwn: boolean;
   showAvatar: boolean;
+  seen?: boolean;
   status?: "sending" | "failed";
   onRetry?: () => void;
   imagePreviewUrl?: string;
@@ -53,7 +46,7 @@ export function MessageBubble({
         )}
       >
         {showAvatar ? (
-          <Avatar size="sm" className="shrink-0">
+          <Avatar size="sm" className="shrink-0 mb-px">
             <AvatarImage
               src={message.sender?.image ?? undefined}
               alt={message.sender?.name ?? "User"}
@@ -104,12 +97,10 @@ export function MessageBubble({
         </div>
       )}
 
-      {/* Timestamp only on last message of a group */}
-      {!isFailed && showAvatar && (
-        <div className={cn("mt-0.5", isOwn ? "text-right mr-8" : "ml-8")}>
-          <span className="text-[10px] text-muted-foreground px-1">
-            {formatTime(message.createdAt)}
-          </span>
+      {/* Read receipt */}
+      {seen && (
+        <div className="mt-0.5 text-right">
+          <span className="text-[10px] text-muted-foreground">Seen</span>
         </div>
       )}
     </div>
