@@ -8,7 +8,10 @@ import { NavBar } from "@/components/nav-bar";
 import { ConsentGate } from "@/components/consent-gate";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { BetaAnnouncement } from "@/components/beta-announcement";
+import { AnnouncementModal } from "@/components/announcement-modal";
 import { SocketProvider } from "@/components/providers/socket-provider";
+import { MessageNotificationBanner } from "@/components/messages/message-notification-banner";
+import { BannerStrip } from "@/components/banners/banner-strip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 
@@ -104,8 +107,11 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
         }}
       >
         <NavBar />
+        <MessageNotificationBanner />
+        <BannerStrip />
         <ConsentGate session={session}>
           {children}
+          <AnnouncementModal />
           <BetaAnnouncement />
         </ConsentGate>
         <PwaInstallPrompt />

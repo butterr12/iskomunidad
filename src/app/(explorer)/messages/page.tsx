@@ -15,6 +15,7 @@ import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { usePostHog } from "posthog-js/react";
+import { useSocket } from "@/components/providers/socket-provider";
 
 export default function MessagesPage() {
   const { data: session } = useSession();
@@ -26,8 +27,15 @@ export default function MessagesPage() {
   const withUserId = searchParams.get("with");
   const chatId = searchParams.get("chat");
 
+  const { setActiveConversationId } = useSocket();
   const [activeConversation, setActiveConversation] =
     useState<ConversationPreview | null>(null);
+
+  // Track active conversation so SocketProvider suppresses notifications for it
+  useEffect(() => {
+    setActiveConversationId(activeConversation?.id ?? null);
+    return () => setActiveConversationId(null);
+  }, [activeConversation?.id, setActiveConversationId]);
   const [initializing, setInitializing] = useState(false);
   const hasRestoredChatRef = useRef(false);
 

@@ -18,6 +18,7 @@ import {
   Briefcase,
   Users,
   Megaphone,
+  BellRing,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,7 @@ const navGroups: NavGroup[] = [
     label: "Broadcast",
     items: [
       { href: "/admin/banners", label: "Banners", shortLabel: "Banners", icon: Megaphone },
+      { href: "/admin/announcements", label: "Announcements", shortLabel: "Announce", icon: BellRing },
     ],
   },
   {

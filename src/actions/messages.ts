@@ -456,6 +456,7 @@ export async function sendMessage(input: {
         if (participantUserId !== userId) {
           io.to(`user:${participantUserId}`).emit("conversation_updated", {
             conversationId: input.conversationId,
+            message: persisted.messageData,
           });
         }
       }

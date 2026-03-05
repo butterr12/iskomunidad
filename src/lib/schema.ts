@@ -804,6 +804,42 @@ export const bannerDismissal = pgTable(
   (t) => [uniqueIndex("banner_dismissal_uq").on(t.bannerId, t.userId)],
 );
 
+// ─── Announcement ─────────────────────────────────────────────────────────────
+
+export const announcement = pgTable("announcement", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  body: text("body"),
+  imageKey: text("image_key"),
+  ctaLabel: text("cta_label"),
+  ctaUrl: text("cta_url"),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  priority: integer("priority").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ─── Announcement Seen ────────────────────────────────────────────────────────
+
+export const announcementSeen = pgTable(
+  "announcement_seen",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    announcementId: uuid("announcement_id")
+      .notNull()
+      .references(() => announcement.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    seenAt: timestamp("seen_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("announcement_seen_uq").on(t.announcementId, t.userId)],
+);
+
 // ─── Abuse Event ──────────────────────────────────────────────────────────────
 
 export const abuseEvent = pgTable(
@@ -848,6 +884,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   gigSwipes: many(gigSwipe),
   userNotifications: many(userNotification),
   bannerDismissals: many(bannerDismissal),
+  announcementsSeen: many(announcementSeen),
   legalConsents: many(userLegalConsent),
   notificationSetting: one(userNotificationSetting, {
     fields: [user.id],
@@ -1301,6 +1338,23 @@ export const bannerDismissalRelations = relations(bannerDismissal, ({ one }) => 
   }),
   user: one(user, {
     fields: [bannerDismissal.userId],
+    references: [user.id],
+  }),
+}));
+
+// ─── Announcement Relations ───────────────────────────────────────────────────
+
+export const announcementRelations = relations(announcement, ({ many }) => ({
+  seenRecords: many(announcementSeen),
+}));
+
+export const announcementSeenRelations = relations(announcementSeen, ({ one }) => ({
+  announcement: one(announcement, {
+    fields: [announcementSeen.announcementId],
+    references: [announcement.id],
+  }),
+  user: one(user, {
+    fields: [announcementSeen.userId],
     references: [user.id],
   }),
 }));

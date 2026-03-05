@@ -169,6 +169,13 @@
       "when": 1771950303063,
       "tag": "0023_confused_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1772729585130,
+      "tag": "0024_glamorous_infant_terrible",
+      "breakpoints": true
     }
   ]
 }

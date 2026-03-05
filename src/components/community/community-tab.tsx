@@ -46,7 +46,6 @@ import { getPopularTags } from "@/actions/tags";
 import { toast } from "sonner";
 import { usePrefetchUserFlairs } from "@/hooks/use-prefetch-user-flairs";
 import { usePostHog } from "posthog-js/react";
-import { BannerStrip } from "@/components/banners/banner-strip";
 import { PopularTagsPanel, PopularTagsPanelHeader } from "@/components/tags/popular-tags-panel";
 
 type PostPage = { posts: CommunityPost[]; hasMore: boolean };
@@ -475,7 +474,6 @@ export function CommunityTab() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-5xl gap-4 p-4">
           <div className="min-w-0 flex-1 max-w-2xl mx-auto lg:mx-0">
-            <BannerStrip />
             <div className="w-full mb-3 flex items-center gap-2">
               <button
                 onClick={openCreatePost}

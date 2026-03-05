@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { X, ExternalLink } from "lucide-react";
+import { X, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { getActiveBanners, dismissBanner } from "@/actions/banners";
@@ -83,7 +84,10 @@ function BannerItem({ banner }: { banner: Banner }) {
   );
 }
 
+const MAX_VISIBLE = 3;
+
 export function BannerStrip() {
+  const [expanded, setExpanded] = useState(false);
   const { data: banners = [], isLoading } = useQuery({
     queryKey: ACTIVE_BANNERS_QUERY_KEY,
     queryFn: async () => {
@@ -95,11 +99,32 @@ export function BannerStrip() {
 
   if (isLoading || banners.length === 0) return null;
 
+  const hasOverflow = banners.length > MAX_VISIBLE;
+  const visible = expanded ? banners : banners.slice(0, MAX_VISIBLE);
+  const hiddenCount = banners.length - MAX_VISIBLE;
+
   return (
-    <div className="flex flex-col gap-2 mb-3">
-      {banners.map((b) => (
+    <div className="flex flex-col gap-2 px-4 pt-3">
+      {visible.map((b) => (
         <BannerItem key={b.id} banner={b} />
       ))}
+      {hasOverflow && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {expanded ? (
+            <>
+              Show less <ChevronUp className="h-3.5 w-3.5" />
+            </>
+          ) : (
+            <>
+              {hiddenCount} more announcement{hiddenCount > 1 ? "s" : ""}{" "}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }

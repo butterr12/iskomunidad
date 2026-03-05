@@ -13,12 +13,22 @@ import { useSession } from "@/lib/auth-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getUnreadCount } from "@/actions/messages";
 
+export type MessageNotification = {
+  senderName: string;
+  senderImage: string | null;
+  messagePreview: string;
+  conversationId: string;
+};
+
 type SocketContextValue = {
   socket: Socket | null;
   isConnected: boolean;
   unreadCount: number;
   refreshUnreadCount: () => void;
   activeUserIds: Set<string>;
+  setActiveConversationId: (id: string | null) => void;
+  messageNotification: MessageNotification | null;
+  dismissNotification: () => void;
 };
 
 const EMPTY_SET = new Set<string>();
@@ -29,6 +39,9 @@ const SocketContext = createContext<SocketContextValue>({
   unreadCount: 0,
   refreshUnreadCount: () => {},
   activeUserIds: EMPTY_SET,
+  setActiveConversationId: () => {},
+  messageNotification: null,
+  dismissNotification: () => {},
 });
 
 export function useSocket() {
@@ -42,8 +55,24 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeUserIds, setActiveUserIds] = useState<Set<string>>(EMPTY_SET);
+  const [messageNotification, setMessageNotification] =
+    useState<MessageNotification | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const removalTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const activeConversationIdRef = useRef<string | null>(null);
+  const notificationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setActiveConversationId = useCallback((id: string | null) => {
+    activeConversationIdRef.current = id;
+  }, []);
+
+  const dismissNotification = useCallback(() => {
+    setMessageNotification(null);
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+      notificationTimeoutRef.current = null;
+    }
+  }, []);
 
   const refreshUnreadCount = useCallback(async () => {
     const res = await getUnreadCount();
@@ -90,10 +119,47 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void refreshUnreadCount();
     });
 
-    newSocket.on("conversation_updated", () => {
-      void queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      void refreshUnreadCount();
-    });
+    newSocket.on(
+      "conversation_updated",
+      (payload: {
+        conversationId: string;
+        message?: {
+          body: string | null;
+          imageUrl: string | null;
+          sender: { name: string; image: string | null } | null;
+        };
+      }) => {
+        void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        void refreshUnreadCount();
+
+        // Show notification banner if not viewing this conversation
+        if (
+          payload.message?.sender &&
+          activeConversationIdRef.current !== payload.conversationId
+        ) {
+          const preview =
+            payload.message.imageUrl && !payload.message.body
+              ? "Sent a photo"
+              : payload.message.body?.slice(0, 80) ?? "New message";
+
+          if (notificationTimeoutRef.current) {
+            clearTimeout(notificationTimeoutRef.current);
+          }
+
+          setMessageNotification({
+            senderName: payload.message.sender.name,
+            senderImage: payload.message.sender.image,
+            messagePreview: preview,
+            conversationId: payload.conversationId,
+          });
+
+          notificationTimeoutRef.current = setTimeout(() => {
+            setMessageNotification(null);
+            notificationTimeoutRef.current = null;
+          }, 4000);
+        }
+      },
+    );
 
     newSocket.on("new_request", () => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] });
@@ -173,12 +239,25 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(timeout);
       }
       timeouts.clear();
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+        notificationTimeoutRef.current = null;
+      }
     };
   }, [session?.session?.token, queryClient, refreshUnreadCount]);
 
   return (
     <SocketContext.Provider
-      value={{ socket, isConnected, unreadCount, refreshUnreadCount, activeUserIds }}
+      value={{
+        socket,
+        isConnected,
+        unreadCount,
+        refreshUnreadCount,
+        activeUserIds,
+        setActiveConversationId,
+        messageNotification,
+        dismissNotification,
+      }}
     >
       {children}
     </SocketContext.Provider>
