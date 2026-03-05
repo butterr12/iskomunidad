@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import {
+  cmBlock,
   conversation,
   conversationParticipant,
   message,
@@ -10,7 +11,7 @@ import {
   userPrivacySetting,
 } from "@/lib/schema";
 import { user } from "@/lib/auth-schema";
-import { and, desc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { getSession, guardAction, type ActionResult } from "./_helpers";
 import { getIO } from "@/lib/socket-server";
 
@@ -58,6 +59,9 @@ const VALID_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REQUEST_RETRY_COOLDOWN_DAYS = 7;
 const REQUEST_RETRY_COOLDOWN_MS = REQUEST_RETRY_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+const INTERACTION_BLOCKED_ERROR = "You cannot interact with this user";
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 function isValidUuid(value: string): boolean {
   return VALID_UUID.test(value);
@@ -69,6 +73,40 @@ function formatRetryTimestamp(value: Date): string {
     timeStyle: "short",
     timeZone: "UTC",
   });
+}
+
+async function hasGlobalBlock(userA: string, userB: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: cmBlock.id })
+    .from(cmBlock)
+    .where(
+      or(
+        and(eq(cmBlock.blockerId, userA), eq(cmBlock.blockedId, userB)),
+        and(eq(cmBlock.blockerId, userB), eq(cmBlock.blockedId, userA)),
+      ),
+    )
+    .limit(1);
+
+  return rows.length > 0;
+}
+
+async function hasGlobalBlockTx(
+  tx: Tx,
+  userA: string,
+  userB: string,
+): Promise<boolean> {
+  const rows = await tx
+    .select({ id: cmBlock.id })
+    .from(cmBlock)
+    .where(
+      or(
+        and(eq(cmBlock.blockerId, userA), eq(cmBlock.blockedId, userB)),
+        and(eq(cmBlock.blockerId, userB), eq(cmBlock.blockedId, userA)),
+      ),
+    )
+    .limit(1);
+
+  return rows.length > 0;
 }
 
 function emitConversationRoomEvent(
@@ -117,11 +155,19 @@ export async function getOrCreateConversation(
     return { success: false, error: "User not found" };
   }
 
+  if (await hasGlobalBlock(userId, targetUserId)) {
+    return { success: false, error: INTERACTION_BLOCKED_ERROR };
+  }
+
   const pairKey = [userId, targetUserId].sort().join(":");
 
   const result = await db.transaction(async (tx) => {
     // Serialize 1:1 conversation creation per user pair.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pairKey}))`);
+
+    if (await hasGlobalBlockTx(tx, userId, targetUserId)) {
+      return { error: INTERACTION_BLOCKED_ERROR };
+    }
 
     const myConversations = tx
       .select({ conversationId: conversationParticipant.conversationId })
@@ -341,6 +387,18 @@ export async function sendMessage(input: {
       return { error: "Conversation is no longer available" };
     }
 
+    const participants = await tx
+      .select({ userId: conversationParticipant.userId })
+      .from(conversationParticipant)
+      .where(eq(conversationParticipant.conversationId, input.conversationId));
+
+    for (const participant of participants) {
+      if (participant.userId === userId) continue;
+      if (await hasGlobalBlockTx(tx, userId, participant.userId)) {
+        return { error: INTERACTION_BLOCKED_ERROR };
+      }
+    }
+
     let requestToUserId: string | null = null;
     if (conv[0].isRequest) {
       const request = await tx
@@ -407,11 +465,6 @@ export async function sendMessage(input: {
       .from(user)
       .where(eq(user.id, userId))
       .limit(1);
-
-    const participants = await tx
-      .select({ userId: conversationParticipant.userId })
-      .from(conversationParticipant)
-      .where(eq(conversationParticipant.conversationId, input.conversationId));
 
     const messageData: MessageData = {
       id: newMessage.id,

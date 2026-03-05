@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import {
+  cmBlock,
   userFollow,
   userPrivacySetting,
   communityPost,
@@ -20,8 +21,53 @@ import {
 } from "./_helpers";
 import { getBorderById, type BorderDefinition } from "@/lib/profile-borders";
 
+const INTERACTION_BLOCKED_ERROR = "You cannot interact with this user";
+
 function getActorLabel(u: { username?: string | null; name?: string | null }): string {
   return u.username ? `@${u.username}` : (u.name ?? "Someone");
+}
+
+async function isGloballyBlocked(userA: string, userB: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: cmBlock.id })
+    .from(cmBlock)
+    .where(
+      or(
+        and(eq(cmBlock.blockerId, userA), eq(cmBlock.blockedId, userB)),
+        and(eq(cmBlock.blockerId, userB), eq(cmBlock.blockedId, userA)),
+      ),
+    )
+    .limit(1);
+
+  return rows.length > 0;
+}
+
+async function getBlockedUserIdsForCandidates(
+  userId: string,
+  candidateIds: string[],
+): Promise<Set<string>> {
+  if (candidateIds.length === 0) return new Set<string>();
+
+  const rows = await db
+    .select({
+      blockerId: cmBlock.blockerId,
+      blockedId: cmBlock.blockedId,
+    })
+    .from(cmBlock)
+    .where(
+      or(
+        and(eq(cmBlock.blockerId, userId), inArray(cmBlock.blockedId, candidateIds)),
+        and(inArray(cmBlock.blockerId, candidateIds), eq(cmBlock.blockedId, userId)),
+      ),
+    );
+
+  const blocked = new Set<string>();
+  for (const row of rows) {
+    if (row.blockerId === userId) blocked.add(row.blockedId);
+    if (row.blockedId === userId) blocked.add(row.blockerId);
+  }
+
+  return blocked;
 }
 
 // ─── Follow a user ──────────────────────────────────────────────────────────
@@ -45,6 +91,10 @@ export async function followUser(
     columns: { id: true, name: true, username: true },
   });
   if (!target) return { success: false, error: "User not found" };
+
+  if (await isGloballyBlocked(session.user.id, targetId)) {
+    return { success: false, error: INTERACTION_BLOCKED_ERROR };
+  }
 
   // Check privacy settings
   const privacy = await db.query.userPrivacySetting.findFirst({
@@ -375,7 +425,15 @@ export async function searchUsers(
     )
     .limit(10);
 
-  return { success: true, data: rows };
+  const blocked = await getBlockedUserIdsForCandidates(
+    session.user.id,
+    rows.map((row) => row.id),
+  );
+
+  return {
+    success: true,
+    data: rows.filter((row) => !blocked.has(row.id)),
+  };
 }
 
 function getMentionTextRank(candidate: { username: string; name: string }, query: string): number {
@@ -556,6 +614,14 @@ export async function searchMentionableUsers(
     followingSet = result.followingSet;
     followedBySet = result.followerSet;
   }
+
+  if (candidates.length === 0) return { success: true, data: [] };
+
+  const blocked = await getBlockedUserIdsForCandidates(
+    session.user.id,
+    candidates.map((candidate) => candidate.id),
+  );
+  candidates = candidates.filter((candidate) => !blocked.has(candidate.id));
 
   if (candidates.length === 0) return { success: true, data: [] };
 
