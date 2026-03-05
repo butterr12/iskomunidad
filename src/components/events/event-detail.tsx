@@ -120,7 +120,7 @@ export function EventDetail({ event, onBack, onRsvpChange }: EventDetailProps) {
               src={`/api/photos/${event.coverImageKey}`}
               alt={event.title}
               fill
-              sizes="(max-width: 640px) 100vw, 600px"
+              unoptimized
               className="object-cover"
             />
           </div>

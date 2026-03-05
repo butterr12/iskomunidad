@@ -367,6 +367,7 @@ export default function AnnouncementsPage() {
                     src={`/api/photos/${a.imageKey}`}
                     alt=""
                     fill
+                    unoptimized
                     className="object-cover"
                   />
                 </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ const QUERY_KEY = ["unseen-announcements"] as const;
 
 export function AnnouncementModal() {
   const queryClient = useQueryClient();
+  const [imgError, setImgError] = useState(false);
 
   const { data: announcements = [] } = useQuery({
     queryKey: QUERY_KEY,
@@ -34,6 +36,7 @@ export function AnnouncementModal() {
 
   const handleDismiss = () => {
     if (!current) return;
+    setImgError(false);
     queryClient.setQueryData<Announcement[]>(QUERY_KEY, (old) =>
       old?.filter((a) => a.id !== current.id) ?? [],
     );
@@ -42,20 +45,24 @@ export function AnnouncementModal() {
 
   if (!current) return null;
 
+  const showImage = !!current.imageKey && !imgError;
+
   return (
     <Dialog open onOpenChange={(v) => { if (!v) handleDismiss(); }}>
       <DialogContent className="sm:max-w-md" showCloseButton={false}>
-        {current.imageKey && (
+        {showImage && (
           <div className="relative -mx-6 -mt-6 mb-4 aspect-[2/1] overflow-hidden rounded-t-lg">
             <Image
               src={`/api/photos/${current.imageKey}`}
               alt=""
               fill
+              unoptimized
               className="object-cover"
+              onError={() => setImgError(true)}
             />
           </div>
         )}
-        <DialogHeader className={current.imageKey ? "" : "pt-0"}>
+        <DialogHeader className={showImage ? "" : "pt-0"}>
           <DialogTitle>{current.title}</DialogTitle>
           {current.body && (
             <DialogDescription className="whitespace-pre-line text-left">

@@ -45,7 +45,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
             src={`/api/photos/${event.coverImageKey}`}
             alt=""
             fill
-            sizes="(max-width: 640px) 100vw, 600px"
+            unoptimized
             className="object-cover"
           />
         )}
