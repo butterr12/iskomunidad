@@ -19,7 +19,10 @@ export type AbuseAction =
   | "landmark.create"
   | "landmark.review"
   | "socket.typing"
-  | "socket.join";
+  | "socket.join"
+  | "campus-match.join"
+  | "campus-match.message"
+  | "campus-match.report";
 
 export type AbuseKeyBy = "userId" | "ipHash" | "emailHash" | "deviceHash";
 

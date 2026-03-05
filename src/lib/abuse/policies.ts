@@ -114,4 +114,20 @@ export const POLICY_MAP: Record<AbuseAction, PolicyDefinition> = {
       { keyBy: "userId", windowSec: 60, softLimit: 20, hardLimit: 40 },
     ],
   },
+  "campus-match.join": {
+    rules: [
+      { keyBy: "userId", windowSec: 10 * 60, softLimit: 5, hardLimit: 10 },
+    ],
+  },
+  "campus-match.message": {
+    rules: [
+      { keyBy: "userId", windowSec: 5 * 60, softLimit: 20, hardLimit: 40 },
+    ],
+    dedup: { windowSec: 2 },
+  },
+  "campus-match.report": {
+    rules: [
+      { keyBy: "userId", windowSec: 30 * 60, softLimit: 3, hardLimit: 6 },
+    ],
+  },
 };

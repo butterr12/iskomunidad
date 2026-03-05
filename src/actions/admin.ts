@@ -11,10 +11,19 @@ import {
   landmarkPhoto,
   adminNotification,
   adminSetting,
+  cmBan,
+  cmMessage,
+  cmQueueEntry,
+  cmReport,
+  cmSession,
+  cmSessionParticipant,
   user,
   session as authSession,
+  message,
+  eventRsvp,
+  abuseEvent,
 } from "@/lib/schema";
-import { and, eq, sql, desc, gte, inArray, ne } from "drizzle-orm";
+import { and, eq, sql, desc, gte, gt, inArray, isNull, ne } from "drizzle-orm";
 import {
   type ActionResult,
   type ApprovalMode,
@@ -22,6 +31,7 @@ import {
   requireAdmin,
   getAutoApproveSetting,
   getApprovalMode,
+  getCampusMatchEnabled,
   getModerationPreset,
   getCustomModerationRules,
   getCursorPromoEnabled,
@@ -38,6 +48,7 @@ import {
 } from "@/lib/flair-service";
 import { getFlairById } from "@/lib/user-flairs";
 import { extractMentionUsernames } from "@/lib/mentions";
+import { getIO } from "@/lib/socket-server";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -111,10 +122,44 @@ const settingsSchema = z.object({
   moderationPreset: z.enum(["strict", "moderate", "relaxed"]).optional(),
   customModerationRules: z.string().max(2000).optional(),
   cursorPromoEnabled: z.boolean().optional(),
+  campusMatchEnabled: z.boolean().optional(),
+});
+
+const resolveCampusMatchReportSchema = z.object({
+  reportId: z.string().uuid(),
+  adminNote: z.string().trim().max(1000).optional(),
+});
+
+const banCampusMatchReportSchema = z.object({
+  reportId: z.string().uuid(),
+  durationDays: z.number().int().min(1).max(365).default(7),
+  adminNote: z.string().trim().max(1000).optional(),
+});
+
+const liftCampusMatchBanSchema = z.object({
+  banId: z.string().uuid(),
 });
 
 function getActorLabel(actor?: { username?: string | null; name?: string | null } | null): string {
   return actor?.username ? `@${actor.username}` : (actor?.name ?? "Someone");
+}
+
+function emitCampusMatchUserEvent(
+  eventName:
+    | "campus_match_state_changed"
+    | "campus_match_session_ended",
+  payload: Record<string, unknown>,
+  userIds: string[],
+) {
+  try {
+    const io = getIO();
+    const uniq = [...new Set(userIds)];
+    for (const userId of uniq) {
+      io.to(`user:${userId}`).emit(eventName, payload);
+    }
+  } catch (err) {
+    console.error("[admin] socket emit failed", { eventName, err });
+  }
 }
 
 async function notifyPostMentionsOnApproval(data: {
@@ -1133,6 +1178,297 @@ export async function adminGetDashboardStats(): Promise<
   };
 }
 
+// ─── Dashboard Data (Full) ───────────────────────────────────────────────────
+
+type ActivityItem = {
+  type: "new_user" | "new_post" | "new_event" | "abuse" | "cm_report";
+  title: string;
+  detail: string;
+  timestamp: string;
+};
+
+type DashboardData = {
+  kpis: {
+    totalUsers: number;
+    newUsersThisWeek: number;
+    totalContent: number;
+    pendingModeration: number;
+    activeAbuseAlerts: number;
+    pendingCmReports: number;
+  };
+  recentActivity: ActivityItem[];
+  userGrowth: { date: string; count: number }[];
+  contentHealth: {
+    posts: { draft: number; approved: number; rejected: number };
+    events: { draft: number; approved: number; rejected: number };
+    gigs: { draft: number; approved: number; rejected: number };
+    landmarks: { draft: number; approved: number; rejected: number };
+  };
+  engagement: {
+    messagesSent: number;
+    campusMatchSessions: number;
+    eventRsvps: number;
+  };
+};
+
+export async function adminGetDashboardData(): Promise<ActionResult<DashboardData>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const [
+    userStats,
+    postCounts,
+    eventCounts,
+    gigCounts,
+    landmarkCounts,
+    abuseAlertCount,
+    cmReportCount,
+    userGrowthRaw,
+    messagesCount,
+    cmSessionCount,
+    rsvpCount,
+    recentUsers,
+    recentPosts,
+    recentEvents,
+    recentAbuse,
+    recentCmReports,
+  ] = await Promise.all([
+    // KPI: user stats
+    db
+      .select({
+        total: sql<number>`COUNT(*) FILTER (WHERE ${user.status} != 'deleted')`,
+        newThisWeek: sql<number>`COUNT(*) FILTER (WHERE ${user.createdAt} >= ${sevenDaysAgo} AND ${user.status} != 'deleted')`,
+      })
+      .from(user),
+    // Content counts: posts
+    db
+      .select({
+        draft: sql<number>`COUNT(*) FILTER (WHERE ${communityPost.status} = 'draft')`,
+        approved: sql<number>`COUNT(*) FILTER (WHERE ${communityPost.status} = 'approved')`,
+        rejected: sql<number>`COUNT(*) FILTER (WHERE ${communityPost.status} = 'rejected')`,
+      })
+      .from(communityPost),
+    // Content counts: events
+    db
+      .select({
+        draft: sql<number>`COUNT(*) FILTER (WHERE ${campusEvent.status} = 'draft')`,
+        approved: sql<number>`COUNT(*) FILTER (WHERE ${campusEvent.status} = 'approved')`,
+        rejected: sql<number>`COUNT(*) FILTER (WHERE ${campusEvent.status} = 'rejected')`,
+      })
+      .from(campusEvent),
+    // Content counts: gigs
+    db
+      .select({
+        draft: sql<number>`COUNT(*) FILTER (WHERE ${gigListing.status} = 'draft')`,
+        approved: sql<number>`COUNT(*) FILTER (WHERE ${gigListing.status} = 'approved')`,
+        rejected: sql<number>`COUNT(*) FILTER (WHERE ${gigListing.status} = 'rejected')`,
+      })
+      .from(gigListing),
+    // Content counts: landmarks
+    db
+      .select({
+        draft: sql<number>`COUNT(*) FILTER (WHERE ${landmark.status} = 'draft')`,
+        approved: sql<number>`COUNT(*) FILTER (WHERE ${landmark.status} = 'approved')`,
+        rejected: sql<number>`COUNT(*) FILTER (WHERE ${landmark.status} = 'rejected')`,
+      })
+      .from(landmark),
+    // KPI: abuse alerts (24h)
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(abuseEvent)
+      .where(
+        and(
+          gte(abuseEvent.createdAt, twentyFourHoursAgo),
+          sql`${abuseEvent.decision} IN ('deny', 'throttle')`,
+        ),
+      ),
+    // KPI: pending CM reports
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(cmReport)
+      .where(eq(cmReport.status, "pending")),
+    // User growth: last 30 days
+    db
+      .select({
+        date: sql<string>`date_trunc('day', ${user.createdAt})::date::text`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(user)
+      .where(and(gte(user.createdAt, thirtyDaysAgo), ne(user.status, "deleted")))
+      .groupBy(sql`date_trunc('day', ${user.createdAt})::date`)
+      .orderBy(sql`date_trunc('day', ${user.createdAt})::date`),
+    // Engagement: messages (7d)
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(message)
+      .where(gte(message.createdAt, sevenDaysAgo)),
+    // Engagement: CM sessions (7d)
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(cmSession)
+      .where(gte(cmSession.createdAt, sevenDaysAgo)),
+    // Engagement: RSVPs (7d)
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(eventRsvp)
+      .where(gte(eventRsvp.createdAt, sevenDaysAgo)),
+    // Recent: users
+    db
+      .select({
+        name: user.name,
+        username: user.displayUsername,
+        createdAt: user.createdAt,
+      })
+      .from(user)
+      .where(ne(user.status, "deleted"))
+      .orderBy(desc(user.createdAt))
+      .limit(10),
+    // Recent: posts
+    db
+      .select({
+        title: communityPost.title,
+        status: communityPost.status,
+        createdAt: communityPost.createdAt,
+      })
+      .from(communityPost)
+      .orderBy(desc(communityPost.createdAt))
+      .limit(10),
+    // Recent: events
+    db
+      .select({
+        title: campusEvent.title,
+        status: campusEvent.status,
+        createdAt: campusEvent.createdAt,
+      })
+      .from(campusEvent)
+      .orderBy(desc(campusEvent.createdAt))
+      .limit(10),
+    // Recent: abuse (deny/throttle)
+    db
+      .select({
+        action: abuseEvent.action,
+        decision: abuseEvent.decision,
+        createdAt: abuseEvent.createdAt,
+      })
+      .from(abuseEvent)
+      .where(sql`${abuseEvent.decision} IN ('deny', 'throttle')`)
+      .orderBy(desc(abuseEvent.createdAt))
+      .limit(10),
+    // Recent: CM reports
+    db
+      .select({
+        reason: cmReport.reason,
+        status: cmReport.status,
+        createdAt: cmReport.createdAt,
+      })
+      .from(cmReport)
+      .orderBy(desc(cmReport.createdAt))
+      .limit(10),
+  ]);
+
+  // Build recent activity feed
+  const activity: ActivityItem[] = [];
+
+  for (const u of recentUsers) {
+    activity.push({
+      type: "new_user",
+      title: "New user signed up",
+      detail: u.username ? `@${u.username}` : u.name,
+      timestamp: u.createdAt.toISOString(),
+    });
+  }
+  for (const p of recentPosts) {
+    activity.push({
+      type: "new_post",
+      title: p.status === "draft" ? "Post pending review" : "New post",
+      detail: p.title.length > 60 ? p.title.slice(0, 60) + "..." : p.title,
+      timestamp: p.createdAt.toISOString(),
+    });
+  }
+  for (const e of recentEvents) {
+    activity.push({
+      type: "new_event",
+      title: e.status === "draft" ? "Event pending review" : "New event",
+      detail: e.title.length > 60 ? e.title.slice(0, 60) + "..." : e.title,
+      timestamp: e.createdAt.toISOString(),
+    });
+  }
+  for (const a of recentAbuse) {
+    activity.push({
+      type: "abuse",
+      title: `Abuse ${a.decision}`,
+      detail: a.action,
+      timestamp: a.createdAt.toISOString(),
+    });
+  }
+  for (const r of recentCmReports) {
+    activity.push({
+      type: "cm_report",
+      title: "Campus Match report",
+      detail: r.reason.length > 60 ? r.reason.slice(0, 60) + "..." : r.reason,
+      timestamp: r.createdAt.toISOString(),
+    });
+  }
+
+  activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const recentActivity = activity.slice(0, 20);
+
+  // Fill user growth gaps
+  const growthMap = new Map(userGrowthRaw.map((r) => [r.date, Number(r.count)]));
+  const userGrowth: { date: string; count: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    userGrowth.push({ date: key, count: growthMap.get(key) ?? 0 });
+  }
+
+  const p = postCounts[0];
+  const ev = eventCounts[0];
+  const g = gigCounts[0];
+  const l = landmarkCounts[0];
+
+  const totalContent =
+    Number(p.draft) + Number(p.approved) + Number(p.rejected) +
+    Number(ev.draft) + Number(ev.approved) + Number(ev.rejected) +
+    Number(g.draft) + Number(g.approved) + Number(g.rejected) +
+    Number(l.draft) + Number(l.approved) + Number(l.rejected);
+
+  const pendingModeration =
+    Number(p.draft) + Number(ev.draft) + Number(g.draft) + Number(l.draft);
+
+  return {
+    success: true,
+    data: {
+      kpis: {
+        totalUsers: Number(userStats[0].total),
+        newUsersThisWeek: Number(userStats[0].newThisWeek),
+        totalContent,
+        pendingModeration,
+        activeAbuseAlerts: Number(abuseAlertCount[0].count),
+        pendingCmReports: Number(cmReportCount[0].count),
+      },
+      recentActivity,
+      userGrowth,
+      contentHealth: {
+        posts: { draft: Number(p.draft), approved: Number(p.approved), rejected: Number(p.rejected) },
+        events: { draft: Number(ev.draft), approved: Number(ev.approved), rejected: Number(ev.rejected) },
+        gigs: { draft: Number(g.draft), approved: Number(g.approved), rejected: Number(g.rejected) },
+        landmarks: { draft: Number(l.draft), approved: Number(l.approved), rejected: Number(l.rejected) },
+      },
+      engagement: {
+        messagesSent: Number(messagesCount[0].count),
+        campusMatchSessions: Number(cmSessionCount[0].count),
+        eventRsvps: Number(rsvpCount[0].count),
+      },
+    },
+  };
+}
+
 export async function adminGetNotifications(): Promise<
   ActionResult<unknown[]>
 > {
@@ -1172,6 +1508,7 @@ export async function adminGetSettings(): Promise<
     moderationPreset: ModerationPreset;
     customModerationRules: string;
     cursorPromoEnabled: boolean;
+    campusMatchEnabled: boolean;
   }>
 > {
   const session = await requireAdmin();
@@ -1181,7 +1518,17 @@ export async function adminGetSettings(): Promise<
   const moderationPreset = await getModerationPreset();
   const customModerationRules = await getCustomModerationRules();
   const cursorPromoEnabled = await getCursorPromoEnabled();
-  return { success: true, data: { approvalMode, moderationPreset, customModerationRules, cursorPromoEnabled } };
+  const campusMatchEnabled = await getCampusMatchEnabled();
+  return {
+    success: true,
+    data: {
+      approvalMode,
+      moderationPreset,
+      customModerationRules,
+      cursorPromoEnabled,
+      campusMatchEnabled,
+    },
+  };
 }
 
 export async function adminUpdateSettings(
@@ -1245,6 +1592,402 @@ export async function adminUpdateSettings(
         set: { value: parsed.data.cursorPromoEnabled },
       });
   }
+
+  if (parsed.data.campusMatchEnabled !== undefined) {
+    await db
+      .insert(adminSetting)
+      .values({
+        key: "campusMatchEnabled",
+        value: parsed.data.campusMatchEnabled,
+      })
+      .onConflictDoUpdate({
+        target: [adminSetting.key],
+        set: { value: parsed.data.campusMatchEnabled },
+      });
+  }
+
+  return { success: true, data: undefined };
+}
+
+export type AdminCampusMatchReport = {
+  id: string;
+  sessionId: string;
+  reason: string;
+  status: "pending" | "resolved";
+  adminNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  reporter: {
+    id: string;
+    name: string;
+    username: string | null;
+  };
+  reportedUser: {
+    id: string;
+    name: string;
+    username: string | null;
+  };
+  transcriptPreview: Array<{
+    id: string;
+    senderAlias: string;
+    body: string | null;
+    imageUrl: string | null;
+    createdAt: string;
+  }>;
+  activeBan: null | {
+    banId: string;
+    expiresAt: string;
+    reason: string | null;
+  };
+};
+
+export async function adminGetCampusMatchReports(
+  status?: "pending" | "resolved",
+): Promise<ActionResult<AdminCampusMatchReport[]>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const reports = await db.query.cmReport.findMany({
+    where: status ? eq(cmReport.status, status) : undefined,
+    with: {
+      reporter: {
+        columns: {
+          id: true,
+          name: true,
+          username: true,
+        },
+      },
+      reportedUser: {
+        columns: {
+          id: true,
+          name: true,
+          username: true,
+        },
+      },
+    },
+    orderBy: (table, { desc: d }) => [d(table.createdAt)],
+  });
+
+  if (reports.length === 0) return { success: true, data: [] };
+
+  const now = new Date();
+  const reportedUserIds = [...new Set(reports.map((report) => report.reportedUserId))];
+  const activeBans = await db
+    .select({
+      id: cmBan.id,
+      userId: cmBan.userId,
+      expiresAt: cmBan.expiresAt,
+      reason: cmBan.reason,
+    })
+    .from(cmBan)
+    .where(
+      and(
+        inArray(cmBan.userId, reportedUserIds),
+        isNull(cmBan.liftedAt),
+        gt(cmBan.expiresAt, now),
+      ),
+    )
+    .orderBy(desc(cmBan.expiresAt));
+
+  const activeBanByUser = new Map<string, (typeof activeBans)[number]>();
+  for (const ban of activeBans) {
+    if (!activeBanByUser.has(ban.userId)) {
+      activeBanByUser.set(ban.userId, ban);
+    }
+  }
+
+  const sessionIds = [...new Set(reports.map((r) => r.sessionId))];
+
+  const [allParticipants, allTranscriptRows] = await Promise.all([
+    db
+      .select({
+        sessionId: cmSessionParticipant.sessionId,
+        userId: cmSessionParticipant.userId,
+        alias: cmSessionParticipant.alias,
+      })
+      .from(cmSessionParticipant)
+      .where(inArray(cmSessionParticipant.sessionId, sessionIds)),
+    db
+      .select({
+        sessionId: cmMessage.sessionId,
+        id: cmMessage.id,
+        senderId: cmMessage.senderId,
+        body: cmMessage.body,
+        imageUrl: cmMessage.imageUrl,
+        createdAt: cmMessage.createdAt,
+      })
+      .from(cmMessage)
+      .where(inArray(cmMessage.sessionId, sessionIds))
+      .orderBy(desc(cmMessage.createdAt)),
+  ]);
+
+  const participantsBySession = new Map<string, Map<string, string>>();
+  for (const p of allParticipants) {
+    let aliases = participantsBySession.get(p.sessionId);
+    if (!aliases) {
+      aliases = new Map();
+      participantsBySession.set(p.sessionId, aliases);
+    }
+    aliases.set(p.userId, p.alias);
+  }
+
+  const transcriptBySession = new Map<string, typeof allTranscriptRows>();
+  for (const row of allTranscriptRows) {
+    let rows = transcriptBySession.get(row.sessionId);
+    if (!rows) {
+      rows = [];
+      transcriptBySession.set(row.sessionId, rows);
+    }
+    if (rows.length < 20) {
+      rows.push(row);
+    }
+  }
+
+  const mapped: AdminCampusMatchReport[] = reports.map((report) => {
+    const aliasByUser = participantsBySession.get(report.sessionId) ?? new Map<string, string>();
+    const transcriptRows = transcriptBySession.get(report.sessionId) ?? [];
+
+    const transcriptPreview = [...transcriptRows]
+      .reverse()
+      .map((row) => ({
+        id: row.id,
+        senderAlias: row.senderId ? aliasByUser.get(row.senderId) ?? "Unknown" : "Unknown",
+        body: row.body,
+        imageUrl: row.imageUrl,
+        createdAt: row.createdAt.toISOString(),
+      }));
+
+    const activeBan = activeBanByUser.get(report.reportedUserId);
+
+    return {
+      id: report.id,
+      sessionId: report.sessionId,
+      reason: report.reason,
+      status: report.status as "pending" | "resolved",
+      adminNote: report.adminNote ?? null,
+      createdAt: report.createdAt.toISOString(),
+      reviewedAt: report.reviewedAt ? report.reviewedAt.toISOString() : null,
+      reporter: {
+        id: report.reporter.id,
+        name: report.reporter.name,
+        username: report.reporter.username,
+      },
+      reportedUser: {
+        id: report.reportedUser.id,
+        name: report.reportedUser.name,
+        username: report.reportedUser.username,
+      },
+      transcriptPreview,
+      activeBan: activeBan
+        ? {
+            banId: activeBan.id,
+            expiresAt: activeBan.expiresAt.toISOString(),
+            reason: activeBan.reason ?? null,
+          }
+        : null,
+    };
+  });
+
+  return { success: true, data: mapped };
+}
+
+export async function adminResolveCampusMatchReport(
+  input: z.infer<typeof resolveCampusMatchReportSchema>,
+): Promise<ActionResult<void>> {
+  const parsed = resolveCampusMatchReportSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  const adminSession = await requireAdmin();
+  if (!adminSession) return { success: false, error: "Unauthorized" };
+
+  const now = new Date();
+  const updated = await db
+    .update(cmReport)
+    .set({
+      status: "resolved",
+      adminNote: parsed.data.adminNote ?? null,
+      reviewedAt: now,
+      reviewedBy: adminSession.user.id,
+    })
+    .where(eq(cmReport.id, parsed.data.reportId))
+    .returning({
+      sessionId: cmReport.sessionId,
+    });
+
+  if (updated.length === 0) {
+    return { success: false, error: "Report not found" };
+  }
+
+  const participants = await db
+    .select({ userId: cmSessionParticipant.userId })
+    .from(cmSessionParticipant)
+    .where(eq(cmSessionParticipant.sessionId, updated[0].sessionId));
+
+  emitCampusMatchUserEvent(
+    "campus_match_state_changed",
+    { changedAt: now.toISOString() },
+    participants.map((participant) => participant.userId),
+  );
+
+  return { success: true, data: undefined };
+}
+
+export async function adminBanUserFromCampusMatchReport(
+  input: z.infer<typeof banCampusMatchReportSchema>,
+): Promise<ActionResult<void>> {
+  const parsed = banCampusMatchReportSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  const adminSession = await requireAdmin();
+  if (!adminSession) return { success: false, error: "Unauthorized" };
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + parsed.data.durationDays * 24 * 60 * 60 * 1000);
+
+  const result = await db.transaction(async (tx) => {
+    const reports = await tx
+      .select({
+        id: cmReport.id,
+        sessionId: cmReport.sessionId,
+        reportedUserId: cmReport.reportedUserId,
+        reason: cmReport.reason,
+      })
+      .from(cmReport)
+      .where(eq(cmReport.id, parsed.data.reportId))
+      .limit(1);
+
+    const report = reports[0];
+    if (!report) {
+      return { error: "Report not found", userIds: [] as string[], sessionIds: [] as string[] };
+    }
+
+    await tx
+      .update(cmReport)
+      .set({
+        status: "resolved",
+        adminNote: parsed.data.adminNote ?? null,
+        reviewedAt: now,
+        reviewedBy: adminSession.user.id,
+      })
+      .where(eq(cmReport.id, report.id));
+
+    await tx.insert(cmBan).values({
+      userId: report.reportedUserId,
+      sourceReportId: report.id,
+      reason: parsed.data.adminNote ?? report.reason,
+      createdBy: adminSession.user.id,
+      createdAt: now,
+      expiresAt,
+      liftedAt: null,
+      liftedBy: null,
+    });
+
+    await tx.delete(cmQueueEntry).where(eq(cmQueueEntry.userId, report.reportedUserId));
+
+    const activeSessions = await tx
+      .select({
+        sessionId: cmSession.id,
+      })
+      .from(cmSessionParticipant)
+      .innerJoin(
+        cmSession,
+        and(
+          eq(cmSession.id, cmSessionParticipant.sessionId),
+          eq(cmSession.status, "active"),
+        ),
+      )
+      .where(eq(cmSessionParticipant.userId, report.reportedUserId));
+
+    const sessionIds = activeSessions.map((row) => row.sessionId);
+    let userIds: string[] = [report.reportedUserId];
+
+    if (sessionIds.length > 0) {
+      await tx
+        .update(cmSession)
+        .set({
+          status: "ended",
+          endedReason: "banned",
+          endedAt: now,
+        })
+        .where(inArray(cmSession.id, sessionIds));
+
+      await tx
+        .update(cmSessionParticipant)
+        .set({ connectRequested: false })
+        .where(inArray(cmSessionParticipant.sessionId, sessionIds));
+
+      const participants = await tx
+        .select({ userId: cmSessionParticipant.userId })
+        .from(cmSessionParticipant)
+        .where(inArray(cmSessionParticipant.sessionId, sessionIds));
+
+      userIds = [...new Set([...userIds, ...participants.map((row) => row.userId)])];
+    }
+
+    return { error: null as string | null, userIds, sessionIds };
+  });
+
+  if (result.error) {
+    return { success: false, error: result.error };
+  }
+
+  emitCampusMatchUserEvent(
+    "campus_match_state_changed",
+    { changedAt: now.toISOString() },
+    result.userIds,
+  );
+
+  for (const sessionId of result.sessionIds) {
+    emitCampusMatchUserEvent(
+      "campus_match_session_ended",
+      {
+        sessionId,
+        reason: "banned",
+        endedAt: now.toISOString(),
+      },
+      result.userIds,
+    );
+  }
+
+  return { success: true, data: undefined };
+}
+
+export async function adminLiftCampusMatchBan(
+  input: z.infer<typeof liftCampusMatchBanSchema>,
+): Promise<ActionResult<void>> {
+  const parsed = liftCampusMatchBanSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  const adminSession = await requireAdmin();
+  if (!adminSession) return { success: false, error: "Unauthorized" };
+
+  const now = new Date();
+  const lifted = await db
+    .update(cmBan)
+    .set({
+      liftedAt: now,
+      liftedBy: adminSession.user.id,
+    })
+    .where(and(eq(cmBan.id, parsed.data.banId), isNull(cmBan.liftedAt)))
+    .returning({
+      userId: cmBan.userId,
+    });
+
+  if (lifted.length === 0) {
+    return { success: false, error: "Ban record not found or already lifted" };
+  }
+
+  emitCampusMatchUserEvent(
+    "campus_match_state_changed",
+    { changedAt: now.toISOString() },
+    [lifted[0].userId],
+  );
 
   return { success: true, data: undefined };
 }
@@ -1493,7 +2236,6 @@ export async function adminRevokeFlair(
 
 // ─── Abuse Monitor ──────────────────────────────────────────────────────────
 
-import { abuseEvent } from "@/lib/schema";
 import { clearUserCooldowns } from "@/lib/abuse/store-redis";
 
 export async function adminGetAbuseStats(): Promise<
