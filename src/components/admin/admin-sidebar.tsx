@@ -19,6 +19,7 @@ import {
   Users,
   Megaphone,
   BellRing,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,30 +45,20 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Posts",
+    label: "Moderation",
     items: [
-      { href: "/admin/queue", label: "Post Queue", shortLabel: "Queue", icon: ClipboardList },
+      { href: "/admin/queue", label: "Post Queue", shortLabel: "Posts", icon: ClipboardList },
+      { href: "/admin/events/queue", label: "Events Queue", shortLabel: "Events", icon: ClipboardList },
+      { href: "/admin/locations/queue", label: "Locations Queue", shortLabel: "Locations", icon: ClipboardList },
+      { href: "/admin/gigs/queue", label: "Gigs Queue", shortLabel: "Gigs", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Content",
+    items: [
       { href: "/admin/posts", label: "All Posts", shortLabel: "Posts", icon: FileText },
-    ],
-  },
-  {
-    label: "Events",
-    items: [
-      { href: "/admin/events/queue", label: "Events Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/events", label: "All Events", shortLabel: "Events", icon: Calendar },
-    ],
-  },
-  {
-    label: "Locations",
-    items: [
-      { href: "/admin/locations/queue", label: "Locations Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/locations", label: "All Locations", shortLabel: "Locations", icon: MapPin },
-    ],
-  },
-  {
-    label: "Gigs",
-    items: [
-      { href: "/admin/gigs/queue", label: "Gigs Queue", shortLabel: "Queue", icon: ClipboardList },
       { href: "/admin/gigs", label: "All Gigs", shortLabel: "Gigs", icon: Briefcase },
     ],
   },
@@ -88,6 +79,7 @@ const navGroups: NavGroup[] = [
     label: "System",
     items: [
       { href: "/admin/abuse", label: "Abuse Monitor", shortLabel: "Abuse", icon: ShieldAlert },
+      { href: "/admin/campus-match-reports", label: "Campus Match Reports", shortLabel: "CM Reports", icon: Flag },
       { href: "/admin/notifications", label: "Notifications", shortLabel: "Notifs", icon: Bell },
       { href: "/admin/settings", label: "Settings", shortLabel: "Settings", icon: Settings },
     ],
