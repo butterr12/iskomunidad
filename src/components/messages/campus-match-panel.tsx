@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   Ban,
   Ghost,
-  HeartHandshake,
   Loader2,
   Send,
   ImagePlus,
@@ -21,6 +20,8 @@ import {
   Flag,
   UserRoundPlus,
   MessageSquare,
+  SkipForward,
+  LogOut,
 } from "lucide-react";
 import {
   blockCampusMatchUser,
@@ -39,11 +40,17 @@ import {
 } from "@/actions/campus-match";
 import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -495,7 +502,7 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
       <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
         <AlertTriangle className="h-8 w-8 text-amber-500" />
         <p className="text-sm text-muted-foreground">
-          {error instanceof Error ? error.message : "Failed to load Campus Match"}
+          {error instanceof Error ? error.message : "Failed to load Chat with Strangers"}
         </p>
         <Button variant="outline" size="sm" onClick={() => void refetchState()}>
           Try again
@@ -512,301 +519,331 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
     );
   }
 
+  const activeSession = state.status === "in_session" ? state.session : null;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b px-4 py-3">
-        {onBack && (
-          <Button variant="ghost" size="sm" onClick={onBack} className="sm:hidden">
-            <ArrowLeft className="h-4 w-4" />
-            <span className="sr-only">Back to inbox</span>
-          </Button>
-        )}
-        <HeartHandshake className="h-4 w-4 text-primary" />
-        <p className="text-sm font-semibold">Campus Match</p>
-        {state.status === "in_session" && (
-          <Badge variant="secondary" className="ml-auto">
-            Live
-          </Badge>
-        )}
-      </div>
+      {/* Header — only shown during active session */}
+      {activeSession && (
+        <div className="flex items-center gap-2 border-b px-4 py-2.5">
+          {onBack && (
+            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 sm:hidden">
+              <ArrowLeft className="h-4 w-4" />
+              <span className="sr-only">Back to inbox</span>
+            </Button>
+          )}
+          <Ghost className="h-4 w-4 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{activeSession.partnerAlias}</p>
+            <p className="text-[11px] text-muted-foreground">You are {activeSession.myAlias}</p>
+          </div>
+          {activeSession.connectState === "none" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 gap-1 text-xs"
+              onClick={() => void handleConnectRequest()}
+              disabled={hasSessionActionPending}
+            >
+              <UserRoundPlus className="h-3.5 w-3.5" />
+              Connect
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 shrink-0 text-xs">
+                Chat actions
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => void handleSkipSession()}
+                disabled={hasSessionActionPending}
+              >
+                <SkipForward className="mr-2 h-4 w-4" />
+                Skip &amp; requeue
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => void handleEndSession()}
+                disabled={hasSessionActionPending}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                End chat
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setBlockDialogOpen(true)}
+                disabled={hasSessionActionPending}
+                className="text-destructive focus:text-destructive"
+              >
+                <Ban className="mr-2 h-4 w-4" />
+                Block
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setReportDialogOpen(true)}
+                disabled={hasSessionActionPending}
+                className="text-destructive focus:text-destructive"
+              >
+                <Flag className="mr-2 h-4 w-4" />
+                Report
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {state.status === "banned" && state.ban && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ShieldAlert className="h-4 w-4 text-amber-600" />
-                Temporarily Unavailable
-              </CardTitle>
-              <CardDescription>
-                Campus Match access is temporarily restricted for your account.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <p>
-                Ban expires: <span className="font-medium">{new Date(state.ban.expiresAt).toLocaleString()}</span>
-              </p>
-              {state.ban.reason && (
-                <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  Reason: {state.ban.reason}
+      {/* Non-session states */}
+      {!activeSession && (
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {onBack && (
+            <Button variant="ghost" size="sm" onClick={onBack} className="mb-3 gap-1 sm:hidden">
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+          )}
+          {state.status === "banned" && state.ban && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ShieldAlert className="h-4 w-4 text-amber-600" />
+                  Temporarily Unavailable
+                </CardTitle>
+                <CardDescription>
+                  Chat with Strangers access is temporarily restricted for your account.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <p>
+                  Ban expires: <span className="font-medium">{new Date(state.ban.expiresAt).toLocaleString()}</span>
                 </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                {state.ban.reason && (
+                  <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    Reason: {state.ban.reason}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-        {state.status === "idle" && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Find an anonymous match</CardTitle>
-              <CardDescription>
-                Choose your alias and scope, then join the queue.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="campus-match-alias">Alias</Label>
-                <Input
-                  id="campus-match-alias"
-                  value={alias}
-                  onChange={(e) => setAlias(e.target.value)}
-                  placeholder="e.g. Midnight Isko"
-                  maxLength={24}
-                />
-                <p className="text-xs text-muted-foreground">3-24 characters, letters/numbers/spaces.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Scope</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant={scope === "same-campus" ? "default" : "outline"}
-                    onClick={() => setScope("same-campus")}
-                  >
-                    Same campus
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={scope === "all-campuses" ? "default" : "outline"}
-                    onClick={() => setScope("all-campuses")}
-                  >
-                    All campuses
-                  </Button>
+          {state.status === "idle" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Find an anonymous match</CardTitle>
+                <CardDescription>
+                  Choose your alias and scope, then join the queue.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="campus-match-alias">Alias</Label>
+                  <Input
+                    id="campus-match-alias"
+                    value={alias}
+                    onChange={(e) => setAlias(e.target.value)}
+                    placeholder="e.g. Midnight Isko"
+                    maxLength={24}
+                  />
+                  <p className="text-xs text-muted-foreground">3-24 characters, letters/numbers/spaces.</p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Same campus requires your university to be set in Settings.
-                </p>
-              </div>
 
-              <Button className="w-full" onClick={handleJoinQueue} disabled={joining}>
-                {joining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Ghost className="mr-2 h-4 w-4" />}
-                Join queue
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {state.status === "waiting" && state.queue && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Looking for a match</CardTitle>
-              <CardDescription>
-                We match as soon as an eligible user is available. We keep your queue presence alive automatically.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-                <span className="text-muted-foreground">Alias</span>
-                <span className="font-medium">{state.queue.alias}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-                <span className="text-muted-foreground">Scope</span>
-                <span className="font-medium">
-                  {state.queue.scope === "same-campus" ? "Same campus" : "All campuses"}
-                </span>
-              </div>
-              <Button variant="outline" className="w-full" onClick={handleLeaveQueue}>
-                Leave queue
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {state.status === "in_session" && state.session && (
-          <div className="flex min-h-0 flex-1 flex-col rounded-xl border">
-            <div className="border-b px-4 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold">Talking with {state.session.partnerAlias}</p>
+                <div className="space-y-1.5">
+                  <Label>Scope</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={scope === "same-campus" ? "default" : "outline"}
+                      onClick={() => setScope("same-campus")}
+                    >
+                      Same campus
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={scope === "all-campuses" ? "default" : "outline"}
+                      onClick={() => setScope("all-campuses")}
+                    >
+                      All campuses
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    You are {state.session.myAlias}. Identity reveals only if both connect.
+                    Same campus requires your university to be set in Settings.
                   </p>
                 </div>
-                <Badge variant="outline" className="capitalize">
-                  {state.session.connectState.replace("_", " ")}
-                </Badge>
-              </div>
-              {state.session.connectState === "pending_them" && (
-                <p className="mt-2 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary">
-                  The other user requested to connect.
-                </p>
-              )}
+
+                <Button className="w-full" onClick={handleJoinQueue} disabled={joining}>
+                  {joining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Ghost className="mr-2 h-4 w-4" />}
+                  Join queue
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {state.status === "waiting" && state.queue && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Looking for a match</CardTitle>
+                <CardDescription>
+                  We match as soon as an eligible user is available. We keep your queue presence alive automatically.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                  <span className="text-muted-foreground">Alias</span>
+                  <span className="font-medium">{state.queue.alias}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                  <span className="text-muted-foreground">Scope</span>
+                  <span className="font-medium">
+                    {state.queue.scope === "same-campus" ? "Same campus" : "All campuses"}
+                  </span>
+                </div>
+                <Button variant="outline" className="w-full" onClick={handleLeaveQueue}>
+                  Leave queue
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* In-session chat */}
+      {activeSession && (
+        <>
+          {/* Connect banner */}
+          {activeSession.connectState === "pending_them" && (
+            <div className="flex items-center gap-2 border-b bg-primary/5 px-4 py-2">
+              <p className="flex-1 text-xs text-primary">
+                {activeSession.partnerAlias} wants to connect and reveal identities.
+              </p>
+              <Button
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() => void handleConnectRequest()}
+                disabled={hasSessionActionPending}
+              >
+                <UserRoundPlus className="h-3 w-3" />
+                Accept
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => void handleDeclineConnect()}
+                disabled={hasSessionActionPending}
+              >
+                Decline
+              </Button>
             </div>
+          )}
 
-            <div
-              ref={messagesContainerRef}
-              onScroll={handleMessagesScroll}
-              className="min-h-0 flex-1 overflow-y-auto py-2"
-            >
-              {hasNextPage && allMessages.length > 0 && (
-                <div className="flex justify-center pb-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void handleLoadOlder()}
-                    disabled={isFetchingNextPage}
-                  >
-                    {isFetchingNextPage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Load older
-                  </Button>
-                </div>
-              )}
-
-              {allMessages.length === 0 ? (
-                <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                  <div>
-                    <MessageSquare className="mx-auto mb-2 h-5 w-5" />
-                    No messages yet. Say hi.
-                  </div>
-                </div>
-              ) : (
-                allMessages.map((msg) => (
-                  <MessageBubble
-                    key={msg.id}
-                    message={msg}
-                    isOwn={msg.senderId === authSession?.user?.id}
-                  />
-                ))
-              )}
+          {activeSession.connectState === "pending_me" && (
+            <div className="border-b bg-muted/40 px-4 py-2">
+              <p className="text-xs text-muted-foreground">
+                Connect request sent. Waiting for {activeSession.partnerAlias} to respond.
+              </p>
             </div>
+          )}
 
-            {imagePreviewUrl && (
-              <div className="border-t px-4 py-2">
-                <div className="relative inline-block">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- local preview */}
-                  <img src={imagePreviewUrl} alt="Preview" className="h-20 rounded-lg object-cover" />
-                  <button
-                    onClick={clearImage}
-                    aria-label="Remove selected image"
-                    className="absolute -top-1 -right-1 rounded-full bg-destructive p-0.5 text-destructive-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
+          {/* Messages */}
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleMessagesScroll}
+            className="min-h-0 flex-1 overflow-y-auto py-2"
+          >
+            {hasNextPage && allMessages.length > 0 && (
+              <div className="flex justify-center pb-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleLoadOlder()}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Load older
+                </Button>
               </div>
             )}
 
-            <div className="border-t px-4 py-3">
-              <div className="flex items-end gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={IMAGE_UPLOAD_ACCEPT}
-                  className="hidden"
-                  onChange={handleImageSelect}
+            {allMessages.length === 0 ? (
+              <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                <div>
+                  <MessageSquare className="mx-auto mb-2 h-5 w-5" />
+                  No messages yet. Say hi.
+                </div>
+              </div>
+            ) : (
+              allMessages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  isOwn={msg.senderId === authSession?.user?.id}
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  aria-label="Attach image"
-                  disabled={processingImage || sendingMessage}
-                  onClick={() => fileInputRef.current?.click()}
+              ))
+            )}
+          </div>
+
+          {/* Image preview */}
+          {imagePreviewUrl && (
+            <div className="border-t px-4 py-2">
+              <div className="relative inline-block">
+                {/* eslint-disable-next-line @next/next/no-img-element -- local preview */}
+                <img src={imagePreviewUrl} alt="Preview" className="h-20 rounded-lg object-cover" />
+                <button
+                  onClick={clearImage}
+                  aria-label="Remove selected image"
+                  className="absolute -top-1 -right-1 rounded-full bg-destructive p-0.5 text-destructive-foreground"
                 >
-                  {processingImage ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
-                </Button>
-                <Textarea
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  placeholder="Type a message"
-                  rows={1}
-                  className="min-h-9 resize-none"
-                />
-                <Button
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  aria-label="Send message"
-                  disabled={sendingMessage || (!messageText.trim() && !imageFile)}
-                  onClick={() => void handleSendMessage()}
-                >
-                  {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </Button>
+                  <X className="h-3 w-3" />
+                </button>
               </div>
             </div>
+          )}
 
-            <div className="border-t px-4 py-3">
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="default"
-                  onClick={() => void handleConnectRequest()}
-                  className="gap-1"
-                  disabled={
-                    hasSessionActionPending ||
-                    state.session.connectState === "pending_me" ||
-                    state.session.connectState === "mutual"
+          {/* Message input + connect button */}
+          <div className="border-t px-4 py-3">
+            <div className="flex items-end gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={IMAGE_UPLOAD_ACCEPT}
+                className="hidden"
+                onChange={handleImageSelect}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="Attach image"
+                disabled={processingImage || sendingMessage}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {processingImage ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
+              </Button>
+              <Textarea
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void handleSendMessage();
                   }
-                >
-                  <UserRoundPlus className="h-4 w-4" />
-                  {state.session.connectState === "pending_them" ? "Accept Connect" : "Connect"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => void handleDeclineConnect()}
-                  disabled={
-                    hasSessionActionPending ||
-                    state.session.connectState === "none" ||
-                    state.session.connectState === "mutual"
-                  }
-                >
-                  Decline
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => void handleSkipSession()}
-                  disabled={hasSessionActionPending}
-                >
-                  Skip + requeue
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => void handleEndSession()}
-                  disabled={hasSessionActionPending}
-                >
-                  End chat
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-destructive text-destructive hover:bg-destructive/10"
-                  onClick={() => setBlockDialogOpen(true)}
-                  disabled={hasSessionActionPending}
-                >
-                  <Ban className="mr-2 h-4 w-4" />
-                  Block
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => setReportDialogOpen(true)}
-                  disabled={hasSessionActionPending}
-                >
-                  <Flag className="mr-2 h-4 w-4" />
-                  Report
-                </Button>
-              </div>
+                }}
+                placeholder="Type a message"
+                rows={1}
+                className="min-h-9 resize-none"
+              />
+              <Button
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="Send message"
+                disabled={sendingMessage || (!messageText.trim() && !imageFile)}
+                onClick={() => void handleSendMessage()}
+              >
+                {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <Dialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
         <DialogContent>

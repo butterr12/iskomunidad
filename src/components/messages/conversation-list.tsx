@@ -267,7 +267,8 @@ export function ConversationList({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Compose message"
+            title="New message"
+            aria-label="New message"
             onClick={() => setShowCompose(true)}
           >
             <SquarePen className="h-4 w-4" />
@@ -286,7 +287,8 @@ export function ConversationList({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Compose message"
+          title="New message"
+          aria-label="New message"
           onClick={() => setShowCompose(true)}
         >
           <SquarePen className="h-4 w-4" />
@@ -302,20 +304,6 @@ export function ConversationList({
       >
         <TabsList variant="line" className="w-full px-4 shrink-0">
           <TabsTrigger value="messages">Messages</TabsTrigger>
-          <TabsTrigger value="anon" className="gap-1">
-            <span className="relative flex items-center gap-1">
-              <Ghost className="h-3.5 w-3.5" />
-              Anon
-              {isCampusMatchActive ? (
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
-                </span>
-              ) : (
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
-              )}
-            </span>
-          </TabsTrigger>
           <TabsTrigger value="requests" className="ml-auto gap-1.5 opacity-40 data-[state=active]:opacity-100">
             Requests
             {requestCount > 0 && (
@@ -366,26 +354,23 @@ export function ConversationList({
           )}
         </TabsContent>
 
-        <TabsContent value="anon" className="flex-1 overflow-y-auto mt-0">
-          <div className="flex flex-col items-center px-5 py-8 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-              <Ghost className="h-7 w-7 text-muted-foreground" />
-            </div>
-            <h3 className="text-sm font-semibold">Campus Match</h3>
-            <p className="mt-1 max-w-[220px] text-xs text-muted-foreground">
-              Anonymous matching and chat are active. Use the main panel to join queue, chat, and connect.
-            </p>
-            <div className="mt-4 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
-              {campusMatchState?.status === "in_session" && "Status: In session"}
-              {campusMatchState?.status === "waiting" && "Status: Waiting for match"}
-              {campusMatchState?.status === "banned" && "Status: Temporarily unavailable"}
-              {!campusMatchState || campusMatchState.status === "idle"
-                ? "Status: Ready to join"
-                : null}
-            </div>
-          </div>
-        </TabsContent>
       </Tabs>
+
+      <div className="border-t px-4 py-3 shrink-0">
+        <Button
+          variant={activeTab === "anon" ? "secondary" : "outline"}
+          className="w-full gap-2"
+          onClick={() => onTabChange(activeTab === "anon" ? "messages" : "anon")}
+        >
+          <span className="relative">
+            <Ghost className="h-4 w-4" />
+            {isCampusMatchActive && (
+              <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
+            )}
+          </span>
+          Chat with Strangers
+        </Button>
+      </div>
 
       <ComposeDialog open={showCompose} onOpenChange={setShowCompose} />
     </div>
