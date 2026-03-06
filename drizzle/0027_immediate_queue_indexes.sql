@@ -1,0 +1,2 @@
+CREATE INDEX "cm_queue_entry_created_idx" ON "cm_queue_entry" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "cm_queue_entry_scope_created_heartbeat_idx" ON "cm_queue_entry" USING btree ("scope","created_at","heartbeat_at");

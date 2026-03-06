@@ -1225,9 +1225,6 @@ export async function touchCampusMatchPresence(): Promise<ActionResult<void>> {
   const killed = await requireCampusMatch();
   if (killed) return killed;
 
-  const limited = await rateLimit("general");
-  if (limited) return limited;
-
   const authSession = await getSession();
   if (!authSession) return { success: false, error: "Not authenticated" };
 
@@ -1235,10 +1232,15 @@ export async function touchCampusMatchPresence(): Promise<ActionResult<void>> {
   const banBlocked = await ensureUserNotBanned(userId);
   if (banBlocked) return banBlocked;
 
-  await db
+  const touched = await db
     .update(cmQueueEntry)
     .set({ heartbeatAt: new Date() })
-    .where(eq(cmQueueEntry.userId, userId));
+    .where(eq(cmQueueEntry.userId, userId))
+    .returning({ userId: cmQueueEntry.userId });
+
+  if (touched.length === 0) {
+    return { success: false, error: "Queue entry not found" };
+  }
 
   return { success: true, data: undefined };
 }

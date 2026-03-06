@@ -12,7 +12,10 @@ import { io, type Socket } from "socket.io-client";
 import { useSession } from "@/lib/auth-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getUnreadCount } from "@/actions/messages";
-import { getCampusMatchState, heartbeatCampusMatchQueue } from "@/actions/campus-match";
+import {
+  getCampusMatchRuntimeState,
+  touchCampusMatchPresence,
+} from "@/actions/campus-match";
 import { toast } from "sonner";
 
 export type MessageNotification = {
@@ -33,7 +36,6 @@ export type CampusMatchStateSnapshot = {
     scope: "same-campus" | "all-campuses";
     alias: string;
     waitingSince: string;
-    nextRoundAt: string;
   };
   session: null | {
     conversationId: string;
@@ -62,6 +64,10 @@ type SocketContextValue = {
 };
 
 const EMPTY_SET = new Set<string>();
+const TERMINAL_CAMPUS_MATCH_ERRORS = new Set([
+  "Not authenticated",
+  "Campus Match is currently disabled",
+]);
 
 const SocketContext = createContext<SocketContextValue>({
   socket: null,
@@ -115,18 +121,36 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const refreshCampusMatchState = useCallback(async () => {
-    const res = await getCampusMatchState();
-    if (res.success) {
-      setCampusMatchState(res.data);
-      void queryClient.setQueryData(["campus-match-state"], res.data);
-    }
-  }, [queryClient]);
-
   const clearCampusMatchState = useCallback(() => {
     setCampusMatchState(null);
     void queryClient.setQueryData(["campus-match-state"], null);
   }, [queryClient]);
+
+  const refreshCampusMatchState = useCallback(async () => {
+    try {
+      const res = await getCampusMatchRuntimeState();
+      if (res.success) {
+        setCampusMatchState(res.data);
+        void queryClient.setQueryData(["campus-match-state"], res.data);
+        return;
+      }
+
+      // Clear only on terminal auth/feature-off states.
+      if (TERMINAL_CAMPUS_MATCH_ERRORS.has(res.error)) {
+        clearCampusMatchState();
+      }
+    } catch {
+      // Keep last known state on transient transport/runtime failures.
+    }
+  }, [queryClient, clearCampusMatchState]);
+
+  const touchCampusMatchHeartbeat = useCallback(async () => {
+    const res = await touchCampusMatchPresence();
+    if (!res.success) {
+      // If presence touch fails, force a state refresh so UI/heartbeat can self-correct quickly.
+      void refreshCampusMatchState();
+    }
+  }, [refreshCampusMatchState]);
 
   useEffect(() => {
     const token = session?.session?.token;
@@ -366,17 +390,40 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [session?.session?.token, queryClient, refreshUnreadCount, refreshCampusMatchState, clearCampusMatchState]);
 
+  // Periodic runtime-state sync: protects queue/session UI from missed socket events.
+  useEffect(() => {
+    const token = session?.session?.token;
+    if (!token) return;
+
+    const initialTimeout = setTimeout(() => {
+      void refreshCampusMatchState();
+    }, 0);
+    const id = setInterval(() => {
+      void refreshCampusMatchState();
+    }, 60_000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(id);
+    };
+  }, [session?.session?.token, refreshCampusMatchState]);
+
   // Global heartbeat: keeps queue entry alive even when panel is not mounted
   useEffect(() => {
     if (campusMatchState?.status !== "waiting") return;
 
-    void heartbeatCampusMatchQueue();
+    const initialTimeout = setTimeout(() => {
+      void touchCampusMatchHeartbeat();
+    }, 0);
     const id = setInterval(() => {
-      void heartbeatCampusMatchQueue();
+      void touchCampusMatchHeartbeat();
     }, 30_000);
 
-    return () => clearInterval(id);
-  }, [campusMatchState?.status]);
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(id);
+    };
+  }, [campusMatchState?.status, touchCampusMatchHeartbeat]);
 
   return (
     <SocketContext.Provider

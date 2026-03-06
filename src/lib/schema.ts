@@ -628,7 +628,13 @@ export const cmQueueEntry = pgTable(
   (table) => [
     uniqueIndex("cm_queue_entry_user_idx").on(table.userId),
     index("cm_queue_entry_scope_idx").on(table.scope),
+    index("cm_queue_entry_created_idx").on(table.createdAt),
     index("cm_queue_entry_heartbeat_idx").on(table.heartbeatAt),
+    index("cm_queue_entry_scope_created_heartbeat_idx").on(
+      table.scope,
+      table.createdAt,
+      table.heartbeatAt,
+    ),
   ],
 );
 
