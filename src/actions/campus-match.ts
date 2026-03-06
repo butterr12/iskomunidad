@@ -3,7 +3,6 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
-  adminSetting,
   cmBan,
   cmBlock,
   cmMessage,
@@ -34,10 +33,8 @@ import { getIO } from "@/lib/socket-server";
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const STALE_QUEUE_MS = 90_000;
-const MATCH_ROUND_INTERVAL_MS = 30_000;
 const REMATCH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-const MATCH_ROUND_LOCK_KEY = "campus-match-round-v1";
-const MATCH_ROUND_AT_KEY = "campusMatchLastRoundAt";
+const IMMEDIATE_QUEUE_LOCK_KEY = "campus-match-immediate-v2";
 const CAMPUS_MATCH_INTERACTION_BLOCKED_ERROR = "You cannot interact with this user";
 const PAGE_SIZE = 30;
 
@@ -85,7 +82,6 @@ const sendMessageSchema = z
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type MatchScope = "same-campus" | "all-campuses";
-export type QueueStatus = "idle" | "waiting" | "matched";
 export type AnonSessionStatus = "active" | "ended" | "promoted";
 export type ConnectState = "none" | "pending_me" | "pending_them" | "mutual";
 
@@ -105,14 +101,13 @@ export type CampusMatchMessageData = {
   createdAt: string;
 };
 
-export type CampusMatchState = {
+export type CampusMatchRuntimeState = {
   status: "idle" | "waiting" | "in_session" | "banned";
   preferences: CampusMatchPreferences;
   queue: null | {
     scope: MatchScope;
     alias: string;
     waitingSince: string;
-    nextRoundAt: string;
   };
   session: null | {
     conversationId: string;
@@ -125,11 +120,6 @@ export type CampusMatchState = {
     expiresAt: string;
     reason: string | null;
   };
-};
-
-type LegacyQueuePresence = {
-  inQueue: boolean;
-  inSession: boolean;
 };
 
 type QueueCandidate = {
@@ -163,9 +153,10 @@ type LockedSession = {
   partner: SessionParticipantRow;
 };
 
-type MatchRoundResult = {
+type ImmediateQueuePassResult = {
   pairedCount: number;
   matches: Array<{ sessionId: string; userIds: string[] }>;
+  removedUserIds: string[];
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -328,27 +319,6 @@ async function getCampusMatchPreferencesForUser(userId: string): Promise<CampusM
   };
 }
 
-async function getLastRoundAt(): Promise<Date | null> {
-  const row = await db.query.adminSetting.findFirst({
-    where: eq(adminSetting.key, MATCH_ROUND_AT_KEY),
-  });
-
-  if (!row) return null;
-  if (typeof row.value === "string") return parseDateLike(row.value);
-  return null;
-}
-
-function computeNextRoundAt(lastRoundAt: Date | null, now: Date): Date {
-  if (!lastRoundAt) return new Date(now.getTime() + MATCH_ROUND_INTERVAL_MS);
-
-  const elapsed = now.getTime() - lastRoundAt.getTime();
-  if (elapsed >= MATCH_ROUND_INTERVAL_MS) {
-    return new Date(now.getTime() + MATCH_ROUND_INTERVAL_MS);
-  }
-
-  return new Date(lastRoundAt.getTime() + MATCH_ROUND_INTERVAL_MS);
-}
-
 async function applyRematchCooldown(
   participantUserIds: string[],
   now: Date,
@@ -429,6 +399,56 @@ async function lockActiveSessionForParticipant(
   }
 
   const participants = await tx
+    .select({
+      userId: cmSessionParticipant.userId,
+      alias: cmSessionParticipant.alias,
+      connectRequested: cmSessionParticipant.connectRequested,
+    })
+    .from(cmSessionParticipant)
+    .where(eq(cmSessionParticipant.sessionId, sessionId));
+
+  if (participants.length < 2) {
+    return { success: false, error: "Session participant data is invalid" };
+  }
+
+  const me = participants.find((participant) => participant.userId === userId);
+  if (!me) {
+    logUnauthorizedSessionAction(action, userId, sessionId);
+    return { success: false, error: "Not allowed to manage this session" };
+  }
+
+  const partner = participants.find((participant) => participant.userId !== userId);
+  if (!partner) {
+    return { success: false, error: "Session participant data is invalid" };
+  }
+
+  return {
+    success: true,
+    data: {
+      sessionId,
+      participants,
+      me,
+      partner,
+    },
+  };
+}
+
+async function verifyActiveSessionParticipant(
+  sessionId: string,
+  userId: string,
+  action: string,
+): Promise<{ success: true; data: LockedSession } | { success: false; error: string }> {
+  const rows = await db
+    .select({ id: cmSession.id })
+    .from(cmSession)
+    .where(and(eq(cmSession.id, sessionId), eq(cmSession.status, "active")))
+    .limit(1);
+
+  if (rows.length === 0) {
+    return { success: false, error: "Session is no longer active" };
+  }
+
+  const participants = await db
     .select({
       userId: cmSessionParticipant.userId,
       alias: cmSessionParticipant.alias,
@@ -580,17 +600,17 @@ async function promoteSessionToConversation(
     .where(inArray(cmQueueEntry.userId, participants.map((p) => p.userId)));
 }
 
-async function runCampusMatchRound(force = false): Promise<MatchRoundResult> {
+export async function runImmediateQueuePass(): Promise<ImmediateQueuePassResult> {
   const now = new Date();
 
   const result = await db.transaction(async (tx) => {
     const lockResult = await tx.execute<{ locked: boolean | string }>(
-      sql`SELECT pg_try_advisory_xact_lock(hashtext(${MATCH_ROUND_LOCK_KEY})) AS locked`,
+      sql`SELECT pg_try_advisory_xact_lock(hashtext(${IMMEDIATE_QUEUE_LOCK_KEY})) AS locked`,
     );
     const lockAcquired = parseBoolean(lockResult.rows[0]?.locked);
 
     if (!lockAcquired) {
-      console.info("[campus-match] matching round skipped", {
+      console.info("[campus-match] immediate pass skipped", {
         reason: "lock_busy",
       });
       return { pairedCount: 0, matches: [], removedUserIds: [] };
@@ -643,32 +663,6 @@ async function runCampusMatchRound(force = false): Promise<MatchRoundResult> {
     `);
     for (const r of bannedRemoved.rows) removedUserIds.add(r.user_id);
 
-    const [lastRoundRow] = await tx
-      .select({ value: adminSetting.value })
-      .from(adminSetting)
-      .where(eq(adminSetting.key, MATCH_ROUND_AT_KEY))
-      .limit(1);
-
-    const lastRoundAt =
-      typeof lastRoundRow?.value === "string"
-        ? parseDateLike(lastRoundRow.value)
-        : null;
-
-    if (!force && lastRoundAt) {
-      const elapsed = now.getTime() - lastRoundAt.getTime();
-      if (elapsed < MATCH_ROUND_INTERVAL_MS) {
-        return { pairedCount: 0, matches: [], removedUserIds: [...removedUserIds] };
-      }
-    }
-
-    await tx
-      .insert(adminSetting)
-      .values({ key: MATCH_ROUND_AT_KEY, value: now.toISOString() })
-      .onConflictDoUpdate({
-        target: adminSetting.key,
-        set: { value: now.toISOString() },
-      });
-
     const candidateRows = await tx.execute<{
       queue_id: string;
       user_id: string;
@@ -697,7 +691,7 @@ async function runCampusMatchRound(force = false): Promise<MatchRoundResult> {
         AND u.status = 'active'
         AND COALESCE(p.allow_anon_queue, true) = true
         AND b.id IS NULL
-      ORDER BY RANDOM()
+      ORDER BY q.created_at ASC, q.id ASC
     `);
 
     const candidates: QueueCandidate[] = candidateRows.rows
@@ -814,8 +808,7 @@ async function runCampusMatchRound(force = false): Promise<MatchRoundResult> {
       await createSessionForPair(pair);
     }
 
-    console.info("[campus-match] matching round completed", {
-      force,
+    console.info("[campus-match] immediate pass completed", {
       candidates: candidates.length,
       paired: pairs.length,
     });
@@ -952,9 +945,9 @@ export async function updateCampusMatchPreferences(
   return { success: true, data: undefined };
 }
 
-// ─── getCampusMatchState ─────────────────────────────────────────────────────
+// ─── getCampusMatchRuntimeState ──────────────────────────────────────────────
 
-export async function getCampusMatchState(): Promise<ActionResult<CampusMatchState>> {
+export async function getCampusMatchRuntimeState(): Promise<ActionResult<CampusMatchRuntimeState>> {
   const killed = await requireCampusMatch();
   if (killed) return killed;
 
@@ -964,7 +957,7 @@ export async function getCampusMatchState(): Promise<ActionResult<CampusMatchSta
   const userId = authSession.user.id;
   const now = new Date();
 
-  const [preferences, activeBan, queueRows, activeSessionRows, lastRoundAt] = await Promise.all([
+  const [preferences, activeBan, queueRows, activeSessionRows] = await Promise.all([
     getCampusMatchPreferencesForUser(userId),
     getActiveBanForUser(userId),
     db
@@ -992,7 +985,6 @@ export async function getCampusMatchState(): Promise<ActionResult<CampusMatchSta
       )
       .where(eq(cmSessionParticipant.userId, userId))
       .limit(1),
-    getLastRoundAt(),
   ]);
 
   if (activeBan) {
@@ -1062,8 +1054,6 @@ export async function getCampusMatchState(): Promise<ActionResult<CampusMatchSta
     };
   }
 
-  const nextRoundAt = computeNextRoundAt(lastRoundAt, now);
-
   return {
     success: true,
     data: {
@@ -1073,7 +1063,6 @@ export async function getCampusMatchState(): Promise<ActionResult<CampusMatchSta
         scope: normalizeScope(queue.scope),
         alias: queue.alias,
         waitingSince: queue.createdAt.toISOString(),
-        nextRoundAt: nextRoundAt.toISOString(),
       },
       session: null,
       ban: null,
@@ -1081,19 +1070,9 @@ export async function getCampusMatchState(): Promise<ActionResult<CampusMatchSta
   };
 }
 
-export async function runCampusMatchRoundWorker(
-  force = false,
-): Promise<{ pairedCount: number }> {
-  const enabled = await getCampusMatchEnabled();
-  if (!enabled) return { pairedCount: 0 };
+// ─── enqueueCampusMatch ──────────────────────────────────────────────────────
 
-  const result = await runCampusMatchRound(force);
-  return { pairedCount: result.pairedCount };
-}
-
-// ─── joinCampusMatchQueue ────────────────────────────────────────────────────
-
-export async function joinCampusMatchQueue(
+export async function enqueueCampusMatch(
   input: z.infer<typeof joinQueueSchema>,
 ): Promise<ActionResult<void>> {
   const killed = await requireCampusMatch();
@@ -1178,7 +1157,6 @@ export async function joinCampusMatchQueue(
           alias: parsed.data.alias,
           scope: parsed.data.scope,
           heartbeatAt: now,
-          createdAt: now,
         },
       });
 
@@ -1205,8 +1183,8 @@ export async function joinCampusMatchQueue(
     return { success: false, error: joined.error };
   }
 
-  void runCampusMatchRound(true).catch((error) => {
-    console.error("[campus-match] failed to run immediate matching round", error);
+  void runImmediateQueuePass().catch((error) => {
+    console.error("[campus-match] failed to run immediate queue pass after enqueue", error);
   });
 
   emitCampusMatchStateChanged([userId]);
@@ -1219,9 +1197,9 @@ export async function joinCampusMatchQueue(
   return { success: true, data: undefined };
 }
 
-// ─── leaveCampusMatchQueue ───────────────────────────────────────────────────
+// ─── dequeueCampusMatch ──────────────────────────────────────────────────────
 
-export async function leaveCampusMatchQueue(): Promise<ActionResult<void>> {
+export async function dequeueCampusMatch(): Promise<ActionResult<void>> {
   const killed = await requireCampusMatch();
   if (killed) return killed;
 
@@ -1241,9 +1219,9 @@ export async function leaveCampusMatchQueue(): Promise<ActionResult<void>> {
   return { success: true, data: undefined };
 }
 
-// ─── heartbeatCampusMatchQueue ───────────────────────────────────────────────
+// ─── touchCampusMatchPresence ────────────────────────────────────────────────
 
-export async function heartbeatCampusMatchQueue(): Promise<ActionResult<void>> {
+export async function touchCampusMatchPresence(): Promise<ActionResult<void>> {
   const killed = await requireCampusMatch();
   if (killed) return killed;
 
@@ -1261,12 +1239,6 @@ export async function heartbeatCampusMatchQueue(): Promise<ActionResult<void>> {
     .update(cmQueueEntry)
     .set({ heartbeatAt: new Date() })
     .where(eq(cmQueueEntry.userId, userId));
-
-  void runCampusMatchRound(false).catch((error) => {
-    console.error("[campus-match] failed to run heartbeat matching round", error);
-  });
-
-  emitCampusMatchStateChanged([userId]);
 
   return { success: true, data: undefined };
 }
@@ -1293,75 +1265,60 @@ export async function getCampusMatchMessages(
   const userId = authSession.user.id;
   const cursorDate = parsed.data.cursor ? new Date(parsed.data.cursor) : null;
 
-  const result = await db.transaction(async (tx) => {
-    const locked = await lockActiveSessionForParticipant(
-      tx,
-      parsed.data.sessionId,
-      userId,
-      "get_messages",
-    );
-    if (!locked.success) {
-      return {
-        error: locked.error,
-        messages: [] as CampusMatchMessageData[],
-        nextCursor: null as string | null,
-      };
-    }
-
-    const conditions = [eq(cmMessage.sessionId, parsed.data.sessionId)];
-    if (cursorDate) {
-      conditions.push(lt(cmMessage.createdAt, cursorDate));
-    }
-
-    const rows = await tx
-      .select({
-        id: cmMessage.id,
-        sessionId: cmMessage.sessionId,
-        senderId: cmMessage.senderId,
-        body: cmMessage.body,
-        imageUrl: cmMessage.imageUrl,
-        createdAt: cmMessage.createdAt,
-      })
-      .from(cmMessage)
-      .where(and(...conditions))
-      .orderBy(desc(cmMessage.createdAt))
-      .limit(PAGE_SIZE + 1);
-
-    const hasMore = rows.length > PAGE_SIZE;
-    const pageRows = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
-    const aliasByUserId = new Map(
-      locked.data.participants.map((participant) => [participant.userId, participant.alias]),
-    );
-
-    const messages = pageRows
-      .reverse()
-      .map((row): CampusMatchMessageData => ({
-        id: row.id,
-        sessionId: row.sessionId,
-        senderId: row.senderId,
-        senderAlias: row.senderId ? aliasByUserId.get(row.senderId) ?? "Unknown" : "Unknown",
-        body: row.body,
-        imageUrl: row.imageUrl,
-        createdAt: row.createdAt.toISOString(),
-      }));
-
-    const nextCursor = hasMore
-      ? pageRows[pageRows.length - 1].createdAt.toISOString()
-      : null;
-
-    return { error: null as string | null, messages, nextCursor };
-  });
-
-  if (result.error) {
-    return { success: false, error: result.error };
+  const verified = await verifyActiveSessionParticipant(
+    parsed.data.sessionId,
+    userId,
+    "get_messages",
+  );
+  if (!verified.success) {
+    return { success: false, error: verified.error };
   }
+
+  const conditions = [eq(cmMessage.sessionId, parsed.data.sessionId)];
+  if (cursorDate) {
+    conditions.push(lt(cmMessage.createdAt, cursorDate));
+  }
+
+  const rows = await db
+    .select({
+      id: cmMessage.id,
+      sessionId: cmMessage.sessionId,
+      senderId: cmMessage.senderId,
+      body: cmMessage.body,
+      imageUrl: cmMessage.imageUrl,
+      createdAt: cmMessage.createdAt,
+    })
+    .from(cmMessage)
+    .where(and(...conditions))
+    .orderBy(desc(cmMessage.createdAt))
+    .limit(PAGE_SIZE + 1);
+
+  const hasMore = rows.length > PAGE_SIZE;
+  const pageRows = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+  const aliasByUserId = new Map(
+    verified.data.participants.map((participant) => [participant.userId, participant.alias]),
+  );
+
+  // Compute nextCursor BEFORE .reverse() mutates pageRows in-place
+  const nextCursor = hasMore
+    ? pageRows[pageRows.length - 1].createdAt.toISOString()
+    : null;
+
+  const messages = pageRows
+    .reverse()
+    .map((row): CampusMatchMessageData => ({
+      id: row.id,
+      sessionId: row.sessionId,
+      senderId: row.senderId,
+      senderAlias: row.senderId ? aliasByUserId.get(row.senderId) ?? "Unknown" : "Unknown",
+      body: row.body,
+      imageUrl: row.imageUrl,
+      createdAt: row.createdAt.toISOString(),
+    }));
 
   return {
     success: true,
-    data: {
-      messages: result.messages,
-      nextCursor: result.nextCursor,
-    },
+    data: { messages, nextCursor },
   };
 }
 
@@ -1442,8 +1399,8 @@ export async function skipCampusMatchSession(
   );
   emitCampusMatchStateChanged(result.userIds);
 
-  void runCampusMatchRound(true).catch((error) => {
-    console.error("[campus-match] failed to run matching round after skip", error);
+  void runImmediateQueuePass().catch((error) => {
+    console.error("[campus-match] failed to run immediate queue pass after skip", error);
   });
 
   return { success: true, data: undefined };
@@ -1825,6 +1782,9 @@ export async function blockCampusMatchUser(
   if (!authSession) return { success: false, error: "Not authenticated" };
 
   const userId = authSession.user.id;
+  const abused = await guardAction("campus-match.block", { userId });
+  if (abused) return abused;
+
   const banBlocked = await ensureUserNotBanned(userId);
   if (banBlocked) return banBlocked;
 
@@ -1982,83 +1942,6 @@ export async function sendCampusMatchMessage(
   );
 
   return { success: true, data: result.message };
-}
-
-// ─── Compatibility wrappers ──────────────────────────────────────────────────
-
-export async function getCampusMatchPreference(): Promise<ActionResult<CampusMatchPreferences>> {
-  return getCampusMatchPreferences();
-}
-
-export async function updateCampusMatchPreference(
-  input: z.infer<typeof updatePreferenceSchema>,
-): Promise<ActionResult<void>> {
-  return updateCampusMatchPreferences(input);
-}
-
-export async function joinQueue(
-  input: z.infer<typeof joinQueueSchema>,
-): Promise<ActionResult<void>> {
-  return joinCampusMatchQueue(input);
-}
-
-export async function leaveQueue(): Promise<ActionResult<void>> {
-  return leaveCampusMatchQueue();
-}
-
-export async function getQueueStatus(): Promise<ActionResult<LegacyQueuePresence>> {
-  const state = await getCampusMatchState();
-  if (!state.success) return state;
-
-  return {
-    success: true,
-    data: {
-      inQueue: state.data.status === "waiting",
-      inSession: state.data.status === "in_session",
-    },
-  };
-}
-
-export async function heartbeat(): Promise<ActionResult<void>> {
-  return heartbeatCampusMatchQueue();
-}
-
-export async function skipSession(sessionId: string): Promise<ActionResult<void>> {
-  return skipCampusMatchSession({ sessionId });
-}
-
-export async function endSession(sessionId: string): Promise<ActionResult<void>> {
-  return endCampusMatchSession({ sessionId });
-}
-
-export async function requestConnect(sessionId: string): Promise<ActionResult<void>> {
-  return requestCampusMatchConnect({ sessionId });
-}
-
-export async function declineConnect(sessionId: string): Promise<ActionResult<void>> {
-  return declineCampusMatchConnect({ sessionId });
-}
-
-export async function reportUser(
-  input: z.infer<typeof reportUserSchema>,
-): Promise<ActionResult<void>> {
-  return reportCampusMatchUser(input);
-}
-
-export async function blockUser(sessionId: string): Promise<ActionResult<void>> {
-  return blockCampusMatchUser({ sessionId });
-}
-
-export async function sendAnonMessage(
-  input: z.infer<typeof sendMessageSchema>,
-): Promise<ActionResult<CampusMatchMessageData>> {
-  return sendCampusMatchMessage(input);
-}
-
-export async function getAnonMessages(
-  input: z.infer<typeof getMessagesSchema>,
-): Promise<ActionResult<{ messages: CampusMatchMessageData[]; nextCursor: string | null }>> {
-  return getCampusMatchMessages(input);
 }
 
 // ─── shared block helper for this module users ───────────────────────────────

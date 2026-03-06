@@ -28,7 +28,6 @@ app.prepare().then(async () => {
   const { session: sessionTable, user: userTable } = await import("./src/lib/auth-schema");
   const { conversation, conversationParticipant } = await import("./src/lib/schema");
   const { setIO } = await import("./src/lib/socket-server");
-  const { runCampusMatchRoundWorker } = await import("./src/actions/campus-match");
   const { matchMatch } = await import("./src/lib/schema");
 
   async function isConversationParticipant_(
@@ -283,14 +282,6 @@ app.prepare().then(async () => {
     });
   });
 
-  // Run matching rounds periodically for users who stay queued off-page.
-  const MATCH_ROUND_INTERVAL_MS = 30_000;
-  setInterval(() => {
-    void runCampusMatchRoundWorker(false).catch((error) => {
-      console.error("[campus-match] worker round failed", error);
-    });
-  }, MATCH_ROUND_INTERVAL_MS);
-
   // Expire 48h match sessions periodically
   const { cmSession: cmSessionTable } = await import("./src/lib/schema");
   const MATCH_EXPIRY_CHECK_MS = 30_000;
@@ -343,10 +334,57 @@ app.prepare().then(async () => {
       if (expired.length > 0) {
         console.log(`[match-expiry] expired ${expired.length} match sessions`);
       }
+
+      // Expire anon_chat sessions older than 48 hours
+      const anonCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+      const expiredAnon = await db
+        .select({ id: cmSessionTable.id })
+        .from(cmSessionTable)
+        .where(
+          and(
+            eq(cmSessionTable.type, "anon_chat"),
+            eq(cmSessionTable.status, "active"),
+            lt(cmSessionTable.createdAt, anonCutoff),
+          ),
+        );
+
+      for (const session of expiredAnon) {
+        await db
+          .update(cmSessionTable)
+          .set({ status: "ended", endedAt: now, endedReason: "expired" })
+          .where(eq(cmSessionTable.id, session.id));
+
+        const { cmSessionParticipant: cmSP } = await import("./src/lib/schema");
+        const participants = await db
+          .select({ userId: cmSP.userId })
+          .from(cmSP)
+          .where(eq(cmSP.sessionId, session.id));
+
+        for (const p of participants) {
+          io.to(`user:${p.userId}`).emit("campus_match_state_changed", {
+            changedAt: now.toISOString(),
+          });
+        }
+      }
+
+      if (expiredAnon.length > 0) {
+        console.log(`[match-expiry] expired ${expiredAnon.length} anon_chat sessions`);
+      }
     } catch (error) {
       console.error("[match-expiry] worker failed", error);
     }
   }, MATCH_EXPIRY_CHECK_MS);
+
+  // Periodic queue matcher — catches users who joined while no enqueue/skip triggered a pass
+  const QUEUE_MATCH_INTERVAL_MS = 30_000;
+  const { runImmediateQueuePass } = await import("./src/actions/campus-match");
+  setInterval(async () => {
+    try {
+      await runImmediateQueuePass();
+    } catch (error) {
+      console.error("[queue-matcher] periodic pass failed", error);
+    }
+  }, QUEUE_MATCH_INTERVAL_MS);
 
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);

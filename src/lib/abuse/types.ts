@@ -22,7 +22,8 @@ export type AbuseAction =
   | "socket.join"
   | "campus-match.join"
   | "campus-match.message"
-  | "campus-match.report";
+  | "campus-match.report"
+  | "campus-match.block";
 
 export type AbuseKeyBy = "userId" | "ipHash" | "emailHash" | "deviceHash";
 

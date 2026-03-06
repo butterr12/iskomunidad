@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Ban,
-  Clock3,
   Ghost,
   HeartHandshake,
   Loader2,
@@ -25,12 +24,12 @@ import {
 } from "lucide-react";
 import {
   blockCampusMatchUser,
+  dequeueCampusMatch,
   declineCampusMatchConnect,
   endCampusMatchSession,
   getCampusMatchMessages,
-  getCampusMatchState,
-  joinCampusMatchQueue,
-  leaveCampusMatchQueue,
+  getCampusMatchRuntimeState,
+  enqueueCampusMatch,
   reportCampusMatchUser,
   requestCampusMatchConnect,
   sendCampusMatchMessage,
@@ -69,14 +68,6 @@ function formatTime(dateIso: string): string {
     minute: "2-digit",
     hour12: true,
   });
-}
-
-function formatCountdown(nextRoundAt: string): string {
-  const delta = Math.max(0, new Date(nextRoundAt).getTime() - Date.now());
-  const total = Math.ceil(delta / 1000);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 const STICKY_BOTTOM_THRESHOLD_PX = 120;
@@ -139,7 +130,6 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
-  const [countdown, setCountdown] = useState("");
   const [sessionActionPending, setSessionActionPending] = useState<
     "connect" | "decline" | "skip" | "end" | "block" | "report" | null
   >(null);
@@ -156,7 +146,7 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
   const { data: state, refetch: refetchState, isLoading: stateLoading, isError, error } = useQuery({
     queryKey: ["campus-match-state"],
     queryFn: async () => {
-      const res = await getCampusMatchState();
+      const res = await getCampusMatchRuntimeState();
       if (!res.success) throw new Error(res.error);
       return res.data;
     },
@@ -175,27 +165,6 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
       setScope(state.queue.scope);
     }
   }, [state]);
-
-  useEffect(() => {
-    if (state?.status !== "waiting") {
-      setCountdown("");
-      return;
-    }
-
-    const countdownId = setInterval(() => {
-      if (state.queue?.nextRoundAt) {
-        setCountdown(formatCountdown(state.queue.nextRoundAt));
-      }
-    }, 1000);
-
-    if (state.queue?.nextRoundAt) {
-      setCountdown(formatCountdown(state.queue.nextRoundAt));
-    }
-
-    return () => {
-      clearInterval(countdownId);
-    };
-  }, [state?.status, state?.queue?.nextRoundAt]);
 
   const sessionId = state?.session?.conversationId ?? null;
   const hasSessionActionPending = sessionActionPending !== null;
@@ -310,7 +279,7 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
     }
 
     setJoining(true);
-    const res = await joinCampusMatchQueue({ alias: nextAlias, scope });
+    const res = await enqueueCampusMatch({ alias: nextAlias, scope });
     setJoining(false);
 
     if (!res.success) {
@@ -322,7 +291,7 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
   }
 
   async function handleLeaveQueue() {
-    const res = await leaveCampusMatchQueue();
+    const res = await dequeueCampusMatch();
     if (!res.success) {
       toast.error(res.error);
       return;
@@ -519,7 +488,6 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
     await queryClient.invalidateQueries({
       queryKey: ["campus-match-messages", sessionId],
     });
-    await refetchMessages();
   }
 
   if (isError) {
@@ -644,7 +612,7 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
             <CardHeader>
               <CardTitle className="text-base">Looking for a match</CardTitle>
               <CardDescription>
-                Stay on this screen. We keep your queue presence alive automatically.
+                We match as soon as an eligible user is available. We keep your queue presence alive automatically.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
@@ -658,14 +626,6 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
                   {state.queue.scope === "same-campus" ? "Same campus" : "All campuses"}
                 </span>
               </div>
-              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-                <span className="inline-flex items-center gap-1 text-muted-foreground">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  Next round
-                </span>
-                <span className="font-mono font-medium">{countdown || "--:--"}</span>
-              </div>
-
               <Button variant="outline" className="w-full" onClick={handleLeaveQueue}>
                 Leave queue
               </Button>

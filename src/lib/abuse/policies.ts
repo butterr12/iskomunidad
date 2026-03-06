@@ -130,4 +130,9 @@ export const POLICY_MAP: Record<AbuseAction, PolicyDefinition> = {
       { keyBy: "userId", windowSec: 30 * 60, softLimit: 3, hardLimit: 6 },
     ],
   },
+  "campus-match.block": {
+    rules: [
+      { keyBy: "userId", windowSec: 30 * 60, softLimit: 5, hardLimit: 10 },
+    ],
+  },
 };
