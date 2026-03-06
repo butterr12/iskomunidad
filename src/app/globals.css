@@ -158,13 +158,15 @@
     }
   }
 
-  /* Hide bottom nav and its padding when chat panel is active or keyboard is open */
+  /* Hide bottom nav and its padding when chat panel is active, keyboard is open, or on a focused page */
   html[data-chat-active] [data-mobile-nav],
-  html[data-keyboard-open] [data-mobile-nav] {
+  html[data-keyboard-open] [data-mobile-nav],
+  html[data-focused-page] [data-mobile-nav] {
     display: none !important;
   }
   html[data-chat-active] .pb-safe-nav,
-  html[data-keyboard-open] .pb-safe-nav {
+  html[data-keyboard-open] .pb-safe-nav,
+  html[data-focused-page] .pb-safe-nav {
     padding-bottom: 0;
   }
 }

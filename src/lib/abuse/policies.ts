@@ -104,6 +104,11 @@ export const POLICY_MAP: Record<AbuseAction, PolicyDefinition> = {
       { keyBy: "userId", windowSec: 10 * 60, softLimit: 10, hardLimit: 20 },
     ],
   },
+  "landmark.suggest_edit": {
+    rules: [
+      { keyBy: "userId", windowSec: 30 * 60, softLimit: 5, hardLimit: 10 },
+    ],
+  },
   "socket.typing": {
     rules: [
       { keyBy: "userId", windowSec: 10, softLimit: 5, hardLimit: 10 },

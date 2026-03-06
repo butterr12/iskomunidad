@@ -18,6 +18,7 @@ export type AbuseAction =
   | "upload.image"
   | "landmark.create"
   | "landmark.review"
+  | "landmark.suggest_edit"
   | "socket.typing"
   | "socket.join"
   | "campus-match.join"

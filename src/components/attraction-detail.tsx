@@ -1,9 +1,35 @@
+"use client";
+
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, MapPin, Navigation, Share2, Bookmark, Clock, CalendarDays, MessageCircle, Users, ExternalLink } from "lucide-react";
+import {
+  X,
+  MapPin,
+  Navigation,
+  Share2,
+  Bookmark,
+  Clock,
+  CalendarDays,
+  MessageCircle,
+  Users,
+  ExternalLink,
+  Phone,
+  Globe,
+  PenLine,
+  Star,
+} from "lucide-react";
 import { PhotoGallery } from "@/components/photo-gallery";
+import { OperatingHoursDisplay } from "@/components/shared/operating-hours-display";
+import { RatingsSummary } from "@/components/map/ratings-summary";
+import { ReviewList } from "@/components/map/review-list";
+import { ReviewForm } from "@/components/map/review-form";
+import { SuggestEditForm } from "@/components/map/suggest-edit-form";
 import { FLAIR_COLORS } from "@/lib/posts";
-import type { Landmark } from "@/lib/landmarks";
+import { toast } from "sonner";
+import { deleteReview } from "@/actions/landmarks";
+import type { Landmark, LandmarkReview, OperatingHours } from "@/lib/landmarks";
 import type { CampusEvent } from "@/lib/events";
 import type { CommunityPost } from "@/lib/posts";
 
@@ -14,6 +40,7 @@ interface AttractionDetailProps {
   landmark: Landmark;
   events?: CampusEvent[];
   posts?: CommunityPost[];
+  currentUserId?: string | null;
   onClose: () => void;
 }
 
@@ -30,8 +57,33 @@ export function AttractionDetail({
   landmark,
   events = EMPTY_EVENTS,
   posts = EMPTY_POSTS,
+  currentUserId,
   onClose,
 }: AttractionDetailProps) {
+  const queryClient = useQueryClient();
+  const [reviewFormOpen, setReviewFormOpen] = useState(false);
+  const [editReview, setEditReview] = useState<LandmarkReview | null>(null);
+  const [suggestEditOpen, setSuggestEditOpen] = useState(false);
+
+  const reviews = (landmark.reviews ?? []) as LandmarkReview[];
+  const hasUserReview = currentUserId
+    ? reviews.some((r) => r.userId === currentUserId)
+    : false;
+
+  const handleDeleteReview = async (reviewId: string) => {
+    const result = await deleteReview(reviewId);
+    if (result.success) {
+      toast.success("Review deleted");
+      await queryClient.invalidateQueries({
+        queryKey: ["landmark-detail", landmark.id],
+      });
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  const categoryLabel = landmark.categoryName ?? landmark.category;
+
   return (
     <div className="flex flex-col gap-4 p-5">
       {landmark.photos && landmark.photos.length > 0 && (
@@ -44,7 +96,7 @@ export function AttractionDetail({
             {landmark.name}
           </h2>
           <p className="mt-1 text-sm capitalize text-muted-foreground">
-            {landmark.category}
+            {categoryLabel}
           </p>
         </div>
         <Button
@@ -56,6 +108,17 @@ export function AttractionDetail({
           <X className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Rating summary inline */}
+      {(landmark.avgRating != null && landmark.avgRating > 0) && (
+        <div className="flex items-center gap-1.5 text-sm">
+          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+          <span className="font-medium">{landmark.avgRating.toFixed(1)}</span>
+          <span className="text-muted-foreground">
+            ({landmark.reviewCount} review{landmark.reviewCount !== 1 ? "s" : ""})
+          </span>
+        </div>
+      )}
 
       {landmark.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -76,6 +139,34 @@ export function AttractionDetail({
           <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{landmark.address}</span>
         </div>
+      )}
+
+      {/* Phone & Website */}
+      {landmark.phone && (
+        <a
+          href={`tel:${landmark.phone}`}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <Phone className="h-4 w-4 shrink-0" />
+          <span>{landmark.phone}</span>
+        </a>
+      )}
+
+      {landmark.website && (
+        <a
+          href={landmark.website}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-sm text-primary hover:underline"
+        >
+          <Globe className="h-4 w-4 shrink-0" />
+          <span className="truncate">{landmark.website.replace(/^https?:\/\//, "")}</span>
+        </a>
+      )}
+
+      {/* Operating Hours */}
+      {landmark.operatingHours && (
+        <OperatingHoursDisplay hours={landmark.operatingHours as OperatingHours} />
       )}
 
       <a
@@ -111,6 +202,41 @@ export function AttractionDetail({
           <Bookmark className="h-3.5 w-3.5" />
           Save
         </Button>
+        {currentUserId && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setSuggestEditOpen(true)}
+          >
+            <PenLine className="h-3.5 w-3.5" />
+            Suggest Edit
+          </Button>
+        )}
+      </div>
+
+      {/* Reviews Section */}
+      <div className="flex flex-col gap-3 border-t pt-4">
+        <h3 className="text-sm font-semibold">Reviews</h3>
+        <RatingsSummary
+          avgRating={landmark.avgRating ?? 0}
+          reviewCount={landmark.reviewCount ?? 0}
+          onWriteReview={() => {
+            setEditReview(null);
+            setReviewFormOpen(true);
+          }}
+          hasUserReview={hasUserReview}
+        />
+        <ReviewList
+          reviews={reviews}
+          currentUserId={currentUserId}
+          maxVisible={3}
+          onEdit={(review) => {
+            setEditReview(review);
+            setReviewFormOpen(true);
+          }}
+          onDelete={handleDeleteReview}
+        />
       </div>
 
       {/* Events at this location */}
@@ -176,6 +302,22 @@ export function AttractionDetail({
           ))}
         </div>
       )}
+
+      {/* Review Form Sheet */}
+      <ReviewForm
+        open={reviewFormOpen}
+        onOpenChange={setReviewFormOpen}
+        landmarkId={landmark.id}
+        landmarkName={landmark.name}
+        editReview={editReview}
+      />
+
+      {/* Suggest Edit Sheet */}
+      <SuggestEditForm
+        open={suggestEditOpen}
+        onOpenChange={setSuggestEditOpen}
+        landmark={landmark}
+      />
     </div>
   );
 }

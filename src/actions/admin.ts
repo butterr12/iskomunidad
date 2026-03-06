@@ -7,6 +7,8 @@ import {
   postImage,
   campusEvent,
   landmark,
+  landmarkEdit,
+  placeCategory,
   gigListing,
   landmarkPhoto,
   adminNotification,
@@ -84,7 +86,8 @@ const createEventSchema = z.object({
 const createLandmarkSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
-  category: z.enum(["attraction", "community", "event"]),
+  category: z.enum(["attraction", "community", "event"]).optional(),
+  categoryId: z.string().uuid().optional(),
   lat: z.number(),
   lng: z.number(),
   address: z.string().optional(),
@@ -878,12 +881,14 @@ export async function adminCreateLandmark(
   if (!session) return { success: false, error: "Unauthorized" };
 
   const autoApprove = await getAutoApproveSetting();
-  const { photos, ...landmarkData } = parsed.data;
+  const { photos, category, categoryId, ...landmarkData } = parsed.data;
 
   const [created] = await db
     .insert(landmark)
     .values({
       ...landmarkData,
+      category: category ?? "community",
+      categoryId: categoryId ?? null,
       operatingHours: landmarkData.operatingHours ?? null,
       status: autoApprove ? "approved" : "draft",
       userId: session.user.id,
@@ -2362,4 +2367,211 @@ export async function adminClearAbuseCooldown(
 
   const deleted = await clearUserCooldowns(userIdHash);
   return { success: true, data: { deleted } };
+}
+
+// ─── Place Category CRUD ──────────────────────────────────────────────────────
+
+export async function adminGetCategories(): Promise<ActionResult<unknown[]>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const rows = await db.query.placeCategory.findMany({
+    orderBy: (c, { asc: a }) => [a(c.order)],
+  });
+  return { success: true, data: rows };
+}
+
+const categorySchema = z.object({
+  name: z.string().min(1).max(100),
+  slug: z.string().min(1).max(100),
+  icon: z.string().min(1).max(50),
+  color: z.string().min(4).max(10),
+});
+
+export async function adminCreateCategory(
+  input: z.infer<typeof categorySchema>,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = categorySchema.safeParse(input);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0].message };
+
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const maxOrder = await db
+    .select({ max: sql<number>`COALESCE(MAX(${placeCategory.order}), 0)` })
+    .from(placeCategory);
+
+  const [created] = await db
+    .insert(placeCategory)
+    .values({
+      ...parsed.data,
+      order: maxOrder[0].max + 1,
+    })
+    .returning({ id: placeCategory.id });
+
+  return { success: true, data: { id: created.id } };
+}
+
+export async function adminUpdateCategory(
+  id: string,
+  input: z.infer<typeof categorySchema>,
+): Promise<ActionResult<void>> {
+  const parsed = categorySchema.safeParse(input);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0].message };
+
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  await db
+    .update(placeCategory)
+    .set(parsed.data)
+    .where(eq(placeCategory.id, id));
+
+  return { success: true, data: undefined };
+}
+
+export async function adminDeleteCategory(
+  id: string,
+): Promise<ActionResult<void>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  // Check if any landmarks reference this category
+  const count = await db
+    .select({ count: sql<number>`COUNT(*)::int` })
+    .from(landmark)
+    .where(eq(landmark.categoryId, id));
+
+  if (count[0].count > 0)
+    return {
+      success: false,
+      error: `Cannot delete: ${count[0].count} location(s) use this category`,
+    };
+
+  await db.delete(placeCategory).where(eq(placeCategory.id, id));
+  return { success: true, data: undefined };
+}
+
+// ─── Landmark Edit Suggestions ────────────────────────────────────────────────
+
+export async function adminGetPendingEdits(): Promise<ActionResult<unknown[]>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const rows = await db.query.landmarkEdit.findMany({
+    where: eq(landmarkEdit.status, "pending"),
+    with: {
+      landmark: { columns: { name: true } },
+      user: { columns: { name: true, username: true, image: true } },
+    },
+    orderBy: (e, { desc: d }) => [d(e.createdAt)],
+  });
+
+  return {
+    success: true,
+    data: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      reviewedAt: r.reviewedAt?.toISOString() ?? null,
+      landmarkName: r.landmark.name,
+      authorName: r.user.name,
+      authorHandle: r.user.username ? `@${r.user.username}` : null,
+      authorImage: r.user.image,
+    })),
+  };
+}
+
+export async function adminApproveEdit(
+  editId: string,
+): Promise<ActionResult<void>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const edit = await db.query.landmarkEdit.findFirst({
+    where: eq(landmarkEdit.id, editId),
+    columns: { id: true, landmarkId: true, userId: true, changes: true, status: true },
+    with: { landmark: { columns: { name: true } } },
+  });
+  if (!edit) return { success: false, error: "Edit not found" };
+  if (edit.status !== "pending")
+    return { success: false, error: "Edit already reviewed" };
+
+  // Apply changes to the landmark
+  const changes = edit.changes as Record<string, unknown>;
+  const updateData: Record<string, unknown> = {};
+
+  const allowedFields = ["name", "description", "address", "phone", "website", "operatingHours", "categoryId"];
+  for (const field of allowedFields) {
+    if (field in changes) {
+      updateData[field === "categoryId" ? "categoryId" :
+                 field === "operatingHours" ? "operatingHours" : field] = changes[field];
+    }
+  }
+
+  if (Object.keys(updateData).length > 0) {
+    await db
+      .update(landmark)
+      .set(updateData)
+      .where(eq(landmark.id, edit.landmarkId));
+  }
+
+  await db
+    .update(landmarkEdit)
+    .set({
+      status: "approved",
+      reviewedBy: session.user.id,
+      reviewedAt: new Date(),
+    })
+    .where(eq(landmarkEdit.id, editId));
+
+  // Notify the user
+  await createUserNotification({
+    userId: edit.userId,
+    type: "landmark_edit_approved",
+    contentType: "landmark",
+    targetId: edit.landmarkId,
+    targetTitle: edit.landmark.name,
+  });
+
+  return { success: true, data: undefined };
+}
+
+export async function adminRejectEdit(
+  editId: string,
+  reason: string,
+): Promise<ActionResult<void>> {
+  const session = await requireAdmin();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const edit = await db.query.landmarkEdit.findFirst({
+    where: eq(landmarkEdit.id, editId),
+    columns: { id: true, landmarkId: true, userId: true, status: true },
+    with: { landmark: { columns: { name: true } } },
+  });
+  if (!edit) return { success: false, error: "Edit not found" };
+  if (edit.status !== "pending")
+    return { success: false, error: "Edit already reviewed" };
+
+  await db
+    .update(landmarkEdit)
+    .set({
+      status: "rejected",
+      rejectionReason: reason,
+      reviewedBy: session.user.id,
+      reviewedAt: new Date(),
+    })
+    .where(eq(landmarkEdit.id, editId));
+
+  await createUserNotification({
+    userId: edit.userId,
+    type: "landmark_edit_rejected",
+    contentType: "landmark",
+    targetId: edit.landmarkId,
+    targetTitle: edit.landmark.name,
+    reason,
+  });
+
+  return { success: true, data: undefined };
 }

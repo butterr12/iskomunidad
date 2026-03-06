@@ -5,7 +5,7 @@ import {
   getCustomModerationRules,
 } from "@/actions/_helpers";
 
-type ContentType = "post" | "comment" | "gig" | "event";
+type ContentType = "post" | "comment" | "gig" | "event" | "landmark";
 
 interface ModerationInput {
   type: ContentType;

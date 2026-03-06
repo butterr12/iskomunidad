@@ -3,9 +3,11 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Loader2, Plus } from "lucide-react";
 import { AttractionDetail } from "@/components/attraction-detail";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSession } from "@/lib/auth-client";
 import { getLandmarkPins, getLandmarkById } from "@/actions/landmarks";
 import { getEventsForLandmark } from "@/actions/events";
 import { getPostsForLandmark } from "@/actions/posts";
@@ -24,6 +26,8 @@ interface MapPageClientProps {
 
 export function MapPageClient({ landmarkParam }: MapPageClientProps) {
   const isMobile = useIsMobile();
+  const { data: sessionData } = useSession();
+  const currentUserId = sessionData?.user?.id ?? null;
 
   const [selectedIdOverride, setSelectedIdOverride] = useState<
     string | null | undefined
@@ -103,6 +107,7 @@ export function MapPageClient({ landmarkParam }: MapPageClientProps) {
       landmark={selectedLandmark}
       events={landmarkEvents}
       posts={landmarkPosts}
+      currentUserId={currentUserId}
       onClose={() => setSelectedIdOverride(null)}
     />
   ) : null;
@@ -132,6 +137,17 @@ export function MapPageClient({ landmarkParam }: MapPageClientProps) {
           </div>
           {loadingDetail ? loadingSpinner : detailContent}
         </div>
+      )}
+
+      {/* Add Location FAB */}
+      {currentUserId && (
+        <Link
+          href="/map/add"
+          className="absolute z-10 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 sm:bottom-6 sm:right-6"
+          aria-label="Add location"
+        >
+          <Plus className="h-5 w-5" />
+        </Link>
       )}
     </main>
   );

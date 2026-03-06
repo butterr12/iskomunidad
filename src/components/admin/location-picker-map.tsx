@@ -43,9 +43,10 @@ interface LocationPickerMapProps {
   lat: number | null;
   lng: number | null;
   onLocationChange: (lat: number, lng: number) => void;
+  height?: string;
 }
 
-export function LocationPickerMap({ lat, lng, onLocationChange }: LocationPickerMapProps) {
+export function LocationPickerMap({ lat, lng, onLocationChange, height = "300px" }: LocationPickerMapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const { resolvedTheme } = useTheme();
   const [center, setCenter] = useState(UP_DILIMAN);
@@ -84,7 +85,7 @@ export function LocationPickerMap({ lat, lng, onLocationChange }: LocationPicker
   }, [mapMode]);
 
   return (
-    <div className="h-[300px] w-full overflow-hidden rounded-md border transition-colors duration-500">
+    <div className="w-full overflow-hidden rounded-md border transition-colors duration-500" style={{ height }}>
       <Map
         ref={(ref) => {
           mapRef.current = ref?.getMap() ?? null;

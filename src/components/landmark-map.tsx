@@ -45,13 +45,13 @@ function usePreviewPlacement(anchorRef: React.RefObject<HTMLElement | null>, isH
 
 const UP_DILIMAN = { latitude: 14.6538, longitude: 121.0685 };
 
-const categoryColors: Record<LandmarkCategory, string> = {
+const fallbackCategoryColors: Record<LandmarkCategory, string> = {
   attraction: "#e11d48",
   community: "#2563eb",
   event: "#16a34a",
 };
 
-const categoryLabels: Record<LandmarkCategory, string> = {
+const fallbackCategoryLabels: Record<LandmarkCategory, string> = {
   attraction: "Attraction",
   community: "Community",
   event: "Event",
@@ -135,7 +135,7 @@ function PlacePreview({
         <h3 className="font-semibold text-sm mb-1 line-clamp-1">{landmark.name}</h3>
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
           <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">
-            {categoryLabels[landmark.category]}
+            {landmark.categoryName ?? fallbackCategoryLabels[landmark.category]}
           </span>
           {landmark.address && (
             <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -512,6 +512,14 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
     return m;
   }, [pins]);
 
+  const pinColorMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const pin of pins) {
+      m[pin.id] = pin.categoryColor ?? fallbackCategoryColors[pin.category];
+    }
+    return m;
+  }, [pins]);
+
   const updateZoom = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -672,7 +680,6 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
         }
 
         const pinId = String(props.pinId);
-        const category = props.category as LandmarkCategory;
 
         const isShowingPreview = hoveredPreviewPinId === pinId;
         const markerZ = isShowingPreview
@@ -696,7 +703,7 @@ export function LandmarkMap({ pins, onSelectLandmark, selectedId }: LandmarkMapP
             style={{ cursor: "pointer", zIndex: markerZ, willChange: "transform" }}
           >
             <MarkerPin
-              color={categoryColors[category]}
+              color={pinColorMap[pinId] ?? "#6b7280"}
               selected={selectedId === pinId}
               label={pinNameMap[pinId] ?? ""}
               photoUrl={pinPhotoMap[pinId]}

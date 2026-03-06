@@ -16,13 +16,26 @@ import { user, session, account } from "./auth-schema";
 // Re-export auth tables so everything is accessible from one place
 export { user, session, account, verification } from "./auth-schema";
 
+// ─── Place Category ─────────────────────────────────────────────────────────
+
+export const placeCategory = pgTable("place_category", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  icon: text("icon").notNull(), // lucide icon name
+  color: text("color").notNull(), // hex color
+  order: integer("order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── Landmark ──────────────────────────────────────────────────────────────────
 
 export const landmark = pgTable("landmark", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull(),
-  category: text("category").notNull(), // "attraction" | "community" | "event"
+  category: text("category").notNull(), // "attraction" | "community" | "event" (legacy)
+  categoryId: uuid("category_id").references(() => placeCategory.id, { onDelete: "set null" }),
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
   address: text("address"),
@@ -83,6 +96,25 @@ export const landmarkReview = pgTable(
     ),
   ],
 );
+
+// ─── Landmark Edit Suggestion ─────────────────────────────────────────────────
+
+export const landmarkEdit = pgTable("landmark_edit", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  landmarkId: uuid("landmark_id")
+    .notNull()
+    .references(() => landmark.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  changes: jsonb("changes").notNull(), // partial landmark fields
+  note: text("note"),
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected"
+  reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at"),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // ─── Community Post ────────────────────────────────────────────────────────────
 
@@ -833,6 +865,7 @@ export const matchProfile = pgTable("match_profile", {
     .references(() => user.id, { onDelete: "cascade" }),
   interests: text("interests").array().notNull().default([]),
   isActive: boolean("is_active").notNull().default(true),
+  setupScreen: integer("setup_screen"), // null = complete, 0-6 = onboarding step
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -860,6 +893,24 @@ export const matchProfilePrompt = pgTable(
   ],
 );
 
+// ─── Match: Profile Photo ────────────────────────────────────────────────────
+
+export const matchProfilePhoto = pgTable(
+  "match_profile_photo",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => matchProfile.id, { onDelete: "cascade" }),
+    imageKey: text("image_key").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("match_profile_photo_profile_idx").on(table.profileId),
+  ],
+);
+
 // ─── Match: Swipe ───────────────────────────────────────────────────────────
 
 export const matchSwipe = pgTable(
@@ -873,6 +924,8 @@ export const matchSwipe = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     direction: text("direction").notNull(), // "like" | "pass"
+    likedContentType: text("liked_content_type"), // "photo" | "prompt" | null
+    likedContentId: uuid("liked_content_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
@@ -898,6 +951,8 @@ export const matchMatch = pgTable(
       onDelete: "set null",
     }),
     status: text("status").notNull().default("active"), // "active" | "expired" | "promoted" | "ended"
+    likedContentType: text("liked_content_type"), // "photo" | "prompt" | null
+    likedContentId: uuid("liked_content_id"),
     matchedAt: timestamp("matched_at").defaultNow().notNull(),
     expiresAt: timestamp("expires_at").notNull(),
   },
@@ -1033,6 +1088,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
   landmarks: many(landmark),
   landmarkReviews: many(landmarkReview),
+  landmarkEdits: many(landmarkEdit),
   communityPosts: many(communityPost),
   postComments: many(postComment),
   postVotes: many(postVote),
@@ -1102,13 +1158,22 @@ export const accountRelations = relations(account, ({ one }) => ({
   }),
 }));
 
+export const placeCategoryRelations = relations(placeCategory, ({ many }) => ({
+  landmarks: many(landmark),
+}));
+
 export const landmarkRelations = relations(landmark, ({ one, many }) => ({
   user: one(user, {
     fields: [landmark.userId],
     references: [user.id],
   }),
+  placeCategory: one(placeCategory, {
+    fields: [landmark.categoryId],
+    references: [placeCategory.id],
+  }),
   photos: many(landmarkPhoto),
   reviews: many(landmarkReview),
+  edits: many(landmarkEdit),
   communityPosts: many(communityPost),
   campusEvents: many(campusEvent),
   gigListings: many(gigListing),
@@ -1131,6 +1196,25 @@ export const landmarkReviewRelations = relations(
     user: one(user, {
       fields: [landmarkReview.userId],
       references: [user.id],
+    }),
+  }),
+);
+
+export const landmarkEditRelations = relations(
+  landmarkEdit,
+  ({ one }) => ({
+    landmark: one(landmark, {
+      fields: [landmarkEdit.landmarkId],
+      references: [landmark.id],
+    }),
+    user: one(user, {
+      fields: [landmarkEdit.userId],
+      references: [user.id],
+    }),
+    reviewer: one(user, {
+      fields: [landmarkEdit.reviewedBy],
+      references: [user.id],
+      relationName: "editReviewer",
     }),
   }),
 );
@@ -1532,6 +1616,14 @@ export const matchProfileRelations = relations(matchProfile, ({ one, many }) => 
     references: [user.id],
   }),
   prompts: many(matchProfilePrompt),
+  photos: many(matchProfilePhoto),
+}));
+
+export const matchProfilePhotoRelations = relations(matchProfilePhoto, ({ one }) => ({
+  profile: one(matchProfile, {
+    fields: [matchProfilePhoto.profileId],
+    references: [matchProfile.id],
+  }),
 }));
 
 export const matchProfilePromptRelations = relations(matchProfilePrompt, ({ one }) => ({
