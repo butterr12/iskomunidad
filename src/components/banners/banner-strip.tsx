@@ -104,7 +104,7 @@ export function BannerStrip() {
   const hiddenCount = banners.length - MAX_VISIBLE;
 
   return (
-    <div className="flex flex-col gap-2 px-4 pt-3">
+    <div className="fixed top-12 sm:top-14 left-0 right-0 z-[999] flex flex-col gap-2 px-4 pt-2 pb-2 bg-background/95 backdrop-blur-sm">
       {visible.map((b) => (
         <BannerItem key={b.id} banner={b} />
       ))}

@@ -36,12 +36,24 @@ This guide is decision-complete. Implementation must follow this document and it
 | Phase | Name | Status | Owner | Last Updated |
 |---|---|---|---|---|
 | 0 | Setup and Governance | done | Claude | 2026-02-19 |
-| 1 | Data Model and Migrations | done | Claude | 2026-02-19 |
-| 2 | Backend Core Logic | not started | TBD | TBD |
-| 3 | Realtime and Persistence | not started | TBD | TBD |
-| 4 | User UX (Messages + Settings) | not started | TBD | TBD |
-| 5 | Admin Moderation | not started | TBD | TBD |
-| 6 | Hardening and QA | not started | TBD | TBD |
+| 1 | Data Model and Migrations | done | Codex | 2026-03-06 |
+| 2 | Backend Core Logic | done | Codex | 2026-03-06 |
+| 3 | Realtime and Persistence | done | Codex | 2026-03-06 |
+| 4 | User UX (Messages + Settings) | done | Codex | 2026-03-06 |
+| 5 | Admin Moderation | done | Codex | 2026-03-06 |
+| 6 | Hardening and QA | in progress | Codex | 2026-03-06 |
+| 7 | Reliability + UX Compliance | done | Claude | 2026-03-06 |
+| 8 | v1 Stabilize + UX Polish | done | Codex | 2026-03-06 |
+
+### Completion Notes (2026-03-06)
+- Phase 1: Added `cm_ban` table and indexes for active-ban checks and expiry reporting.
+- Phase 2: Added secure participant lock helper (`lockActiveSessionForParticipant`) and applied auth-first guard for `skip`, `end`, `report`, and `block`. Added message pagination action and typed send-message payload return.
+- Phase 3: Added 30-second worker in `server.ts`, advisory-lock-safe round execution, and full socket event fanout for Campus Match lifecycle.
+- Phase 4: Replaced mock/teaser UX with real Messages-only Campus Match panel (`idle`, `waiting`, `in_session`, `banned`) and integrated settings + global indicators.
+- Phase 5: Added admin reports actions and admin reports route with transcript preview, resolve, temp-ban, and ban-lift flows.
+- Phase 6: Static checks and manual QA matrix are the active verification wave.
+- Phase 7: Fixed message ownership (senderId vs alias), moved heartbeat to SocketProvider for app-wide queue presence, auto-navigate on promotion, added error/loading UX, emitted state events for cleanup removals, added Block action to chat UI, added admin notifications on report.
+- Phase 8: Added idempotent connect/promotion race handling, guarded same-campus joins when university is missing, fixed anon tab URL sync precedence, improved transcript pagination/scroll behavior (chronological merge + top "Load older" + scroll preservation), disabled duplicate session actions with clearer end/skip/report/block feedback, and made the Anon tab urgency indicator stateful.
 
 ## 5. Locked Product Decisions
 - Feature label: **Campus Match**
@@ -64,7 +76,7 @@ This guide is decision-complete. Implementation must follow this document and it
 - Block scope: global block
 - Relationship exclusion: exclude existing DMs
 - Connect request behavior: sticky until end
-- Decline behavior: retry allowed
+- Decline behavior: clear both connect requests to `none` (retry allowed)
 - Session hard limits: none
 - Skip behavior: skip + requeue
 - Leave behavior: end session for both
@@ -77,6 +89,7 @@ This guide is decision-complete. Implementation must follow this document and it
 - Promotion side effect: auto-follow both users, override follow privacy
 - Privacy model: separate anon toggle (`allowAnonQueue`)
 - Report admin surface: dedicated admin queue
+- Ban model: temporary bans (default 7 days)
 - Data retention: indefinite
 - Rollout: full release
 - Scale target: up to 500 concurrent queued users
@@ -272,6 +285,7 @@ Add in `src/actions/admin.ts`:
 - `adminGetCampusMatchReports(status?)`
 - `adminResolveCampusMatchReport(input)`
 - `adminBanUserFromCampusMatchReport(input)`
+- `adminLiftCampusMatchBan(input)`
 
 ### Admin Navigation Wiring
 - Update `src/components/admin/admin-sidebar.tsx`
@@ -306,9 +320,47 @@ On user report:
 9. Admin report queue functionality.
 10. Realtime reliability under expected concurrency.
 
+### Deterministic Manual QA Matrix (2026-03-06)
+| ID | Scenario | Expected Result | Status |
+|---|---|---|---|
+| CM-QA-01 | Unauthorized user calls `skip/end/report/block` on foreign session | Action rejected with `Not allowed to manage this session`; session unchanged | pending manual run |
+| CM-QA-02 | Participant performs each session action once under lock | Single transition per action; no duplicate state transitions | pending manual run |
+| CM-QA-03 | User joins queue, then stops heartbeats | Entry removed after stale timeout window | pending manual run |
+| CM-QA-04 | Two users match while both clients open | Both clients receive realtime state/session updates | pending manual run |
+| CM-QA-05 | User declines connect | Both `connectRequested` flags reset to `none`; reconnect can be retried | pending manual run |
+| CM-QA-06 | Mutual connect accepted by both participants | Same conversation ID promoted to DM with anon transcript continuity | pending manual run |
+| CM-QA-07 | Match found while user is off Messages page | In-app toast appears with `Open chat` CTA to `/messages?tab=anon` | pending manual run |
+| CM-QA-08 | User disables `allowAnonQueue` | Join and queueing actions blocked for that user | pending manual run |
+| CM-QA-09 | Temp-banned user attempts to queue or interact | Blocked; UI shows ban state with expiry | pending manual run |
+| CM-QA-10 | Ban expiry passes | Eligibility automatically restored without manual DB edits | pending manual run |
+| CM-QA-11 | Admin reviews report queue | Reason + recent transcript preview shown (last 20) | pending manual run |
+| CM-QA-12 | Existing DM, requests, follow/search flows | No regression in normal messaging/request behavior | pending manual run |
+
 ### Done When
 - Regression suite and manual scenario checks pass.
 - No unresolved P0/P1 issues for Campus Match launch.
+
+---
+
+## Phase 7: Reliability + UX Compliance
+### Scope
+- Fix correctness and UX gaps found during code audit before new features.
+
+### Fixes (P1)
+1. **Message ownership** — Compare `senderId` against auth session user ID instead of alias (alias collision bug).
+2. **Global heartbeat** — Moved heartbeat interval from panel to `SocketProvider` so queue entry stays alive when navigating away.
+3. **Promotion auto-navigate** — On `campus_match_promoted`, auto-navigate to promoted DM instead of only showing toast CTA.
+
+### Improvements (P2)
+4. **Error UX** — Added error state with retry button when `getCampusMatchState` query fails (was infinite spinner).
+5. **Cleanup event emission** — Cleanup DELETEs in `runCampusMatchRound` now use `RETURNING` to collect removed user IDs and emit `campus_match_state_changed` so their UI updates immediately.
+6. **Block action** — Exposed `blockCampusMatchUser` in the chat panel UI with confirmation dialog.
+7. **Admin notification on report** — `reportCampusMatchUser` now calls `createNotification({ type: "cm_report" })` and notification table renders the badge.
+
+### Done When
+- `npx tsc --noEmit` passes.
+- `npm run lint` passes.
+- `npm run build` succeeds.
 
 ## 8. Public API / Type Contract (Canonical)
 ```ts
@@ -317,6 +369,16 @@ type QueueStatus = "idle" | "waiting" | "matched";
 type AnonSessionStatus = "active" | "ended" | "promoted";
 type ConnectState = "none" | "pending_me" | "pending_them" | "mutual";
 
+type CampusMatchMessageData = {
+  id: string;
+  sessionId: string;
+  senderId: string | null;
+  senderAlias: string;
+  body: string | null;
+  imageUrl: string | null;
+  createdAt: string;
+};
+
 type CampusMatchPreferences = {
   allowAnonQueue: boolean;
   defaultAlias: string | null;
@@ -324,7 +386,7 @@ type CampusMatchPreferences = {
 };
 
 type CampusMatchState = {
-  status: "idle" | "waiting" | "in_session";
+  status: "idle" | "waiting" | "in_session" | "banned";
   preferences: CampusMatchPreferences;
   queue: null | {
     scope: MatchScope;
@@ -338,6 +400,10 @@ type CampusMatchState = {
     myAlias: string;
     partnerAlias: string;
     connectState: ConnectState;
+  };
+  ban: null | {
+    expiresAt: string;
+    reason: string | null;
   };
 };
 ```
@@ -410,7 +476,7 @@ type CampusMatchState = {
 | Q-034 | User entrypoint for feature? | Messages tab section | active |
 | Q-035 | User-facing feature label? | Campus Match | active |
 | Q-036 | Reveal data after connect? | Full profile identity | active |
-| Q-037 | If connect is declined, behavior? | Retry allowed | active |
+| Q-037 | If connect is declined, behavior? | Reset both requests to `none`; retry allowed | active |
 | Q-038 | Relationship-based eligibility filter? | Exclude existing DMs | active |
 | Q-039 | Concurrent anon states per user? | Single active state | active |
 | Q-040 | Where store “last used scope”? | Per account | active |

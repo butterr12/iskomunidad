@@ -15,6 +15,11 @@ import {
   updatePrivacySettings,
   type PrivacySettings,
 } from "@/actions/follows";
+import {
+  getCampusMatchPreferences,
+  updateCampusMatchPreferences,
+  type CampusMatchPreferences,
+} from "@/actions/campus-match";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +43,7 @@ import {
   Shield,
   UserPlus,
   MessageCircle,
+  HeartHandshake,
   Download,
   Plus,
   Share,
@@ -131,6 +137,19 @@ export default function SettingsPage() {
   const [privacyLoading, setPrivacyLoading] = useState(false);
   const [privacySaving, setPrivacySaving] = useState(false);
   const [privacyMessage, setPrivacyMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [campusMatchPreferences, setCampusMatchPreferences] = useState<CampusMatchPreferences>({
+    allowAnonQueue: true,
+    defaultAlias: null,
+    lastScope: "same-campus",
+  });
+  const [campusMatchAlias, setCampusMatchAlias] = useState("");
+  const [campusMatchScope, setCampusMatchScope] = useState<"same-campus" | "all-campuses">("same-campus");
+  const [campusMatchLoading, setCampusMatchLoading] = useState(false);
+  const [campusMatchSaving, setCampusMatchSaving] = useState(false);
+  const [campusMatchMessage, setCampusMatchMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // Flair state
   const [userFlairs, setUserFlairs] = useState<DisplayFlair[]>([]);
@@ -185,6 +204,31 @@ export default function SettingsPage() {
     }
 
     void loadNotificationPreferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Load Campus Match preferences
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) return;
+
+    async function loadCampusMatchPreferences() {
+      setCampusMatchLoading(true);
+      const res = await getCampusMatchPreferences();
+      if (cancelled) return;
+
+      if (res.success) {
+        setCampusMatchPreferences(res.data);
+        setCampusMatchAlias(res.data.defaultAlias ?? "");
+        setCampusMatchScope(res.data.lastScope);
+      }
+      setCampusMatchLoading(false);
+    }
+
+    void loadCampusMatchPreferences();
 
     return () => {
       cancelled = true;
@@ -474,6 +518,48 @@ export default function SettingsPage() {
     }
 
     setPrivacySaving(false);
+  }
+
+  async function handleCampusMatchToggle(checked: boolean) {
+    const prev = campusMatchPreferences;
+    const next = { ...prev, allowAnonQueue: checked };
+    setCampusMatchPreferences(next);
+    setCampusMatchMessage(null);
+    setCampusMatchSaving(true);
+
+    const res = await updateCampusMatchPreferences({ allowAnonQueue: checked });
+    if (res.success) {
+      setCampusMatchMessage({ type: "success", text: "Campus Match preference updated." });
+    } else {
+      setCampusMatchPreferences(prev);
+      setCampusMatchMessage({ type: "error", text: res.error });
+    }
+
+    setCampusMatchSaving(false);
+  }
+
+  async function handleCampusMatchPreferencesSave() {
+    const alias = campusMatchAlias.trim();
+    setCampusMatchSaving(true);
+    setCampusMatchMessage(null);
+
+    const res = await updateCampusMatchPreferences({
+      defaultAlias: alias.length > 0 ? alias : null,
+      lastScope: campusMatchScope,
+    });
+
+    if (res.success) {
+      setCampusMatchPreferences((prev) => ({
+        ...prev,
+        defaultAlias: alias.length > 0 ? alias : null,
+        lastScope: campusMatchScope,
+      }));
+      setCampusMatchMessage({ type: "success", text: "Campus Match defaults saved." });
+    } else {
+      setCampusMatchMessage({ type: "error", text: res.error });
+    }
+
+    setCampusMatchSaving(false);
   }
 
   async function handleNotificationPreferenceChange(
@@ -770,6 +856,100 @@ export default function SettingsPage() {
                     )}
                   >
                     {privacyMessage.text}
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Campus Match */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Campus Match
+          </h2>
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <HeartHandshake className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Allow Campus Match</p>
+                    <p className="text-xs text-muted-foreground">
+                      Let your account join anonymous Campus Match queue.
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={campusMatchPreferences.allowAnonQueue}
+                  onCheckedChange={(checked) => {
+                    void handleCampusMatchToggle(checked);
+                  }}
+                  disabled={campusMatchLoading || campusMatchSaving}
+                />
+              </div>
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="campus-match-alias">Default alias</Label>
+                <Input
+                  id="campus-match-alias"
+                  value={campusMatchAlias}
+                  onChange={(e) => setCampusMatchAlias(e.target.value)}
+                  placeholder="e.g. Midnight Isko"
+                  maxLength={24}
+                  disabled={campusMatchLoading || campusMatchSaving}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used as your prefilled alias in Campus Match.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Default scope</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={campusMatchScope === "same-campus" ? "default" : "outline"}
+                    onClick={() => setCampusMatchScope("same-campus")}
+                    disabled={campusMatchLoading || campusMatchSaving}
+                  >
+                    Same campus
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={campusMatchScope === "all-campuses" ? "default" : "outline"}
+                    onClick={() => setCampusMatchScope("all-campuses")}
+                    disabled={campusMatchLoading || campusMatchSaving}
+                  >
+                    All campuses
+                  </Button>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => {
+                  void handleCampusMatchPreferencesSave();
+                }}
+                disabled={campusMatchLoading || campusMatchSaving}
+                className="w-full"
+              >
+                {campusMatchSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save Campus Match defaults
+              </Button>
+
+              {campusMatchMessage && (
+                <>
+                  <Separator />
+                  <p
+                    className={cn(
+                      "text-sm",
+                      campusMatchMessage.type === "success"
+                        ? "text-green-600"
+                        : "text-red-500",
+                    )}
+                  >
+                    {campusMatchMessage.text}
                   </p>
                 </>
               )}

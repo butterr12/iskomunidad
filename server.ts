@@ -4,7 +4,7 @@ loadEnvConfig(process.cwd());
 import { createServer } from "node:http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
-import { eq, and, gt, isNull, ne, inArray } from "drizzle-orm";
+import { eq, and, gt, lt, isNull, ne, inArray } from "drizzle-orm";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME ?? "0.0.0.0";
@@ -28,6 +28,8 @@ app.prepare().then(async () => {
   const { session: sessionTable, user: userTable } = await import("./src/lib/auth-schema");
   const { conversation, conversationParticipant } = await import("./src/lib/schema");
   const { setIO } = await import("./src/lib/socket-server");
+  const { runCampusMatchRoundWorker } = await import("./src/actions/campus-match");
+  const { matchMatch } = await import("./src/lib/schema");
 
   async function isConversationParticipant_(
     conversationId: string,
@@ -280,6 +282,71 @@ app.prepare().then(async () => {
       }
     });
   });
+
+  // Run matching rounds periodically for users who stay queued off-page.
+  const MATCH_ROUND_INTERVAL_MS = 30_000;
+  setInterval(() => {
+    void runCampusMatchRoundWorker(false).catch((error) => {
+      console.error("[campus-match] worker round failed", error);
+    });
+  }, MATCH_ROUND_INTERVAL_MS);
+
+  // Expire 48h match sessions periodically
+  const { cmSession: cmSessionTable } = await import("./src/lib/schema");
+  const MATCH_EXPIRY_CHECK_MS = 30_000;
+  setInterval(async () => {
+    try {
+      const now = new Date();
+      // Expire match sessions that have passed their expiresAt
+      const expired = await db
+        .select({ id: cmSessionTable.id })
+        .from(cmSessionTable)
+        .where(
+          and(
+            eq(cmSessionTable.type, "campus_match"),
+            eq(cmSessionTable.status, "active"),
+            lt(cmSessionTable.expiresAt, now),
+          ),
+        );
+
+      for (const session of expired) {
+        await db
+          .update(cmSessionTable)
+          .set({ status: "ended", endedAt: now, endedReason: "expired" })
+          .where(eq(cmSessionTable.id, session.id));
+
+        // Also expire the matchMatch record
+        await db
+          .update(matchMatch)
+          .set({ status: "expired" })
+          .where(
+            and(
+              eq(matchMatch.sessionId, session.id),
+              eq(matchMatch.status, "active"),
+            ),
+          );
+
+        // Notify participants
+        const { cmSessionParticipant: cmSP } = await import("./src/lib/schema");
+        const participants = await db
+          .select({ userId: cmSP.userId })
+          .from(cmSP)
+          .where(eq(cmSP.sessionId, session.id));
+
+        for (const p of participants) {
+          io.to(`user:${p.userId}`).emit("match_session_expired", {
+            sessionId: session.id,
+          });
+        }
+      }
+
+      if (expired.length > 0) {
+        console.log(`[match-expiry] expired ${expired.length} match sessions`);
+      }
+    } catch (error) {
+      console.error("[match-expiry] worker failed", error);
+    }
+  }, MATCH_EXPIRY_CHECK_MS);
 
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);

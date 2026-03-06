@@ -20,6 +20,7 @@ import {
   Megaphone,
   BellRing,
   Flag,
+  HeartHandshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/abuse", label: "Abuse Monitor", shortLabel: "Abuse", icon: ShieldAlert },
       { href: "/admin/campus-match-reports", label: "Campus Match Reports", shortLabel: "CM Reports", icon: Flag },
+      { href: "/admin/match-prompts", label: "Match Prompts", shortLabel: "Prompts", icon: HeartHandshake },
       { href: "/admin/notifications", label: "Notifications", shortLabel: "Notifs", icon: Bell },
       { href: "/admin/settings", label: "Settings", shortLabel: "Settings", icon: Settings },
     ],

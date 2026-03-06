@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +14,8 @@ interface AdminSettings {
   moderationPreset: ModerationPreset;
   customModerationRules: string;
   cursorPromoEnabled: boolean;
+  campusMatchEnabled: boolean;
+  matchDailySwipeLimit: number;
 }
 
 interface SettingsPanelProps {
@@ -22,6 +25,8 @@ interface SettingsPanelProps {
   onCustomRulesChange: (rules: string) => void;
   onCustomRulesSave: () => void;
   onCursorPromoChange: (enabled: boolean) => void;
+  onCampusMatchEnabledChange: (enabled: boolean) => void;
+  onMatchDailySwipeLimitChange: (limit: number) => void;
 }
 
 const APPROVAL_MODES: { value: ApprovalMode; label: string; description: string }[] = [
@@ -67,6 +72,8 @@ export function SettingsPanel({
   onCustomRulesChange,
   onCustomRulesSave,
   onCursorPromoChange,
+  onCampusMatchEnabledChange,
+  onMatchDailySwipeLimitChange,
 }: SettingsPanelProps) {
   return (
     <div className="space-y-6">
@@ -172,6 +179,48 @@ export function SettingsPanel({
             <Switch
               checked={settings.cursorPromoEnabled}
               onCheckedChange={onCursorPromoChange}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Campus Match</CardTitle>
+          <CardDescription>Operational controls for anonymous chat matching and swipe matching.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Enable Campus Match</Label>
+              <p className="text-xs text-muted-foreground">
+                Kill switch for queueing, matching, and anon session actions.
+              </p>
+            </div>
+            <Switch
+              checked={settings.campusMatchEnabled}
+              onCheckedChange={onCampusMatchEnabledChange}
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Daily Swipe Limit</Label>
+              <p className="text-xs text-muted-foreground">
+                Max swipes per user per day for match discovery.
+              </p>
+            </div>
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              value={settings.matchDailySwipeLimit}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                if (!isNaN(val) && val >= 1 && val <= 100) {
+                  onMatchDailySwipeLimitChange(val);
+                }
+              }}
+              className="w-20 text-center"
             />
           </div>
         </CardContent>

@@ -19,6 +19,7 @@ import { getIO } from "@/lib/socket-server";
 
 export type ConversationPreview = {
   id: string;
+  source: string;
   isRequest: boolean;
   updatedAt: string;
   otherUser: {
@@ -557,6 +558,7 @@ export async function getConversations(): Promise<
   const convRows = await db
     .select({
       convId: conversation.id,
+      source: conversation.source,
       isRequest: conversation.isRequest,
       updatedAt: conversation.updatedAt,
       otherUserId: user.id,
@@ -671,6 +673,7 @@ export async function getConversations(): Promise<
 
       return {
         id: row.convId,
+        source: row.source,
         isRequest: row.isRequest,
         updatedAt: row.updatedAt.toISOString(),
         otherUser: {

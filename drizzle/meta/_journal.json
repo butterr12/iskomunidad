@@ -176,6 +176,20 @@
       "when": 1772729585130,
       "tag": "0024_glamorous_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1772798400000,
+      "tag": "0025_swift_campus_match_ban",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1772884800000,
+      "tag": "0026_good_mulholland_black",
+      "breakpoints": true
     }
   ]
 }

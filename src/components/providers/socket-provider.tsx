@@ -12,6 +12,8 @@ import { io, type Socket } from "socket.io-client";
 import { useSession } from "@/lib/auth-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getUnreadCount } from "@/actions/messages";
+import { getCampusMatchState, heartbeatCampusMatchQueue } from "@/actions/campus-match";
+import { toast } from "sonner";
 
 export type MessageNotification = {
   senderName: string;
@@ -20,11 +22,39 @@ export type MessageNotification = {
   conversationId: string;
 };
 
+export type CampusMatchStateSnapshot = {
+  status: "idle" | "waiting" | "in_session" | "banned";
+  preferences: {
+    allowAnonQueue: boolean;
+    defaultAlias: string | null;
+    lastScope: "same-campus" | "all-campuses";
+  };
+  queue: null | {
+    scope: "same-campus" | "all-campuses";
+    alias: string;
+    waitingSince: string;
+    nextRoundAt: string;
+  };
+  session: null | {
+    conversationId: string;
+    sessionStatus: "active" | "ended" | "promoted";
+    myAlias: string;
+    partnerAlias: string;
+    connectState: "none" | "pending_me" | "pending_them" | "mutual";
+  };
+  ban: null | {
+    expiresAt: string;
+    reason: string | null;
+  };
+};
+
 type SocketContextValue = {
   socket: Socket | null;
   isConnected: boolean;
   unreadCount: number;
   refreshUnreadCount: () => void;
+  campusMatchState: CampusMatchStateSnapshot | null;
+  refreshCampusMatchState: () => void;
   activeUserIds: Set<string>;
   setActiveConversationId: (id: string | null) => void;
   messageNotification: MessageNotification | null;
@@ -38,6 +68,8 @@ const SocketContext = createContext<SocketContextValue>({
   isConnected: false,
   unreadCount: 0,
   refreshUnreadCount: () => {},
+  campusMatchState: null,
+  refreshCampusMatchState: () => {},
   activeUserIds: EMPTY_SET,
   setActiveConversationId: () => {},
   messageNotification: null,
@@ -54,6 +86,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [campusMatchState, setCampusMatchState] =
+    useState<CampusMatchStateSnapshot | null>(null);
   const [activeUserIds, setActiveUserIds] = useState<Set<string>>(EMPTY_SET);
   const [messageNotification, setMessageNotification] =
     useState<MessageNotification | null>(null);
@@ -81,6 +115,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshCampusMatchState = useCallback(async () => {
+    const res = await getCampusMatchState();
+    if (res.success) {
+      setCampusMatchState(res.data);
+      void queryClient.setQueryData(["campus-match-state"], res.data);
+    }
+  }, [queryClient]);
+
+  const clearCampusMatchState = useCallback(() => {
+    setCampusMatchState(null);
+    void queryClient.setQueryData(["campus-match-state"], null);
+  }, [queryClient]);
+
   useEffect(() => {
     const token = session?.session?.token;
     if (!token) {
@@ -89,6 +136,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       if (existingSocket) {
         existingSocket.disconnect();
       }
+      queueMicrotask(() => {
+        clearCampusMatchState();
+      });
       return;
     }
 
@@ -103,6 +153,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setSocket(newSocket);
       // Refresh data on connect/reconnect
       void refreshUnreadCount();
+      void refreshCampusMatchState();
       void queryClient.invalidateQueries({ queryKey: ["conversations"] });
     });
 
@@ -186,6 +237,75 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void refreshUnreadCount();
     });
 
+    const refreshCampusMatch = () => {
+      void refreshCampusMatchState();
+      void queryClient.invalidateQueries({ queryKey: ["campus-match-state"] });
+    };
+
+    newSocket.on("campus_match_state_changed", refreshCampusMatch);
+    newSocket.on("campus_match_session_ended", refreshCampusMatch);
+    newSocket.on("campus_match_connect_changed", refreshCampusMatch);
+
+    newSocket.on("campus_match_message", (payload: { sessionId?: string }) => {
+      refreshCampusMatch();
+      if (payload.sessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["campus-match-messages", payload.sessionId],
+        });
+      }
+    });
+
+    newSocket.on("campus_match_found", (payload: { sessionId?: string }) => {
+      refreshCampusMatch();
+      const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+      const params =
+        typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const isAlreadyInAnon = pathname === "/messages" && params?.get("tab") === "anon";
+      if (!isAlreadyInAnon) {
+        toast("Campus Match found", {
+          description: "Open your anonymous chat now.",
+          action: {
+            label: "Open chat",
+            onClick: () => {
+              if (typeof window !== "undefined") {
+                window.location.href = "/messages?tab=anon";
+              }
+            },
+          },
+        });
+      }
+      if (payload.sessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["campus-match-messages", payload.sessionId],
+        });
+      }
+    });
+
+    newSocket.on(
+      "campus_match_promoted",
+      (payload: { conversationId?: string; sessionId?: string }) => {
+        refreshCampusMatch();
+        void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        void refreshUnreadCount();
+        const conversationId = payload.conversationId ?? payload.sessionId;
+        if (!conversationId) return;
+
+        const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+        const params =
+          typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+        const activeChat = params?.get("chat");
+        const isAlreadyViewingPromoted =
+          pathname === "/messages" && activeChat === conversationId;
+
+        if (!isAlreadyViewingPromoted) {
+          toast.success("Campus Match connected! Opening your conversation...");
+          if (typeof window !== "undefined") {
+            window.location.href = `/messages?chat=${conversationId}`;
+          }
+        }
+      },
+    );
+
     // Presence events
     newSocket.on("presence_sync", (data: { onlineUserIds: string[] }) => {
       // Clear all pending removal timeouts — the server's snapshot is authoritative
@@ -244,7 +364,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         notificationTimeoutRef.current = null;
       }
     };
-  }, [session?.session?.token, queryClient, refreshUnreadCount]);
+  }, [session?.session?.token, queryClient, refreshUnreadCount, refreshCampusMatchState, clearCampusMatchState]);
+
+  // Global heartbeat: keeps queue entry alive even when panel is not mounted
+  useEffect(() => {
+    if (campusMatchState?.status !== "waiting") return;
+
+    void heartbeatCampusMatchQueue();
+    const id = setInterval(() => {
+      void heartbeatCampusMatchQueue();
+    }, 30_000);
+
+    return () => clearInterval(id);
+  }, [campusMatchState?.status]);
 
   return (
     <SocketContext.Provider
@@ -253,6 +385,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         isConnected,
         unreadCount,
         refreshUnreadCount,
+        campusMatchState,
+        refreshCampusMatchState,
         activeUserIds,
         setActiveConversationId,
         messageNotification,

@@ -55,6 +55,8 @@ function getNotificationBadge(type: string): { variant: "default" | "destructive
       return { variant: "destructive", label: "Gig Declined" };
     case "gig_pending":
       return { variant: "secondary", label: "Gig Pending" };
+    case "cm_report":
+      return { variant: "destructive", label: "CM Report" };
     default:
       return { variant: "secondary", label: type };
   }

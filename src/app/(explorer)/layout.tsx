@@ -11,6 +11,7 @@ import { BetaAnnouncement } from "@/components/beta-announcement";
 import { AnnouncementModal } from "@/components/announcement-modal";
 import { SocketProvider } from "@/components/providers/socket-provider";
 import { MessageNotificationBanner } from "@/components/messages/message-notification-banner";
+import { CampusMatchStatusPill } from "@/components/messages/campus-match-status-pill";
 import { BannerStrip } from "@/components/banners/banner-strip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
@@ -108,6 +109,7 @@ export default function ExplorerLayout({ children }: { children: React.ReactNode
       >
         <NavBar />
         <MessageNotificationBanner />
+        <CampusMatchStatusPill />
         <BannerStrip />
         <ConsentGate session={session}>
           {children}

@@ -11,6 +11,8 @@ interface SettingsState {
   moderationPreset: ModerationPreset;
   customModerationRules: string;
   cursorPromoEnabled: boolean;
+  campusMatchEnabled: boolean;
+  matchDailySwipeLimit: number;
 }
 
 export default function SettingsPage() {
@@ -53,6 +55,16 @@ export default function SettingsPage() {
     await adminUpdateSettings({ cursorPromoEnabled: enabled });
   };
 
+  const handleCampusMatchEnabledChange = async (enabled: boolean) => {
+    setSettings((prev) => prev && { ...prev, campusMatchEnabled: enabled });
+    await adminUpdateSettings({ campusMatchEnabled: enabled });
+  };
+
+  const handleMatchDailySwipeLimitChange = async (limit: number) => {
+    setSettings((prev) => prev && { ...prev, matchDailySwipeLimit: limit });
+    await adminUpdateSettings({ matchDailySwipeLimit: limit });
+  };
+
   if (!settings) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -69,6 +81,8 @@ export default function SettingsPage() {
       onCustomRulesChange={handleCustomRulesChange}
       onCustomRulesSave={handleCustomRulesSave}
       onCursorPromoChange={handleCursorPromoChange}
+      onCampusMatchEnabledChange={handleCampusMatchEnabledChange}
+      onMatchDailySwipeLimitChange={handleMatchDailySwipeLimitChange}
     />
   );
 }

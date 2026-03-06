@@ -441,6 +441,7 @@ export const userPrivacySetting = pgTable("user_privacy_setting", {
 
 export const conversation = pgTable("conversation", {
   id: uuid("id").defaultRandom().primaryKey(),
+  source: text("source").notNull().default("direct"), // "direct" | "campus_match" | "anon_chat"
   isRequest: boolean("is_request").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   deletedByUserId: text("deleted_by_user_id").references(() => user.id, {
@@ -635,8 +636,10 @@ export const cmQueueEntry = pgTable(
 
 export const cmSession = pgTable("cm_session", {
   id: uuid("id").defaultRandom().primaryKey(),
+  type: text("type").notNull().default("anon_chat"), // "anon_chat" | "campus_match"
   status: text("status").notNull().default("active"),
   endedReason: text("ended_reason"),
+  expiresAt: timestamp("expires_at"), // only for campus_match (48h)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   endedAt: timestamp("ended_at"),
 });
@@ -768,6 +771,157 @@ export const cmRematchCooldown = pgTable(
     index("cm_rematch_cooldown_expires_idx").on(table.expiresAt),
   ],
 );
+
+// ─── Campus Match: Ban ───────────────────────────────────────────────────────
+
+export const cmBan = pgTable(
+  "cm_ban",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sourceReportId: uuid("source_report_id").references(() => cmReport.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason"),
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    liftedAt: timestamp("lifted_at"),
+    liftedBy: text("lifted_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("cm_ban_user_active_idx").on(
+      table.userId,
+      table.liftedAt,
+      table.expiresAt,
+    ),
+    index("cm_ban_expires_idx").on(table.expiresAt),
+    index("cm_ban_report_idx").on(table.sourceReportId),
+  ],
+);
+
+// ─── Match: Prompt Pool (admin-managed) ─────────────────────────────────────
+
+export const matchPromptPool = pgTable("match_prompt_pool", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  category: text("category").notNull(), // "vulnerability" | "taste" | "campus" | "flirty"
+  promptText: text("prompt_text").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Match: Profile ─────────────────────────────────────────────────────────
+
+export const matchProfile = pgTable("match_profile", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: "cascade" }),
+  interests: text("interests").array().notNull().default([]),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ─── Match: Profile Prompt (user's chosen prompts + answers) ────────────────
+
+export const matchProfilePrompt = pgTable(
+  "match_profile_prompt",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => matchProfile.id, { onDelete: "cascade" }),
+    promptId: uuid("prompt_id")
+      .notNull()
+      .references(() => matchPromptPool.id, { onDelete: "cascade" }),
+    answer: text("answer").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [
+    index("match_profile_prompt_profile_idx").on(table.profileId),
+  ],
+);
+
+// ─── Match: Swipe ───────────────────────────────────────────────────────────
+
+export const matchSwipe = pgTable(
+  "match_swipe",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    swiperId: text("swiper_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetId: text("target_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    direction: text("direction").notNull(), // "like" | "pass"
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("match_swipe_pair_idx").on(table.swiperId, table.targetId),
+    index("match_swipe_target_idx").on(table.targetId),
+    index("match_swipe_swiper_created_idx").on(table.swiperId, table.createdAt),
+  ],
+);
+
+// ─── Match: Match ───────────────────────────────────────────────────────────
+
+export const matchMatch = pgTable(
+  "match_match",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userIdA: text("user_id_a")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    userIdB: text("user_id_b")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id").references(() => cmSession.id, {
+      onDelete: "set null",
+    }),
+    status: text("status").notNull().default("active"), // "active" | "expired" | "promoted" | "ended"
+    matchedAt: timestamp("matched_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("match_match_pair_idx").on(table.userIdA, table.userIdB),
+    index("match_match_user_a_idx").on(table.userIdA),
+    index("match_match_user_b_idx").on(table.userIdB),
+    index("match_match_status_idx").on(table.status),
+    index("match_match_expires_idx").on(table.expiresAt),
+  ],
+);
+
+// ─── Match: Pic Swap ────────────────────────────────────────────────────────
+
+export const matchPicSwap = pgTable("match_pic_swap", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionId: uuid("session_id")
+    .notNull()
+    .references(() => cmSession.id, { onDelete: "cascade" }),
+  initiatorId: text("initiator_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"), // "pending" | "accepted" | "uploading" | "revealed" | "declined"
+  imageKeyA: text("image_key_a"),
+  imageKeyB: text("image_key_b"),
+  uploadedAtA: timestamp("uploaded_at_a"),
+  uploadedAtB: timestamp("uploaded_at_b"),
+  revealedAt: timestamp("revealed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // ─── Banner ──────────────────────────────────────────────────────────────────
 
@@ -915,6 +1069,17 @@ export const userRelations = relations(user, ({ many, one }) => ({
   cmReportsReceived: many(cmReport, { relationName: "reportedUser" }),
   cmBlocksInitiated: many(cmBlock, { relationName: "blocker" }),
   cmBlocksReceived: many(cmBlock, { relationName: "blocked" }),
+  cmBans: many(cmBan, { relationName: "bannedUser" }),
+  cmBansIssued: many(cmBan, { relationName: "banCreator" }),
+  cmBansLifted: many(cmBan, { relationName: "banLifter" }),
+  matchProfile: one(matchProfile, {
+    fields: [user.id],
+    references: [matchProfile.userId],
+  }),
+  matchSwipesSent: many(matchSwipe, { relationName: "swiper" }),
+  matchSwipesReceived: many(matchSwipe, { relationName: "swipeTarget" }),
+  matchesAsA: many(matchMatch, { relationName: "matchUserA" }),
+  matchesAsB: many(matchMatch, { relationName: "matchUserB" }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -1243,10 +1408,12 @@ export const cmQueueEntryRelations = relations(cmQueueEntry, ({ one }) => ({
   }),
 }));
 
-export const cmSessionRelations = relations(cmSession, ({ many }) => ({
+export const cmSessionRelations = relations(cmSession, ({ one, many }) => ({
   participants: many(cmSessionParticipant),
   messages: many(cmMessage),
   reports: many(cmReport),
+  match: one(matchMatch),
+  picSwaps: many(matchPicSwap),
 }));
 
 export const cmSessionParticipantRelations = relations(
@@ -1324,6 +1491,94 @@ export const cmRematchCooldownRelations = relations(
     }),
   }),
 );
+
+export const cmBanRelations = relations(cmBan, ({ one }) => ({
+  user: one(user, {
+    fields: [cmBan.userId],
+    references: [user.id],
+    relationName: "bannedUser",
+  }),
+  sourceReport: one(cmReport, {
+    fields: [cmBan.sourceReportId],
+    references: [cmReport.id],
+  }),
+  createdByUser: one(user, {
+    fields: [cmBan.createdBy],
+    references: [user.id],
+    relationName: "banCreator",
+  }),
+  liftedByUser: one(user, {
+    fields: [cmBan.liftedBy],
+    references: [user.id],
+    relationName: "banLifter",
+  }),
+}));
+
+// ─── Match Relations ─────────────────────────────────────────────────────────
+
+export const matchPromptPoolRelations = relations(matchPromptPool, ({ many }) => ({
+  profilePrompts: many(matchProfilePrompt),
+}));
+
+export const matchProfileRelations = relations(matchProfile, ({ one, many }) => ({
+  user: one(user, {
+    fields: [matchProfile.userId],
+    references: [user.id],
+  }),
+  prompts: many(matchProfilePrompt),
+}));
+
+export const matchProfilePromptRelations = relations(matchProfilePrompt, ({ one }) => ({
+  profile: one(matchProfile, {
+    fields: [matchProfilePrompt.profileId],
+    references: [matchProfile.id],
+  }),
+  prompt: one(matchPromptPool, {
+    fields: [matchProfilePrompt.promptId],
+    references: [matchPromptPool.id],
+  }),
+}));
+
+export const matchSwipeRelations = relations(matchSwipe, ({ one }) => ({
+  swiper: one(user, {
+    fields: [matchSwipe.swiperId],
+    references: [user.id],
+    relationName: "swiper",
+  }),
+  target: one(user, {
+    fields: [matchSwipe.targetId],
+    references: [user.id],
+    relationName: "swipeTarget",
+  }),
+}));
+
+export const matchMatchRelations = relations(matchMatch, ({ one }) => ({
+  userA: one(user, {
+    fields: [matchMatch.userIdA],
+    references: [user.id],
+    relationName: "matchUserA",
+  }),
+  userB: one(user, {
+    fields: [matchMatch.userIdB],
+    references: [user.id],
+    relationName: "matchUserB",
+  }),
+  session: one(cmSession, {
+    fields: [matchMatch.sessionId],
+    references: [cmSession.id],
+  }),
+}));
+
+export const matchPicSwapRelations = relations(matchPicSwap, ({ one }) => ({
+  session: one(cmSession, {
+    fields: [matchPicSwap.sessionId],
+    references: [cmSession.id],
+  }),
+  initiator: one(user, {
+    fields: [matchPicSwap.initiatorId],
+    references: [user.id],
+  }),
+}));
 
 // ─── Banner Relations ─────────────────────────────────────────────────────────
 

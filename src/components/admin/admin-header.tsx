@@ -21,6 +21,8 @@ const pageTitles: Record<string, string> = {
   "/admin/gigs/queue": "Gigs Queue",
   "/admin/gigs": "All Gigs",
   "/admin/gigs/create": "Create Gig",
+  "/admin/campus-match-reports": "Campus Match Reports",
+  "/admin/match-prompts": "Match Prompts",
   "/admin/notifications": "Notifications",
   "/admin/settings": "Settings",
 };

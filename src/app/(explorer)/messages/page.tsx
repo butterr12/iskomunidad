@@ -11,6 +11,7 @@ import {
 } from "@/actions/messages";
 import { ConversationList } from "@/components/messages/conversation-list";
 import { ChatPanel } from "@/components/messages/chat-panel";
+import { CampusMatchPanel } from "@/components/messages/campus-match-panel";
 import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -26,10 +27,28 @@ export default function MessagesPage() {
   const queryClient = useQueryClient();
   const withUserId = searchParams.get("with");
   const chatId = searchParams.get("chat");
+  const tabParam = searchParams.get("tab");
 
   const { setActiveConversationId } = useSocket();
   const [activeConversation, setActiveConversation] =
     useState<ConversationPreview | null>(null);
+  const [activeTab, setActiveTab] = useState<"messages" | "requests" | "anon">(
+    tabParam === "anon" ? "anon" : "messages",
+  );
+
+  useEffect(() => {
+    if (tabParam === "anon") {
+      if (activeTab !== "anon") {
+        setActiveTab("anon");
+      }
+      return;
+    }
+
+    // Preserve local "requests" tab state, but reset anon view when URL no longer targets it.
+    if (activeTab === "anon") {
+      setActiveTab("messages");
+    }
+  }, [tabParam, activeTab]);
 
   // Track active conversation so SocketProvider suppresses notifications for it
   useEffect(() => {
@@ -44,6 +63,7 @@ export default function MessagesPage() {
     (conv: ConversationPreview | null) => {
       // Prevent race: clearing chat locally can happen before URL loses ?chat=.
       if (!conv) hasRestoredChatRef.current = true;
+      if (conv) setActiveTab("messages");
       setActiveConversation(conv);
       const params = new URLSearchParams(searchParams.toString());
       if (conv) {
@@ -51,11 +71,29 @@ export default function MessagesPage() {
       } else {
         params.delete("chat");
       }
+      params.delete("tab");
       params.delete("with"); // clean up after navigation
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
     [searchParams, router, pathname],
+  );
+
+  const setTab = useCallback(
+    (value: "messages" | "requests" | "anon") => {
+      setActiveTab(value);
+      const params = new URLSearchParams(searchParams.toString());
+      if (value === "anon") {
+        setActiveConversation(null);
+        params.set("tab", "anon");
+        params.delete("chat");
+      } else {
+        params.delete("tab");
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
   );
 
   // Fetch conversations for auto-open via ?with= param
@@ -78,6 +116,7 @@ export default function MessagesPage() {
 
   // Restore conversation from ?chat= param on initial load only
   useEffect(() => {
+    if (activeTab === "anon") return;
     if (hasRestoredChatRef.current) return;
     if (!chatId || activeConversation || allConversations.length === 0) return;
     const found = allConversations.find((c) => c.id === chatId);
@@ -85,7 +124,7 @@ export default function MessagesPage() {
       setActiveConversation(found);
       hasRestoredChatRef.current = true;
     }
-  }, [chatId, activeConversation, allConversations]);
+  }, [chatId, activeConversation, allConversations, activeTab]);
 
   // Handle ?with= param — auto-create or find conversation
   useEffect(() => {
@@ -127,6 +166,7 @@ export default function MessagesPage() {
                 void queryClient.invalidateQueries({ queryKey: ["conversations"] });
                 selectConversation({
                   id: res.data.conversationId,
+                  source: "direct",
                   isRequest: res.data.isRequest,
                   updatedAt: new Date().toISOString(),
                   otherUser: { id: withUserId!, name: "", username: null, image: null },
@@ -199,31 +239,35 @@ export default function MessagesPage() {
       )}
     >
       {/* Sidebar — conversation list */}
-      <div
-        className={cn(
-          "border-r flex-col",
-          activeConversation
-            ? "hidden sm:flex sm:w-80"
-            : "flex w-full sm:w-80",
-        )}
-      >
-        <ConversationList
-          activeConversationId={activeConversation?.id ?? null}
-          onSelect={selectConversation}
-        />
-      </div>
+        <div
+          className={cn(
+            "border-r flex-col",
+            activeConversation || activeTab === "anon"
+              ? "hidden sm:flex sm:w-80"
+              : "flex w-full sm:w-80",
+          )}
+        >
+          <ConversationList
+            activeConversationId={activeConversation?.id ?? null}
+            activeTab={activeTab}
+            onTabChange={setTab}
+            onSelect={selectConversation}
+          />
+        </div>
 
       {/* Chat panel */}
-      <div
-        className={cn(
-          "flex-1 flex-col min-w-0",
-          activeConversation ? "flex" : "hidden sm:flex",
-        )}
-      >
-        {activeConversation ? (
-          <ChatPanel
-            key={activeConversation.id}
-            conversation={activeConversation}
+        <div
+          className={cn(
+            "flex-1 flex-col min-w-0",
+            activeConversation || activeTab === "anon" ? "flex" : "hidden sm:flex",
+          )}
+        >
+          {activeTab === "anon" ? (
+            <CampusMatchPanel onBack={() => setTab("messages")} />
+          ) : activeConversation ? (
+            <ChatPanel
+              key={activeConversation.id}
+              conversation={activeConversation}
             onBack={handleBack}
           />
         ) : (

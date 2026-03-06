@@ -75,8 +75,11 @@ export function NavBar() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
-  const { unreadCount } = useSocket();
+  const { unreadCount, campusMatchState } = useSocket();
   const { isStandalone, install } = usePwaInstall();
+  const hasCampusMatchIndicator =
+    campusMatchState?.status === "waiting" ||
+    campusMatchState?.status === "in_session";
 
   const user = session?.user;
   const displayUsername = (user as Record<string, unknown> | undefined)
@@ -133,8 +136,13 @@ export function NavBar() {
                 <Link href={t.href}>
                   <t.icon className="h-4 w-4" />
                   {t.label}
-                  {t.href === "/messages" && unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-destructive" />
+                  {t.href === "/messages" && (unreadCount > 0 || hasCampusMatchIndicator) && (
+                    <span
+                      className={cn(
+                        "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full",
+                        unreadCount > 0 ? "bg-destructive" : "bg-primary",
+                      )}
+                    />
                   )}
                 </Link>
               </Button>
@@ -216,8 +224,13 @@ export function NavBar() {
             >
               <div className="relative">
                 <t.icon className={cn("h-5 w-5", pathname === t.href && "text-primary")} />
-                {t.href === "/messages" && unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1.5 h-2.5 w-2.5 rounded-full bg-destructive border border-background" />
+                {t.href === "/messages" && (unreadCount > 0 || hasCampusMatchIndicator) && (
+                  <span
+                    className={cn(
+                      "absolute -top-1 -right-1.5 h-2.5 w-2.5 rounded-full border border-background",
+                      unreadCount > 0 ? "bg-destructive" : "bg-primary",
+                    )}
+                  />
                 )}
               </div>
               {t.label}

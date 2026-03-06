@@ -35,6 +35,7 @@ import {
   getModerationPreset,
   getCustomModerationRules,
   getCursorPromoEnabled,
+  getMatchDailySwipeLimit,
   createNotification,
   createUserNotification,
 } from "./_helpers";
@@ -123,6 +124,7 @@ const settingsSchema = z.object({
   customModerationRules: z.string().max(2000).optional(),
   cursorPromoEnabled: z.boolean().optional(),
   campusMatchEnabled: z.boolean().optional(),
+  matchDailySwipeLimit: z.number().int().min(1).max(100).optional(),
 });
 
 const resolveCampusMatchReportSchema = z.object({
@@ -1509,6 +1511,7 @@ export async function adminGetSettings(): Promise<
     customModerationRules: string;
     cursorPromoEnabled: boolean;
     campusMatchEnabled: boolean;
+    matchDailySwipeLimit: number;
   }>
 > {
   const session = await requireAdmin();
@@ -1519,6 +1522,7 @@ export async function adminGetSettings(): Promise<
   const customModerationRules = await getCustomModerationRules();
   const cursorPromoEnabled = await getCursorPromoEnabled();
   const campusMatchEnabled = await getCampusMatchEnabled();
+  const matchDailySwipeLimit = await getMatchDailySwipeLimit();
   return {
     success: true,
     data: {
@@ -1527,6 +1531,7 @@ export async function adminGetSettings(): Promise<
       customModerationRules,
       cursorPromoEnabled,
       campusMatchEnabled,
+      matchDailySwipeLimit,
     },
   };
 }
@@ -1603,6 +1608,19 @@ export async function adminUpdateSettings(
       .onConflictDoUpdate({
         target: [adminSetting.key],
         set: { value: parsed.data.campusMatchEnabled },
+      });
+  }
+
+  if (parsed.data.matchDailySwipeLimit !== undefined) {
+    await db
+      .insert(adminSetting)
+      .values({
+        key: "matchDailySwipeLimit",
+        value: parsed.data.matchDailySwipeLimit,
+      })
+      .onConflictDoUpdate({
+        target: [adminSetting.key],
+        set: { value: parsed.data.matchDailySwipeLimit },
       });
   }
 

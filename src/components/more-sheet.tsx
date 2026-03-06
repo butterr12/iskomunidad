@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { Hammer, HeartHandshake, Settings, Bot, UsersRound, Building2, Users2 } from "lucide-react";
+import { Hammer, Settings, Bot, UsersRound, Building2, Users2, HeartHandshake } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -13,12 +12,11 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { MatchPreviewSheet } from "@/components/match-preview-sheet";
 
 const items = [
   { label: "People", href: "/people", icon: Users2, comingSoon: false, toastMessage: "" },
   { label: "Gigs", href: "/gigs", icon: Hammer, comingSoon: false, toastMessage: "" },
-  { label: "Match", href: null, icon: HeartHandshake, comingSoon: true, toastMessage: "" },
+  { label: "Match", href: "/match", icon: HeartHandshake, comingSoon: false, toastMessage: "" },
   { label: "Isko AI", href: null, icon: Bot, comingSoon: true, toastMessage: "Isko AI chatbot is coming soon! Your all-in-one uni assistant." },
   { label: "Orgs", href: null, icon: UsersRound, comingSoon: true, toastMessage: "Orgs directory is coming soon! Discover and join student organizations." },
   { label: "Housing", href: null, icon: Building2, comingSoon: true, toastMessage: "Housing portal & Rate My Dorm is coming soon!" },
@@ -32,14 +30,7 @@ interface MoreSheetProps {
 }
 
 export function MoreSheet({ open, onOpenChange, pathname }: MoreSheetProps) {
-  const [showMatchPreview, setShowMatchPreview] = useState(false);
-
-  const handleComingSoonClick = (label: string, toastMessage: string) => {
-    if (label === "Match") {
-      onOpenChange(false);
-      setShowMatchPreview(true);
-      return;
-    }
+  const handleComingSoonClick = (toastMessage: string) => {
     toast.info(toastMessage);
   };
 
@@ -73,7 +64,7 @@ export function MoreSheet({ open, onOpenChange, pathname }: MoreSheetProps) {
                   key={item.label}
                   className="more-grid-item flex flex-col items-center justify-center gap-2 rounded-xl bg-muted/60 p-4 transition-colors"
                   style={{ animationDelay: `${i * 60}ms` }}
-                  onClick={() => handleComingSoonClick(item.label, item.toastMessage)}
+                  onClick={() => handleComingSoonClick(item.toastMessage)}
                 >
                   <div className="relative">
                     <item.icon className="h-6 w-6 text-muted-foreground" />
@@ -120,7 +111,6 @@ export function MoreSheet({ open, onOpenChange, pathname }: MoreSheetProps) {
         </div>
       </SheetContent>
     </Sheet>
-    <MatchPreviewSheet open={showMatchPreview} onOpenChange={setShowMatchPreview} />
     </>
   );
 }

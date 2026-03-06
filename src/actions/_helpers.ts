@@ -226,6 +226,16 @@ export async function getCursorPromoEnabled(): Promise<boolean> {
   return false; // default: disabled (opt-in via admin)
 }
 
+const MATCH_DAILY_SWIPE_LIMIT_DEFAULT = 15;
+
+export async function getMatchDailySwipeLimit(): Promise<number> {
+  const row = await db.query.adminSetting.findFirst({
+    where: eq(adminSetting.key, "matchDailySwipeLimit"),
+  });
+  if (row && typeof row.value === "number") return row.value;
+  return MATCH_DAILY_SWIPE_LIMIT_DEFAULT;
+}
+
 export async function requireCampusMatch(): Promise<ActionResult<never> | null> {
   const enabled = await getCampusMatchEnabled();
   if (!enabled) return { success: false, error: "Campus Match is currently disabled" };

@@ -15,11 +15,14 @@ import {
   cmSessionParticipant,
   conversation,
   conversationParticipant,
+  message,
+  user,
   userFollow,
 } from "@/lib/schema";
 import { and, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
   type ActionResult,
+  createNotification,
   getCampusMatchEnabled,
   getSession,
   guardAction,
@@ -534,13 +537,21 @@ async function promoteSessionToConversation(
       ],
     });
 
-  await tx.execute(sql`
-    INSERT INTO message (conversation_id, sender_id, body, image_url, created_at)
-    SELECT ${sessionId}::uuid, sender_id, body, image_url, created_at
-    FROM cm_message
-    WHERE session_id = ${sessionId}::uuid
-    ORDER BY created_at ASC
-  `);
+  const existingConversationMessages = await tx
+    .select({ id: message.id })
+    .from(message)
+    .where(eq(message.conversationId, sessionId))
+    .limit(1);
+
+  if (existingConversationMessages.length === 0) {
+    await tx.execute(sql`
+      INSERT INTO message (conversation_id, sender_id, body, image_url, created_at)
+      SELECT ${sessionId}::uuid, sender_id, body, image_url, created_at
+      FROM cm_message
+      WHERE session_id = ${sessionId}::uuid
+      ORDER BY created_at ASC
+    `);
+  }
 
   if (participants.length >= 2) {
     const [userA, userB] = participants.map((p) => p.userId);
@@ -582,44 +593,55 @@ async function runCampusMatchRound(force = false): Promise<MatchRoundResult> {
       console.info("[campus-match] matching round skipped", {
         reason: "lock_busy",
       });
-      return { pairedCount: 0, matches: [] };
+      return { pairedCount: 0, matches: [], removedUserIds: [] };
     }
 
     const staleCutoff = new Date(now.getTime() - STALE_QUEUE_MS);
+    const removedUserIds = new Set<string>();
 
-    await tx
+    const staleRemoved = await tx
       .delete(cmQueueEntry)
-      .where(sql`${cmQueueEntry.heartbeatAt} < ${staleCutoff}`);
+      .where(sql`${cmQueueEntry.heartbeatAt} < ${staleCutoff}`)
+      .returning({ userId: cmQueueEntry.userId });
+    for (const r of staleRemoved) removedUserIds.add(r.userId);
 
-    await tx.execute(sql`
+    const inactiveRemoved = await tx.execute<{ user_id: string }>(sql`
       DELETE FROM cm_queue_entry q
       USING "user" u
       WHERE q.user_id = u.id
         AND u.status <> 'active'
+      RETURNING q.user_id
     `);
+    for (const r of inactiveRemoved.rows) removedUserIds.add(r.user_id);
 
-    await tx.execute(sql`
+    const optOutRemoved = await tx.execute<{ user_id: string }>(sql`
       DELETE FROM cm_queue_entry q
       USING cm_preference p
       WHERE q.user_id = p.user_id
         AND p.allow_anon_queue = false
+      RETURNING q.user_id
     `);
+    for (const r of optOutRemoved.rows) removedUserIds.add(r.user_id);
 
-    await tx.execute(sql`
+    const activeSessionRemoved = await tx.execute<{ user_id: string }>(sql`
       DELETE FROM cm_queue_entry q
       USING cm_session_participant sp
       JOIN cm_session s ON s.id = sp.session_id
       WHERE q.user_id = sp.user_id
         AND s.status = 'active'
+      RETURNING q.user_id
     `);
+    for (const r of activeSessionRemoved.rows) removedUserIds.add(r.user_id);
 
-    await tx.execute(sql`
+    const bannedRemoved = await tx.execute<{ user_id: string }>(sql`
       DELETE FROM cm_queue_entry q
       USING cm_ban b
       WHERE q.user_id = b.user_id
         AND b.lifted_at IS NULL
         AND b.expires_at > ${now}
+      RETURNING q.user_id
     `);
+    for (const r of bannedRemoved.rows) removedUserIds.add(r.user_id);
 
     const [lastRoundRow] = await tx
       .select({ value: adminSetting.value })
@@ -635,7 +657,7 @@ async function runCampusMatchRound(force = false): Promise<MatchRoundResult> {
     if (!force && lastRoundAt) {
       const elapsed = now.getTime() - lastRoundAt.getTime();
       if (elapsed < MATCH_ROUND_INTERVAL_MS) {
-        return { pairedCount: 0, matches: [] };
+        return { pairedCount: 0, matches: [], removedUserIds: [...removedUserIds] };
       }
     }
 
@@ -691,7 +713,7 @@ async function runCampusMatchRound(force = false): Promise<MatchRoundResult> {
       .filter((row) => row.alias.length >= 3);
 
     if (candidates.length < 2) {
-      return { pairedCount: 0, matches: [] };
+      return { pairedCount: 0, matches: [], removedUserIds: [...removedUserIds] };
     }
 
     const candidateIds = candidates.map((c) => c.userId);
@@ -798,8 +820,13 @@ async function runCampusMatchRound(force = false): Promise<MatchRoundResult> {
       paired: pairs.length,
     });
 
-    return { pairedCount: pairs.length, matches };
+    return { pairedCount: pairs.length, matches, removedUserIds: [...removedUserIds] };
   });
+
+  // Notify users removed during cleanup so their UI updates immediately
+  if (result.removedUserIds.length > 0) {
+    emitCampusMatchStateChanged(result.removedUserIds);
+  }
 
   if (result.matches.length > 0) {
     for (const match of result.matches) {
@@ -1095,6 +1122,17 @@ export async function joinCampusMatchQueue(
 
   if (!preferences.allowAnonQueue) {
     return { success: false, error: "Campus Match is disabled in your privacy settings" };
+  }
+
+  const account = await db.query.user.findFirst({
+    where: eq(user.id, userId),
+    columns: { university: true },
+  });
+  if (parsed.data.scope === "same-campus" && !normalizeCampus(account?.university)) {
+    return {
+      success: false,
+      error: "Set your university in Settings to use Same campus, or choose All campuses.",
+    };
   }
 
   const now = new Date();
@@ -1503,12 +1541,33 @@ export async function requestCampusMatchConnect(
         "request_connect",
       );
       if (!locked.success) {
-        return { error: locked.error, userIds: [] as string[], promoted: false };
+        if (locked.error === "Session is no longer active") {
+          const [sessionRow] = await tx
+            .select({ status: cmSession.status })
+            .from(cmSession)
+            .where(eq(cmSession.id, parsed.data.sessionId))
+            .limit(1);
+
+          if (sessionRow?.status === "promoted") {
+            const participants = await loadParticipantsForSession(tx, parsed.data.sessionId);
+            const isParticipant = participants.some((participant) => participant.userId === userId);
+            if (isParticipant) {
+              return {
+                error: null as string | null,
+                userIds: participants.map((participant) => participant.userId),
+                promoted: true,
+                promotedNow: false,
+              };
+            }
+          }
+        }
+
+        return { error: locked.error, userIds: [] as string[], promoted: false, promotedNow: false };
       }
 
       const blockCheck = await assertCampusMatchInteractionAllowed(userId, locked.data.partner.userId);
       if (blockCheck && !blockCheck.success) {
-        return { error: blockCheck.error, userIds: [] as string[], promoted: false };
+        return { error: blockCheck.error, userIds: [] as string[], promoted: false, promotedNow: false };
       }
 
       await tx
@@ -1532,6 +1591,7 @@ export async function requestCampusMatchConnect(
       return {
         error: null as string | null,
         promoted: everyoneRequested,
+        promotedNow: everyoneRequested,
         userIds: updated.map((participant) => participant.userId),
       };
     });
@@ -1540,7 +1600,7 @@ export async function requestCampusMatchConnect(
       return { success: false, error: result.error };
     }
 
-    if (result.promoted) {
+    if (result.promotedNow) {
       emitCampusMatchUserEvent(
         "campus_match_promoted",
         {
@@ -1550,7 +1610,7 @@ export async function requestCampusMatchConnect(
         },
         result.userIds,
       );
-    } else {
+    } else if (!result.promoted) {
       emitCampusMatchUserEvent(
         "campus_match_connect_changed",
         {
@@ -1733,6 +1793,14 @@ export async function reportCampusMatchUser(
     result.userIds,
   );
   emitCampusMatchStateChanged(result.userIds);
+
+  await createNotification({
+    type: "cm_report",
+    targetId: parsed.data.sessionId,
+    targetTitle: "Campus Match report",
+    authorHandle: authSession.user.username ?? authSession.user.email,
+    reason: parsed.data.reason,
+  });
 
   return { success: true, data: undefined };
 }
