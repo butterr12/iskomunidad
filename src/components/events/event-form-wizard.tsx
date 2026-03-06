@@ -220,9 +220,9 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
               : "Event updated!",
           );
         }
+        onSuccess?.();
         if (onOpenChange) {
           onOpenChange(false);
-          onSuccess?.();
         } else {
           router.push("/events");
         }
@@ -661,6 +661,11 @@ export function EventFormWizard({ mode, initialData, autoApprove = true, open, o
       </div>
     </>
   );
+
+  // When used as a page (no open/onOpenChange), render inline
+  if (open === undefined || onOpenChange === undefined) {
+    return <>{formContent}</>;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

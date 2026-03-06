@@ -375,6 +375,40 @@ export async function deleteGig(gigId: string): Promise<ActionResult<void>> {
   return { success: true, data: undefined };
 }
 
+export async function getGigById(
+  gigId: string,
+): Promise<ActionResult<unknown>> {
+  const session = await getOptionalSession();
+
+  const row = await db.query.gigListing.findFirst({
+    where: eq(gigListing.id, gigId),
+    with: {
+      user: { columns: { name: true, username: true, image: true } },
+    },
+  });
+
+  if (!row) return { success: false, error: "Gig not found" };
+
+  const isOwner = session?.user?.id === row.userId;
+  const isAdmin = session?.user?.role === "admin";
+  if (row.status !== "approved" && !isOwner && !isAdmin) {
+    return { success: false, error: "Gig not found" };
+  }
+
+  return {
+    success: true,
+    data: {
+      ...row,
+      deadline: row.deadline?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      author: row.user.name,
+      authorHandle: row.user.username ? `@${row.user.username}` : null,
+      posterId: row.userId,
+    },
+  };
+}
+
 export async function updateGig(
   gigId: string,
   input: z.infer<typeof createGigSchema>,

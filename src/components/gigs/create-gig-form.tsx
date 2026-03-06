@@ -47,6 +47,335 @@ interface CreateGigFormProps {
   initialData?: CreateGigFormData;
 }
 
+// ─── GigFormInner — standalone form (for page-based rendering) ────────────────
+
+interface GigFormInnerProps {
+  onSubmit: (data: CreateGigFormData) => Promise<{ success: boolean }>;
+  onClose?: () => void;
+  gigId?: string;
+  initialData?: CreateGigFormData;
+}
+
+export function GigFormInner({ onSubmit, onClose, gigId, initialData }: GigFormInnerProps) {
+  const isEditMode = !!gigId;
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [title, setTitle] = useState(initialData?.title ?? "");
+  const [description, setDescription] = useState(initialData?.description ?? "");
+  const [category, setCategory] = useState<GigCategory | "">(initialData?.category as GigCategory ?? "");
+  const [compensation, setCompensation] = useState(initialData?.compensation ?? "");
+  const [urgency, setUrgency] = useState<GigUrgency>(initialData?.urgency ?? "flexible");
+  const [contactPlatform, setContactPlatform] = useState<ContactPlatform>("in-app");
+  const [contactHandle, setContactHandle] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [tags, setTags] = useState<string[]>(initialData?.tags ?? []);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [locationNote, setLocationNote] = useState(initialData?.locationNote ?? "");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      const { platform, handle } = parseContactMethod(initialData.contactMethod);
+      setContactPlatform(platform);
+      setContactHandle(handle);
+      setDeadline(
+        initialData.deadline
+          ? new Date(initialData.deadline).toISOString().slice(0, 16)
+          : "",
+      );
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    getTagSuggestions().then((res) => {
+      if (res.success) setTagSuggestions(res.data);
+    });
+  }, []);
+
+  const step1Valid = !!(title.trim() && category && compensation.trim());
+  const step2Valid = !!description.trim();
+  const contactValid = contactPlatform === "in-app" || contactHandle.trim().length > 0;
+  const canSubmit = step1Valid && step2Valid && contactValid && !submitting;
+
+  function buildContactMethod(): string {
+    if (contactPlatform === "in-app") return "in-app";
+    if (contactPlatform === "other") return contactHandle.trim();
+    const label = CONTACT_OPTIONS.find((o) => o.id === contactPlatform)?.label ?? contactPlatform;
+    return `${label}: ${contactHandle.trim()}`;
+  }
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      const result = await onSubmit({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        compensation: compensation.trim(),
+        urgency,
+        contactMethod: buildContactMethod(),
+        deadline: deadline ? new Date(deadline).toISOString() : undefined,
+        tags,
+        locationNote: locationNote.trim() || undefined,
+      });
+      if (result.success) {
+        onClose?.();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      {/* Step progress bar */}
+      <div className="flex items-center gap-2 pb-4">
+        {[1, 2, 3].map((s) => (
+          <div
+            key={s}
+            className={cn(
+              "h-1.5 flex-1 rounded-full transition-colors duration-300",
+              s <= step ? "bg-primary" : "bg-muted",
+            )}
+          />
+        ))}
+        <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+          {step} / 3
+        </span>
+      </div>
+
+      {/* Step content */}
+      <div className="flex-1 overflow-y-auto">
+        {step === 1 && (
+          <div className="flex flex-col gap-4 pb-4">
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              The Basics
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="gig-title" className="text-sm font-medium">Title</label>
+                <span className="text-xs text-muted-foreground">{title.length}/200</span>
+              </div>
+              <Input
+                id="gig-title"
+                placeholder="e.g. Need a tutor for Calculus"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={200}
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm font-medium">Category</p>
+              <div className="flex flex-wrap gap-1.5">
+                {GIG_CATEGORIES.map((c) => (
+                  <button key={c} type="button" onClick={() => setCategory(c)}>
+                    <Badge
+                      variant={category === c ? "default" : "outline"}
+                      style={
+                        category === c
+                          ? { backgroundColor: CATEGORY_COLORS[c], borderColor: CATEGORY_COLORS[c] }
+                          : { borderColor: CATEGORY_COLORS[c], color: CATEGORY_COLORS[c] }
+                      }
+                      className="cursor-pointer"
+                    >
+                      {CATEGORY_LABELS[c]}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gig-comp" className="text-sm font-medium">Compensation</label>
+              <Input
+                id="gig-comp"
+                placeholder="e.g. ₱500/hr, Volunteer, Negotiable"
+                value={compensation}
+                onChange={(e) => setCompensation(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="flex flex-col gap-4 pb-4">
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Details</p>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gig-desc" className="text-sm font-medium">Description</label>
+              <Textarea
+                id="gig-desc"
+                placeholder="Describe what you need help with, when, and any requirements..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm font-medium">Urgency</p>
+              <div className="flex gap-1">
+                {URGENCIES.map((u) => (
+                  <Button
+                    key={u}
+                    type="button"
+                    variant={urgency === u ? "default" : "outline"}
+                    size="sm"
+                    style={urgency === u ? { backgroundColor: URGENCY_COLORS[u], borderColor: URGENCY_COLORS[u] } : undefined}
+                    onClick={() => setUrgency(u)}
+                  >
+                    {URGENCY_LABELS[u]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gig-deadline" className="text-sm font-medium">
+                Deadline <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Input
+                id="gig-deadline"
+                type="datetime-local"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  Tags <span className="text-muted-foreground font-normal">(optional)</span>
+                </p>
+                {tags.length > 0 && (
+                  <span className="text-xs text-muted-foreground">{tags.length}/10</span>
+                )}
+              </div>
+              <TagInput
+                value={tags}
+                onChange={setTags}
+                suggestions={tagSuggestions}
+                placeholder="#math, #tutoring…"
+              />
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="flex flex-col gap-4 pb-4">
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Contact &amp; Review</p>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">How can applicants reach you?</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {CONTACT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => { setContactPlatform(opt.id); setContactHandle(""); }}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition-colors text-left",
+                      contactPlatform === opt.id
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-background hover:bg-muted",
+                    )}
+                  >
+                    <span>{opt.emoji}</span>
+                    <span>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+              {contactPlatform === "in-app" ? (
+                <p className="text-xs text-muted-foreground">
+                  Applicants can message you directly through the app — no need to share personal contact info.
+                </p>
+              ) : (
+                <Input
+                  placeholder={CONTACT_OPTIONS.find((o) => o.id === contactPlatform)?.placeholder ?? ""}
+                  value={contactHandle}
+                  onChange={(e) => setContactHandle(e.target.value)}
+                  autoFocus
+                />
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gig-location" className="text-sm font-medium">
+                Location Note <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Input
+                id="gig-location"
+                placeholder="e.g. Near AS Building"
+                value={locationNote}
+                onChange={(e) => setLocationNote(e.target.value)}
+              />
+            </div>
+            {(title || compensation || category) && (
+              <div className="flex flex-col gap-2 rounded-xl border bg-muted/30 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Preview</p>
+                <div className="flex items-start gap-2.5">
+                  <div className="shrink-0 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-center">
+                    <p className="text-xs font-bold text-white leading-tight">{compensation || "—"}</p>
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <p className="text-sm font-semibold leading-tight line-clamp-1">{title || "Untitled gig"}</p>
+                    {category && (
+                      <span
+                        className="inline-block self-start rounded px-1.5 py-0.5 text-xs font-medium"
+                        style={{
+                          backgroundColor: CATEGORY_COLORS[category as GigCategory] + "22",
+                          color: CATEGORY_COLORS[category as GigCategory],
+                        }}
+                      >
+                        {CATEGORY_LABELS[category as GigCategory]}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {description && (
+                  <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{description}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Footer navigation */}
+      <div className="border-t pt-3">
+        <div className="flex gap-2">
+          {step === 1 ? (
+            <Button type="button" variant="outline" className="flex-1" onClick={() => onClose?.()}>
+              Cancel
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3)}>
+              Back
+            </Button>
+          )}
+          {step < 3 ? (
+            <Button
+              type="button"
+              className="flex-1"
+              disabled={step === 1 ? !step1Valid : !step2Valid}
+              onClick={() => setStep((s) => (s + 1) as 2 | 3)}
+            >
+              Next
+            </Button>
+          ) : (
+            <Button type="button" className="flex-1" disabled={!canSubmit} onClick={handleSubmit}>
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {isEditMode ? "Saving..." : "Posting..."}
+                </>
+              ) : (
+                isEditMode ? "Save Changes" : "Post Gig"
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 const URGENCIES: GigUrgency[] = ["flexible", "soon", "urgent"];
 
 type ContactPlatform = "in-app" | "facebook" | "whatsapp" | "telegram" | "email" | "other";

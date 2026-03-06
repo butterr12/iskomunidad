@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Trash2, Loader2, Plus, Clock } from "lucide-react";
 import {
@@ -19,7 +20,6 @@ import { toast } from "sonner";
 interface DraftsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onContinueEditing: (draft: DraftPost) => void;
   onNewPost: () => void;
 }
 
@@ -30,7 +30,7 @@ function DraftCard({
   onDeleted,
 }: {
   draft: DraftPost;
-  onContinueEditing: (draft: DraftPost) => void;
+  onContinueEditing: () => void;
   onPublished: () => void;
   onDeleted: () => void;
 }) {
@@ -123,7 +123,7 @@ function DraftCard({
             size="sm"
             variant="outline"
             className="flex-1 h-7 text-xs"
-            onClick={() => onContinueEditing(draft)}
+            onClick={onContinueEditing}
           >
             Continue editing
           </Button>
@@ -150,7 +150,8 @@ function DraftCard({
   );
 }
 
-export function DraftsSheet({ open, onOpenChange, onContinueEditing, onNewPost }: DraftsSheetProps) {
+export function DraftsSheet({ open, onOpenChange, onNewPost }: DraftsSheetProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const { data: drafts = [], isLoading, refetch } = useQuery({
@@ -204,9 +205,9 @@ export function DraftsSheet({ open, onOpenChange, onContinueEditing, onNewPost }
                 <DraftCard
                   key={draft.id}
                   draft={draft}
-                  onContinueEditing={(d) => {
+                  onContinueEditing={() => {
                     onOpenChange(false);
-                    onContinueEditing(d);
+                    router.push(`/c/create?draft=${draft.id}`);
                   }}
                   onPublished={handlePublished}
                   onDeleted={handleDeleted}

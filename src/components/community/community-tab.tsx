@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal, Bookmark, FileText, Search } from "lucide-react";
+import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal, Bookmark, Search } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,8 +19,6 @@ import {
 } from "@/components/ui/dialog";
 import { FilterSheet } from "./filter-sheet";
 import { PostFeed } from "./post-feed";
-import { CreatePostForm, type PostFormValues } from "./create-post-form";
-import { DraftsSheet } from "./drafts-sheet";
 import {
   POST_FLAIRS,
   FLAIR_COLORS,
@@ -34,13 +32,7 @@ import {
   getFollowingPosts,
   getBookmarkedPosts,
   voteOnPost,
-  createPost,
-  saveDraft,
-  getUserDrafts,
-  updatePost,
   deletePost,
-  publishDraft,
-  type DraftPost,
 } from "@/actions/posts";
 import { getPopularTags } from "@/actions/tags";
 import { toast } from "sonner";
@@ -95,13 +87,7 @@ export function CommunityTab() {
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [showCreatePost, setShowCreatePost] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [showDrafts, setShowDrafts] = useState(false);
-
-  // Edit state
-  const [editingPost, setEditingPost] = useState<CommunityPost | null>(null);
-  const [editingDraft, setEditingDraft] = useState<DraftPost | null>(null);
 
   // Delete confirmation
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
@@ -187,15 +173,6 @@ export function CommunityTab() {
     staleTime: 30_000,
   });
 
-  const { data: draftCount = 0 } = useQuery({
-    queryKey: ["user-draft-count"],
-    queryFn: async () => {
-      const res = await getUserDrafts();
-      return res.success ? res.data.length : 0;
-    },
-    enabled: !!user,
-  });
-
   const displayPosts = useMemo(() => {
     if (feedMode === "following") {
       return followingPosts;
@@ -275,111 +252,12 @@ export function CommunityTab() {
     );
   };
 
-  const handleCreatePost = async (data: PostFormValues) => {
-    const res = await createPost(data);
-    if (res.success) {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["approved-posts"] }),
-        queryClient.invalidateQueries({ queryKey: ["following-posts"] }),
-      ]);
-      const status = (res.data as { status?: string }).status;
-      posthog?.capture("post_created", {
-        status,
-        has_body: !!data.body,
-        has_images: (data.imageKeys?.length ?? 0) > 0,
-        has_link: !!data.linkUrl,
-        flair: data.flair,
-      });
-      toast.success(
-        status === "draft"
-          ? "Post submitted for review."
-          : "Post published!",
-      );
-    } else {
-      toast.error(res.error);
-    }
-    return { success: res.success };
-  };
-
-  const handleSaveDraft = async (data: PostFormValues) => {
-    const res = await saveDraft(data);
-    if (res.success) {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["user-draft-count"] }),
-        queryClient.invalidateQueries({ queryKey: ["user-drafts"] }),
-      ]);
-      toast.success("Draft saved.");
-    } else {
-      toast.error(res.error);
-    }
-    return { success: res.success };
-  };
-
-  const handleUpdatePost = async (data: PostFormValues) => {
-    if (!editingPost) return { success: false };
-    const res = await updatePost(editingPost.id, data);
-    if (res.success) {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["approved-posts"] }),
-        queryClient.invalidateQueries({ queryKey: ["following-posts"] }),
-      ]);
-      toast.success("Post updated.");
-    } else {
-      toast.error(res.error);
-    }
-    return { success: res.success };
-  };
-
-  const handlePublishEditedDraft = async (data: PostFormValues) => {
-    if (!editingDraft) return { success: false };
-    const updateRes = await updatePost(editingDraft.id, data);
-    if (!updateRes.success) {
-      toast.error(updateRes.error);
-      return { success: false };
-    }
-    const res = await publishDraft(editingDraft.id);
-    if (res.success) {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["approved-posts"] }),
-        queryClient.invalidateQueries({ queryKey: ["user-draft-count"] }),
-        queryClient.invalidateQueries({ queryKey: ["user-drafts"] }),
-      ]);
-      const status = res.data.status;
-      toast.success(status === "approved" ? "Post published!" : "Post submitted for review.");
-    } else {
-      toast.error(res.error);
-    }
-    return { success: res.success };
-  };
-
-  const handleSaveDraftEdits = async (data: PostFormValues) => {
-    if (!editingDraft) return { success: false };
-    const res = await updatePost(editingDraft.id, data);
-    if (res.success) {
-      await queryClient.invalidateQueries({ queryKey: ["user-drafts"] });
-      toast.success("Draft saved.");
-    } else {
-      toast.error(res.error);
-    }
-    return { success: res.success };
-  };
-
   const openCreatePost = () => {
-    setEditingPost(null);
-    setEditingDraft(null);
-    setShowCreatePost(true);
+    router.push("/c/create");
   };
 
   const handleEditPost = (post: CommunityPost) => {
-    setEditingDraft(null);
-    setEditingPost(post);
-    setShowCreatePost(true);
-  };
-
-  const handleContinueEditingDraft = (draft: DraftPost) => {
-    setEditingPost(null);
-    setEditingDraft(draft);
-    setShowCreatePost(true);
+    router.push(`/c/${post.id}/edit`);
   };
 
   const handleDeletePost = (postId: string) => {
@@ -402,45 +280,6 @@ export function CommunityTab() {
     setDeleting(false);
     setDeletingPostId(null);
   };
-
-  const createFormProps = (() => {
-    if (editingDraft) {
-      return {
-        initialValues: {
-          title: editingDraft.title,
-          flair: editingDraft.flair,
-          body: editingDraft.body ?? undefined,
-          linkUrl: editingDraft.linkUrl ?? undefined,
-          imageKeys: editingDraft.imageKeys,
-          tags: editingDraft.tags,
-        },
-        submitLabel: "Publish",
-        onSubmit: handlePublishEditedDraft,
-        onSaveDraft: handleSaveDraftEdits,
-      };
-    }
-    if (editingPost) {
-      return {
-        initialValues: {
-          title: editingPost.title,
-          flair: editingPost.flair,
-          body: editingPost.body,
-          linkUrl: editingPost.linkUrl,
-          imageKeys: editingPost.imageKeys,
-          tags: editingPost.tags,
-        },
-        submitLabel: "Save",
-        onSubmit: handleUpdatePost,
-        onSaveDraft: undefined,
-      };
-    }
-    return {
-      initialValues: undefined,
-      submitLabel: undefined,
-      onSubmit: handleCreatePost,
-      onSaveDraft: handleSaveDraft,
-    };
-  })();
 
   return (
     <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
@@ -488,15 +327,6 @@ export function CommunityTab() {
                   </p>
                 </div>
               </button>
-              {user && draftCount > 0 && (
-                <button
-                  onClick={() => setShowDrafts(true)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-xl border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/20"
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  Drafts ({draftCount})
-                </button>
-              )}
             </div>
 
             {activeLoading ? (
@@ -634,26 +464,6 @@ export function CommunityTab() {
       >
         <Plus className="h-5 w-5" />
       </Button>
-
-      <CreatePostForm
-        open={showCreatePost}
-        onOpenChange={(open) => {
-          setShowCreatePost(open);
-          if (!open) {
-            setEditingPost(null);
-            setEditingDraft(null);
-          }
-        }}
-        promptName={!editingPost && !editingDraft ? promptName : undefined}
-        {...createFormProps}
-      />
-
-      <DraftsSheet
-        open={showDrafts}
-        onOpenChange={setShowDrafts}
-        onContinueEditing={handleContinueEditingDraft}
-        onNewPost={openCreatePost}
-      />
 
       <Dialog open={!!deletingPostId} onOpenChange={(open) => { if (!open) setDeletingPostId(null); }}>
         <DialogContent className="sm:max-w-sm">

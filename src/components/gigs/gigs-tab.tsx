@@ -2,13 +2,13 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SlidersHorizontal, Bookmark, Plus, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { CreateGigForm, type CreateGigFormData } from "./create-gig-form";
 import { ModeToggle } from "./mode-toggle";
 import { GigFilterSheet } from "./gig-filter-sheet";
 import { GigList } from "./gig-list";
@@ -18,7 +18,6 @@ import {
   GIG_CATEGORIES,
   CATEGORY_LABELS,
   CATEGORY_COLORS,
-  parseCompensation,
   type GigListing,
   type GigCategory,
   type GigSortMode,
@@ -26,12 +25,10 @@ import {
 import {
   getApprovedGigs,
   swipeGig,
-  createGig,
   expressInterestInGig,
   closeGig,
   reopenGig,
   deleteGig,
-  updateGig,
 } from "@/actions/gigs";
 import { useSession } from "@/lib/auth-client";
 import { toast } from "sonner";
@@ -74,6 +71,7 @@ interface GigsTabProps {
 }
 
 export function GigsTab({ initialGigId }: GigsTabProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const posthog = usePostHog();
   const { data: session } = useSession();
@@ -82,8 +80,6 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
   const [activeCategory, setActiveCategory] = useState<GigCategory | null>(null);
   const [sortMode, setSortMode] = useState<GigSortMode>("newest");
   const [showSaved, setShowSaved] = useState(false);
-  const [showCreateGig, setShowCreateGig] = useState(false);
-  const [showEditGig, setShowEditGig] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [savingGigId, setSavingGigId] = useState<string | null>(null);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
@@ -213,23 +209,6 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
     }
   };
 
-  const handleCreateGig = async (data: Parameters<typeof createGig>[0]) => {
-    const res = await createGig(data);
-    if (res.success) {
-      await queryClient.invalidateQueries({ queryKey: ["approved-gigs"] });
-      const status = (res.data as { status?: string }).status;
-      posthog?.capture("gig_created", { status, category: data.category });
-      toast.success(
-        status === "draft"
-          ? "Gig submitted for review."
-          : "Gig posted!",
-      );
-    } else {
-      toast.error(res.error);
-    }
-    return { success: res.success };
-  };
-
   const handleCloseGig = async (gigId: string) => {
     const res = await closeGig(gigId);
     if (res.success) {
@@ -268,54 +247,6 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
       toast.error(res.error);
     }
   };
-
-  const handleUpdateGig = async (data: CreateGigFormData) => {
-    if (!selectedGig) return { success: false };
-    const res = await updateGig(selectedGig.id, data);
-    if (res.success) {
-      const { value: compensationValue, isPaid } = parseCompensation(data.compensation);
-      const updatedGig: GigListing = {
-        ...selectedGig,
-        title: data.title,
-        description: data.description,
-        category: data.category as GigCategory,
-        compensation: data.compensation,
-        compensationValue,
-        isPaid,
-        urgency: data.urgency,
-        contactMethod: data.contactMethod,
-        deadline: data.deadline,
-        tags: data.tags,
-        locationNote: data.locationNote,
-      };
-      queryClient.setQueriesData<GigListing[]>({ queryKey: ["approved-gigs"] }, (old) =>
-        old?.map((g) => (g.id === selectedGig.id ? updatedGig : g)),
-      );
-      setSelectedGig(updatedGig);
-      toast.success("Gig updated.");
-    } else {
-      toast.error(res.error);
-    }
-    return { success: res.success };
-  };
-
-  const editGigInitialData = useMemo<CreateGigFormData | undefined>(
-    () =>
-      selectedGig
-        ? {
-            title: selectedGig.title,
-            description: selectedGig.description,
-            category: selectedGig.category,
-            compensation: selectedGig.compensation,
-            urgency: selectedGig.urgency,
-            contactMethod: selectedGig.contactMethod,
-            deadline: selectedGig.deadline,
-            tags: selectedGig.tags,
-            locationNote: selectedGig.locationNote,
-          }
-        : undefined,
-    [selectedGig],
-  );
 
   return (
     <div className="flex flex-1 flex-col min-h-0 pt-12 pb-safe-nav sm:pt-14 sm:pb-0">
@@ -366,7 +297,7 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
             {/* Welcome banner */}
             {!selectedGig && (
               <button
-                onClick={() => setShowCreateGig(true)}
+                onClick={() => router.push("/gigs/create")}
                 className="w-full mb-3 flex items-center gap-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/10 px-5 py-4 text-left transition-[background-color,border-color,transform] hover:from-emerald-500/20 hover:via-emerald-500/10 hover:border-emerald-500/20 active:scale-[0.98]"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
@@ -391,7 +322,7 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
                 onClose={session?.user?.id === selectedGig.posterId ? () => handleCloseGig(selectedGig.id) : undefined}
                 onReopen={session?.user?.id === selectedGig.posterId ? () => handleReopenGig(selectedGig.id) : undefined}
                 onDelete={session?.user?.id === selectedGig.posterId ? () => handleDeleteGig(selectedGig.id) : undefined}
-                onEdit={session?.user?.id === selectedGig.posterId ? () => setShowEditGig(true) : undefined}
+                onEdit={session?.user?.id === selectedGig.posterId ? () => router.push(`/gigs/${selectedGig.id}/edit`) : undefined}
               />
             ) : isLoading ? (
               <GigListSkeleton />
@@ -510,27 +441,11 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
         <Button
           size="icon-lg"
           className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-4 z-20 rounded-full shadow-lg sm:bottom-6"
-          onClick={() => setShowCreateGig(true)}
+          onClick={() => router.push("/gigs/create")}
         >
           <Plus className="h-5 w-5" />
         </Button>
       )}
-
-      {/* Create gig sheet */}
-      <CreateGigForm
-        open={showCreateGig}
-        onOpenChange={setShowCreateGig}
-        onSubmit={handleCreateGig}
-      />
-
-      {/* Edit gig sheet */}
-      <CreateGigForm
-        open={showEditGig}
-        onOpenChange={setShowEditGig}
-        gigId={selectedGig?.id}
-        initialData={editGigInitialData}
-        onSubmit={handleUpdateGig}
-      />
 
       <GigFilterSheet
         open={showFilterSheet}

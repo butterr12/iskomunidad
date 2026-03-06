@@ -164,6 +164,17 @@ const createPostSchema = z.object({
   tags: tagsSchema,
 });
 
+const draftSchema = z.object({
+  title: z.string().max(300).optional().default(""),
+  body: z.string().max(10000).optional(),
+  flair: z.string().optional().default(""),
+  locationId: z.string().uuid().optional(),
+  eventId: z.string().uuid().optional().nullable(),
+  linkUrl: safeLinkUrl,
+  imageKeys: z.array(z.string()).max(4).optional(),
+  tags: tagsSchema,
+});
+
 const voteSchema = z.object({
   value: z.number().int().min(-1).max(1),
 });
@@ -938,9 +949,9 @@ export async function toggleBookmark(
 }
 
 export async function saveDraft(
-  input: z.infer<typeof createPostSchema>,
+  input: z.infer<typeof draftSchema>,
 ): Promise<ActionResult<{ id: string; status: string }>> {
-  const parsed = createPostSchema.safeParse(input);
+  const parsed = draftSchema.safeParse(input);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0].message };
 
@@ -1044,6 +1055,110 @@ export async function getUserPendingPosts(): Promise<ActionResult<unknown[]>> {
       isBookmarked: false,
     })),
   };
+}
+
+export async function getDraftById(
+  id: string,
+): Promise<ActionResult<DraftPost>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const row = await db.query.communityPost.findFirst({
+    where: and(
+      eq(communityPost.id, id),
+      eq(communityPost.userId, session.user.id),
+      eq(communityPost.status, "draft"),
+      eq(communityPost.draftSource, "user"),
+    ),
+    with: {
+      images: { columns: { imageKey: true, order: true }, orderBy: (img, { asc }) => [asc(img.order)] },
+    },
+  });
+
+  if (!row) return { success: false, error: "Draft not found" };
+
+  return {
+    success: true,
+    data: {
+      id: row.id,
+      title: row.title,
+      flair: row.flair,
+      body: row.body,
+      linkUrl: row.linkUrl,
+      imageKeys: row.images.map((img) => img.imageKey),
+      tags: row.tags ?? [],
+      updatedAt: row.updatedAt.toISOString(),
+      draftSource: row.draftSource,
+    },
+  };
+}
+
+export async function updateDraft(
+  id: string,
+  input: z.infer<typeof draftSchema>,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = draftSchema.safeParse(input);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0].message };
+
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const post = await db.query.communityPost.findFirst({
+    where: and(
+      eq(communityPost.id, id),
+      eq(communityPost.userId, session.user.id),
+      eq(communityPost.status, "draft"),
+      eq(communityPost.draftSource, "user"),
+    ),
+    columns: { id: true },
+  });
+  if (!post) return { success: false, error: "Draft not found" };
+
+  const { imageKeys, tags, ...postData } = parsed.data;
+
+  await db
+    .update(communityPost)
+    .set({
+      title: postData.title ?? "",
+      body: postData.body ?? null,
+      flair: postData.flair ?? "",
+      tags: tags ?? [],
+      locationId: postData.locationId ?? null,
+      eventId: postData.eventId ?? null,
+      linkUrl: postData.linkUrl ?? null,
+    })
+    .where(eq(communityPost.id, id));
+
+  await db.delete(postImage).where(eq(postImage.postId, id));
+  if (imageKeys && imageKeys.length > 0) {
+    await db.insert(postImage).values(
+      imageKeys.map((key, i) => ({ postId: id, imageKey: key, order: i })),
+    );
+  }
+
+  return { success: true, data: { id } };
+}
+
+export async function deleteDraft(
+  id: string,
+): Promise<ActionResult<void>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  const post = await db.query.communityPost.findFirst({
+    where: and(
+      eq(communityPost.id, id),
+      eq(communityPost.userId, session.user.id),
+      eq(communityPost.status, "draft"),
+      eq(communityPost.draftSource, "user"),
+    ),
+    columns: { id: true },
+  });
+  if (!post) return { success: false, error: "Draft not found" };
+
+  await db.delete(communityPost).where(eq(communityPost.id, id));
+  return { success: true, data: undefined };
 }
 
 export async function updatePost(
