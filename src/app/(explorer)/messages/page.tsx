@@ -238,13 +238,15 @@ export default function MessagesPage() {
         activeConversation ? "pb-0" : "pb-safe-nav sm:pb-0",
       )}
     >
-      {/* Sidebar — conversation list */}
+      {/* Sidebar — conversation list (fully hidden during anon chat) */}
         <div
           className={cn(
             "border-r flex-col",
-            activeConversation || activeTab === "anon"
-              ? "hidden sm:flex sm:w-80"
-              : "flex w-full sm:w-80",
+            activeTab === "anon"
+              ? "hidden"
+              : activeConversation
+                ? "hidden sm:flex sm:w-80"
+                : "flex w-full sm:w-80",
           )}
         >
           <ConversationList
@@ -260,6 +262,7 @@ export default function MessagesPage() {
           className={cn(
             "flex-1 flex-col min-w-0",
             activeConversation || activeTab === "anon" ? "flex" : "hidden sm:flex",
+            activeTab === "anon" && "mx-auto w-full max-w-2xl",
           )}
         >
           {activeTab === "anon" ? (

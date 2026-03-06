@@ -527,7 +527,7 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
       {activeSession && (
         <div className="flex items-center gap-2 border-b px-4 py-2.5">
           {onBack && (
-            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 sm:hidden">
+            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Back to inbox</span>
             </Button>
@@ -596,9 +596,9 @@ export function CampusMatchPanel({ onBack }: { onBack?: () => void }) {
       {!activeSession && (
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {onBack && (
-            <Button variant="ghost" size="sm" onClick={onBack} className="mb-3 gap-1 sm:hidden">
+            <Button variant="ghost" size="sm" onClick={onBack} className="mb-3 gap-1">
               <ArrowLeft className="h-4 w-4" />
-              Back
+              Back to messages
             </Button>
           )}
           {state.status === "banned" && state.ban && (

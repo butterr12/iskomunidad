@@ -358,13 +358,13 @@ export function ConversationList({
 
       <div className="border-t px-4 py-3 shrink-0">
         <Button
-          variant={activeTab === "anon" ? "secondary" : "outline"}
+          variant={activeTab === "anon" ? "default" : "outline"}
           className="w-full gap-2"
           onClick={() => onTabChange(activeTab === "anon" ? "messages" : "anon")}
         >
           <span className="relative">
             <Ghost className="h-4 w-4" />
-            {isCampusMatchActive && (
+            {isCampusMatchActive && activeTab !== "anon" && (
               <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
             )}
           </span>
