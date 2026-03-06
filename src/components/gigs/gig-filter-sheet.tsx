@@ -7,14 +7,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import {
-  GIG_CATEGORIES,
-  CATEGORY_LABELS,
-  CATEGORY_COLORS,
-  type GigCategory,
-  type GigSortMode,
-} from "@/lib/gigs";
+import type { GigSortMode } from "@/lib/gigs";
 import { Clock, DollarSign, Zap } from "lucide-react";
 
 const SORT_OPTIONS = [
@@ -30,8 +23,6 @@ interface GigFilterSheetProps {
   onSortModeChange: (mode: GigSortMode) => void;
   showSaved: boolean;
   onShowSavedChange: (show: boolean) => void;
-  activeCategory: GigCategory | null;
-  onCategoryChange: (category: GigCategory | null) => void;
   savedCount: number;
 }
 
@@ -42,8 +33,6 @@ export function GigFilterSheet({
   onSortModeChange,
   showSaved,
   onShowSavedChange,
-  activeCategory,
-  onCategoryChange,
   savedCount,
 }: GigFilterSheetProps) {
   return (
@@ -52,7 +41,7 @@ export function GigFilterSheet({
         <SheetHeader className="p-0">
           <SheetTitle className="sr-only">Gig Filters</SheetTitle>
           <SheetDescription className="sr-only">
-            Filter gigs by sort order, saved status, and category
+            Filter gigs by sort order and saved status
           </SheetDescription>
         </SheetHeader>
 
@@ -117,34 +106,6 @@ export function GigFilterSheet({
                   </span>
                 )}
               </button>
-            </div>
-          </div>
-
-          {/* Category */}
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Category</h3>
-            <div className="flex flex-wrap gap-1.5">
-              <button onClick={() => onCategoryChange(null)} className="shrink-0">
-                <Badge variant={activeCategory === null ? "default" : "outline"}>All</Badge>
-              </button>
-              {GIG_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => onCategoryChange(activeCategory === cat ? null : cat)}
-                  className="shrink-0"
-                >
-                  <Badge
-                    variant={activeCategory === cat ? "default" : "outline"}
-                    style={
-                      activeCategory === cat
-                        ? { backgroundColor: CATEGORY_COLORS[cat], borderColor: CATEGORY_COLORS[cat] }
-                        : { borderColor: CATEGORY_COLORS[cat], color: CATEGORY_COLORS[cat] }
-                    }
-                  >
-                    {CATEGORY_LABELS[cat]}
-                  </Badge>
-                </button>
-              ))}
             </div>
           </div>
         </div>

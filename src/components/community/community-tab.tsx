@@ -4,12 +4,10 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal, Bookmark, Search } from "lucide-react";
-import Link from "next/link";
+import { Plus, MessageCircle, Users, Loader2, SlidersHorizontal, Bookmark } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -20,10 +18,7 @@ import {
 import { FilterSheet } from "./filter-sheet";
 import { PostFeed } from "./post-feed";
 import {
-  POST_FLAIRS,
-  FLAIR_COLORS,
   type CommunityPost,
-  type PostFlair,
   type SortMode,
   type VoteDirection,
 } from "@/lib/posts";
@@ -85,7 +80,6 @@ export function CommunityTab() {
   const posthog = usePostHog();
   const [feedMode, setFeedMode] = useState<"all" | "following" | "saved">("all");
   const [sortMode, setSortMode] = useState<SortMode>("new");
-  const [activeFlair, setActiveFlair] = useState<PostFlair | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -98,7 +92,6 @@ export function CommunityTab() {
   const activeFilterCount =
     (sortMode !== "new" ? 1 : 0) +
     (feedMode !== "all" ? 1 : 0) +
-    (activeFlair !== null ? 1 : 0) +
     (activeTag !== null ? 1 : 0);
 
   const user = session?.user;
@@ -107,9 +100,9 @@ export function CommunityTab() {
   const promptName = displayUsername?.trim() || user?.name?.trim() || undefined;
 
   const { data: popularTagsData = [] } = useQuery({
-    queryKey: ["popular-tags", 15],
+    queryKey: ["popular-tags", 5],
     queryFn: async () => {
-      const res = await getPopularTags(15);
+      const res = await getPopularTags(5);
       return res.success ? res.data : [];
     },
     staleTime: 5 * 60 * 1000,
@@ -123,11 +116,10 @@ export function CommunityTab() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["approved-posts", sortMode, activeFlair, activeTag],
+    queryKey: ["approved-posts", sortMode, activeTag],
     queryFn: async ({ pageParam }) => {
       const res = await getApprovedPostsPaginated({
         sort: sortMode,
-        flair: activeFlair ?? undefined,
         tag: activeTag ?? undefined,
         page: pageParam,
       });
@@ -146,11 +138,10 @@ export function CommunityTab() {
   );
 
   const { data: followingPosts = [], isLoading: followingLoading } = useQuery({
-    queryKey: ["following-posts", sortMode, activeFlair, activeTag],
+    queryKey: ["following-posts", sortMode, activeTag],
     queryFn: async () => {
       const res = await getFollowingPosts({
         sort: sortMode,
-        flair: activeFlair ?? undefined,
         tag: activeTag ?? undefined,
       });
       return res.success ? (res.data as CommunityPost[]) : [];
@@ -160,11 +151,10 @@ export function CommunityTab() {
   });
 
   const { data: savedPosts = [], isLoading: savedLoading } = useQuery({
-    queryKey: ["saved-posts", sortMode, activeFlair, activeTag],
+    queryKey: ["saved-posts", sortMode, activeTag],
     queryFn: async () => {
       const res = await getBookmarkedPosts({
         sort: sortMode,
-        flair: activeFlair ?? undefined,
         tag: activeTag ?? undefined,
       });
       return res.success ? (res.data as CommunityPost[]) : [];
@@ -214,7 +204,7 @@ export function CommunityTab() {
     }
 
     queryClient.setQueryData(
-      ["approved-posts", sortMode, activeFlair, activeTag],
+      ["approved-posts", sortMode, activeTag],
       (old: typeof postsData) => {
         if (!old) return old;
         return {
@@ -287,13 +277,6 @@ export function CommunityTab() {
         <div className="flex items-center justify-between px-4 py-2">
           <h2 className="text-lg font-semibold">Community</h2>
           <div className="flex items-center gap-2">
-            <Link
-              href="/people"
-              className="flex items-center gap-2 rounded-lg border bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-            >
-              <Search className="h-3.5 w-3.5" />
-              Find people…
-            </Link>
             <button
               onClick={() => setShowFilters(true)}
               className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -371,35 +354,6 @@ export function CommunityTab() {
                 <PopularTagsPanel
                   onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
                 />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-card shadow-sm">
-              <div className="border-b px-4 py-3">
-                <h3 className="text-sm font-semibold">Filter by Flair</h3>
-              </div>
-              <div className="flex flex-wrap gap-1.5 p-3">
-                <button onClick={() => setActiveFlair(null)} className="shrink-0">
-                  <Badge variant={activeFlair === null ? "default" : "outline"}>All</Badge>
-                </button>
-                {POST_FLAIRS.map((flair) => (
-                  <button
-                    key={flair}
-                    onClick={() => setActiveFlair(activeFlair === flair ? null : flair)}
-                    className="shrink-0"
-                  >
-                    <Badge
-                      variant={activeFlair === flair ? "default" : "outline"}
-                      style={
-                        activeFlair === flair
-                          ? { backgroundColor: FLAIR_COLORS[flair], borderColor: FLAIR_COLORS[flair] }
-                          : { borderColor: FLAIR_COLORS[flair], color: FLAIR_COLORS[flair] }
-                      }
-                    >
-                      {flair}
-                    </Badge>
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -495,8 +449,6 @@ export function CommunityTab() {
         onSortModeChange={setSortMode}
         feedMode={feedMode}
         onFeedModeChange={setFeedMode}
-        activeFlair={activeFlair}
-        onFlairChange={setActiveFlair}
         showFeedMode={!!user}
         activeTag={activeTag}
         onTagChange={setActiveTag}

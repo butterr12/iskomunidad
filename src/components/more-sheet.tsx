@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Hammer, Settings, Bot, UsersRound, Building2, Users2, HeartHandshake } from "lucide-react";
+import { Hammer, Settings, Bot, UsersRound, Building2, HeartHandshake, Search } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { label: "People", href: "/people", icon: Users2, comingSoon: false, toastMessage: "" },
+  { label: "Search", href: "/search", icon: Search, comingSoon: false, toastMessage: "" },
   { label: "Gigs", href: "/gigs", icon: Hammer, comingSoon: false, toastMessage: "" },
   { label: "Match", href: "/match", icon: HeartHandshake, comingSoon: false, toastMessage: "" },
   { label: "Isko AI", href: null, icon: Bot, comingSoon: true, toastMessage: "Isko AI chatbot is coming soon! Your all-in-one uni assistant." },

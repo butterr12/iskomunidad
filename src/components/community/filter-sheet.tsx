@@ -8,7 +8,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { POST_FLAIRS, FLAIR_COLORS, type PostFlair, type SortMode } from "@/lib/posts";
+import type { SortMode } from "@/lib/posts";
 import { Clock, Flame, TrendingUp } from "lucide-react";
 
 const SORT_OPTIONS: { value: SortMode; label: string; icon: React.ReactNode }[] = [
@@ -24,8 +24,6 @@ interface FilterSheetProps {
   onSortModeChange: (mode: SortMode) => void;
   feedMode: "all" | "following" | "saved";
   onFeedModeChange: (mode: "all" | "following" | "saved") => void;
-  activeFlair: PostFlair | null;
-  onFlairChange: (flair: PostFlair | null) => void;
   showFeedMode: boolean;
   activeTag: string | null;
   onTagChange: (tag: string | null) => void;
@@ -39,8 +37,6 @@ export function FilterSheet({
   onSortModeChange,
   feedMode,
   onFeedModeChange,
-  activeFlair,
-  onFlairChange,
   showFeedMode,
   activeTag,
   onTagChange,
@@ -56,7 +52,7 @@ export function FilterSheet({
         <SheetHeader className="p-0">
           <SheetTitle className="sr-only">Filters</SheetTitle>
           <SheetDescription className="sr-only">
-            Filter community posts by sort, feed, and flair
+            Filter community posts by sort, feed, and tag
           </SheetDescription>
         </SheetHeader>
 
@@ -112,37 +108,6 @@ export function FilterSheet({
               </div>
             </div>
           )}
-
-          {/* Flair section */}
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Flair</h3>
-            <div className="flex flex-wrap gap-1.5">
-              <button onClick={() => { onFlairChange(null); }}>
-                <Badge variant={activeFlair === null ? "default" : "outline"}>
-                  All
-                </Badge>
-              </button>
-              {POST_FLAIRS.map((flair) => (
-                <button
-                  key={flair}
-                  onClick={() => {
-                    onFlairChange(activeFlair === flair ? null : flair);
-                  }}
-                >
-                  <Badge
-                    variant={activeFlair === flair ? "default" : "outline"}
-                    style={
-                      activeFlair === flair
-                        ? { backgroundColor: FLAIR_COLORS[flair], borderColor: FLAIR_COLORS[flair] }
-                        : { borderColor: FLAIR_COLORS[flair], color: FLAIR_COLORS[flair] }
-                    }
-                  >
-                    {flair}
-                  </Badge>
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Tags section */}
           {popularTags.length > 0 && (

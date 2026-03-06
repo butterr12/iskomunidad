@@ -1,25 +1,19 @@
 /* eslint-disable */
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { SlidersHorizontal, Bookmark, Plus, Search } from "lucide-react";
+import { SlidersHorizontal, Bookmark, Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { ModeToggle } from "./mode-toggle";
 import { GigFilterSheet } from "./gig-filter-sheet";
 import { GigList } from "./gig-list";
 import { GigDetail } from "./gig-detail";
 import { SwipeDeck } from "./swipe-deck";
 import {
-  GIG_CATEGORIES,
-  CATEGORY_LABELS,
-  CATEGORY_COLORS,
   type GigListing,
-  type GigCategory,
   type GigSortMode,
 } from "@/lib/gigs";
 import {
@@ -77,18 +71,15 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
   const { data: session } = useSession();
   const [viewMode, setViewMode] = useState<"list" | "swipe">("list");
   const [selectedGig, setSelectedGig] = useState<GigListing | null>(null);
-  const [activeCategory, setActiveCategory] = useState<GigCategory | null>(null);
   const [sortMode, setSortMode] = useState<GigSortMode>("newest");
   const [showSaved, setShowSaved] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [savingGigId, setSavingGigId] = useState<string | null>(null);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   const { data: gigs = [], isLoading } = useQuery({
-    queryKey: ["approved-gigs", activeCategory, sortMode],
+    queryKey: ["approved-gigs", sortMode],
     queryFn: async () => {
       const res = await getApprovedGigs({
-        category: activeCategory ?? undefined,
         sort: sortMode,
       });
       if (!res.success) return [];
@@ -112,33 +103,16 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
 
   const activeFilterCount =
     (sortMode !== "newest" ? 1 : 0) +
-    (showSaved ? 1 : 0) +
-    (activeCategory !== null ? 1 : 0);
+    (showSaved ? 1 : 0);
 
   const filteredAndSorted = useMemo(() => {
-    let filtered = gigs;
-    if (showSaved) {
-      filtered = filtered.filter((g) => g.swipeAction === "saved");
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      filtered = filtered.filter(
-        (g) =>
-          g.title.toLowerCase().includes(q) ||
-          g.description.toLowerCase().includes(q) ||
-          g.tags.some((t) => t.toLowerCase().includes(q)),
-      );
-    }
-    return filtered;
-  }, [gigs, showSaved, searchQuery]);
+    if (!showSaved) return gigs;
+    return gigs.filter((g) => g.swipeAction === "saved");
+  }, [gigs, showSaved]);
 
   const swipeGigs = useMemo(() => {
-    let filtered = gigs.filter((g) => g.swipeAction === null);
-    if (activeCategory) {
-      filtered = filtered.filter((g) => g.category === activeCategory);
-    }
-    return filtered;
-  }, [gigs, activeCategory]);
+    return gigs.filter((g) => g.swipeAction === null);
+  }, [gigs]);
 
   const handleSelectGig = (gig: GigListing) => {
     const latest = gigs.find((g) => g.id === gig.id) ?? gig;
@@ -273,19 +247,6 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
               <ModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
             </div>
           </div>
-          {viewMode === "list" && (
-            <div className="px-4 pb-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search gigs..."
-                  className="h-8 pl-8 text-sm"
-                />
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -333,12 +294,6 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
                   <p className="text-sm font-medium">No saved gigs</p>
                   <p className="text-xs">Swipe right or tap &ldquo;Save&rdquo; on a gig to bookmark it here.</p>
                 </div>
-              ) : filteredAndSorted.length === 0 && searchQuery.trim() ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
-                  <Search className="h-10 w-10 text-muted-foreground/40" />
-                  <p className="text-sm font-medium">No gigs match &ldquo;{searchQuery}&rdquo;</p>
-                  <p className="text-xs">Try a different search term or clear the filter.</p>
-                </div>
               ) : (
                 <GigList
                   gigs={filteredAndSorted}
@@ -359,36 +314,6 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
           {/* Right sidebar - hidden on mobile */}
           {!selectedGig && (
             <aside className="hidden lg:flex w-72 shrink-0 flex-col gap-4">
-              {/* Category filter */}
-              <div className="rounded-2xl border bg-card shadow-sm">
-                <div className="border-b px-4 py-3">
-                  <h3 className="text-sm font-semibold">Filter by Category</h3>
-                </div>
-                <div className="flex flex-wrap gap-1.5 p-3">
-                  <button onClick={() => setActiveCategory(null)} className="shrink-0">
-                    <Badge variant={activeCategory === null ? "default" : "outline"}>All</Badge>
-                  </button>
-                  {GIG_CATEGORIES.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-                      className="shrink-0"
-                    >
-                      <Badge
-                        variant={activeCategory === cat ? "default" : "outline"}
-                        style={
-                          activeCategory === cat
-                            ? { backgroundColor: CATEGORY_COLORS[cat], borderColor: CATEGORY_COLORS[cat] }
-                            : { borderColor: CATEGORY_COLORS[cat], color: CATEGORY_COLORS[cat] }
-                        }
-                      >
-                        {CATEGORY_LABELS[cat]}
-                      </Badge>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Gig Board Rules */}
               <div className="rounded-2xl border bg-card shadow-sm">
                 <div className="border-b px-4 py-3">
@@ -454,8 +379,6 @@ export function GigsTab({ initialGigId }: GigsTabProps) {
         onSortModeChange={setSortMode}
         showSaved={showSaved}
         onShowSavedChange={setShowSaved}
-        activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
         savedCount={savedCount}
       />
     </div>

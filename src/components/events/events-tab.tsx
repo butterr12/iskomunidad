@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ViewToggle } from "./view-toggle";
@@ -49,7 +49,6 @@ export function EventsTab() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [tab, setTab] = useState<"all" | "mine">("all");
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["approved-events"],
@@ -76,18 +75,6 @@ export function EventsTab() {
     enabled: tab === "mine",
     staleTime: 30_000,
   });
-
-  const filteredEvents = useMemo(() => {
-    if (!searchQuery.trim()) return events;
-    const q = searchQuery.toLowerCase();
-    return events.filter(
-      (e) =>
-        e.title.toLowerCase().includes(q) ||
-        e.organizer.toLowerCase().includes(q) ||
-        e.description.toLowerCase().includes(q) ||
-        e.tags.some((t) => t.toLowerCase().includes(q))
-    );
-  }, [events, searchQuery]);
 
   // Derive selected event from local selection ID so RSVP updates flow
   // through the query cache without duplicating event state.
@@ -140,31 +127,10 @@ export function EventsTab() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-5xl p-4">
 
-          {/* Welcome banner + search */}
+          {/* Welcome banner */}
           {!selectedEvent && tab === "all" && (
             <div className="mb-4 rounded-2xl bg-gradient-to-r from-violet-500/10 via-violet-500/5 to-transparent border border-violet-500/10 px-5 py-4">
-              <div className="flex items-center justify-between">
-                <p className="text-base font-semibold">What&apos;s happening on campus?</p>
-              </div>
-              {/* Search bar */}
-              <div className="relative mt-3">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search events by title, organizer, or tags..."
-                  className="w-full rounded-lg border bg-background py-2 pl-9 pr-8 text-sm outline-none focus:ring-2 focus:ring-violet-500/30"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
+              <p className="text-base font-semibold">What&apos;s happening on campus?</p>
             </div>
           )}
 
@@ -183,9 +149,9 @@ export function EventsTab() {
           ) : isLoading ? (
             <EventListSkeleton />
           ) : viewMode === "list" ? (
-            <EventList events={filteredEvents} onSelectEvent={handleSelectEvent} />
+            <EventList events={events} onSelectEvent={handleSelectEvent} />
           ) : (
-            <EventCalendar events={filteredEvents} onSelectEvent={handleSelectEvent} />
+            <EventCalendar events={events} onSelectEvent={handleSelectEvent} />
           )}
         </div>
       </div>

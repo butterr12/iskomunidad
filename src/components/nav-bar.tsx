@@ -30,7 +30,9 @@ import {
   User,
   Download,
   Hammer,
-  Users2,
+  HeartHandshake,
+  Search,
+  ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -51,9 +53,10 @@ const coreTabs = [
 ] as const;
 
 const moreItems = [
+  { label: "Search", href: "/search", icon: Search },
   { label: "Gigs", href: "/gigs", icon: Hammer },
+  { label: "Match", href: "/match", icon: HeartHandshake },
   { label: "Settings", href: "/settings", icon: Settings },
-  { label: "People", href: "/people", icon: Users2 },
 ];
 
 function getInitials(name?: string | null): string {
@@ -159,10 +162,15 @@ export function NavBar() {
                 <LayoutGrid className="h-4 w-4" />
               )}
               {activeMoreItem ? activeMoreItem.label : "More"}
+              <ChevronsUpDown className="h-3 w-3 opacity-50" />
             </Button>
           </nav>
 
           <div className="flex items-center gap-1" dir="ltr">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push("/search")}>
+              <Search className="h-4 w-4" />
+              <span className="sr-only">Search</span>
+            </Button>
             {user && <NotificationBell />}
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme}>
               <Sun className="hidden h-4 w-4 dark:block" />
@@ -203,6 +211,10 @@ export function NavBar() {
             <BetaBadge />
           </span>
           <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push("/search")}>
+              <Search className="h-4 w-4" />
+              <span className="sr-only">Search</span>
+            </Button>
             {user && <NotificationBell />}
           </div>
         </div>
@@ -250,7 +262,10 @@ export function NavBar() {
             ) : (
               <LayoutGrid className="h-5 w-5" />
             )}
-            {activeMoreItem ? activeMoreItem.label : "More"}
+            <span className="flex items-center gap-0.5">
+              {activeMoreItem ? activeMoreItem.label : "More"}
+              <ChevronsUpDown className="h-2.5 w-2.5 opacity-50" />
+            </span>
           </button>
         </div>
       </nav>
