@@ -2,7 +2,7 @@
  * In-memory fixed-window rate limiter.
  *
  * Perfect for single-server deployments — zero dependencies, O(1) lookups.
- * If you scale to multiple instances, swap the `store` Map for Redis.
+ * If you scale to multiple instances, replace the `store` Map with a shared store.
  */
 
 // ─── Tier definitions ────────────────────────────────────────────────────────

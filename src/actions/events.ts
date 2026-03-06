@@ -15,13 +15,22 @@ import {
 } from "./_helpers";
 import { moderateContent } from "@/lib/ai-moderation";
 import { isoDateString } from "@/lib/validation/date";
+import { isSafeUrl, normalizeUrl } from "@/lib/validation/url";
 import { tagsSchema } from "@/lib/tags";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const externalLinkSchema = z.object({
   label: z.string().min(1).max(50),
-  url: z.string().url().max(500),
+  url: z.preprocess(
+    (val) => {
+      if (typeof val !== "string" || !val.trim()) return val;
+      return normalizeUrl(val) ?? val;
+    },
+    z.string().max(500).refine((val) => isSafeUrl(val), {
+      message: "Invalid URL — only http and https links are allowed",
+    }),
+  ),
 });
 
 const createEventSchema = z.object({

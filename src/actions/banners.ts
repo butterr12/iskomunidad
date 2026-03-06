@@ -6,6 +6,7 @@ import { banner, bannerDismissal } from "@/lib/schema";
 import { eq, and, or, isNull, gt, desc, notInArray } from "drizzle-orm";
 import { requireAdmin, getSession, getOptionalSession } from "./_helpers";
 import type { ActionResult } from "./_helpers";
+import { isSafeUrl, normalizeUrl } from "@/lib/validation/url";
 
 export type Banner = typeof banner.$inferSelect;
 
@@ -14,7 +15,18 @@ const bannerSchema = z.object({
   body: z.string().max(1000).optional(),
   variant: z.enum(["info", "warning", "urgent", "success"]),
   ctaLabel: z.string().max(50).optional(),
-  ctaUrl: z.string().optional(),
+  ctaUrl: z.preprocess(
+    (val) => {
+      if (typeof val !== "string" || !val.trim()) return undefined;
+      return normalizeUrl(val) ?? val;
+    },
+    z
+      .string()
+      .refine((val) => isSafeUrl(val), {
+        message: "Invalid URL — only http and https links are allowed",
+      })
+      .optional(),
+  ),
   expiresAt: z.string().datetime().optional().nullable(),
   isActive: z.boolean().optional(),
 });

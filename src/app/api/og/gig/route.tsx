@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { gigListing } from "@/lib/schema";
 import { CATEGORY_LABELS, CATEGORY_COLORS } from "@/lib/gigs";
@@ -29,7 +29,7 @@ async function loadFont(filename: string): Promise<ArrayBuffer> {
 
 async function getGigForOg(gigId: string) {
   return db.query.gigListing.findFirst({
-    where: eq(gigListing.id, gigId),
+    where: and(eq(gigListing.id, gigId), eq(gigListing.status, "approved")),
     columns: {
       title: true,
       description: true,

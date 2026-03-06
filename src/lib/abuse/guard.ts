@@ -7,7 +7,7 @@ import type {
 } from "./types";
 import { POLICY_MAP } from "./policies";
 import { contentFingerprint } from "./fingerprint";
-import { incrementCounter, checkDedup, logAbuseEvent } from "./store-redis";
+import { incrementCounter, checkDedup } from "./store";
 
 function isEnabled(): boolean {
   return process.env.ABUSE_ENABLED !== "false";
@@ -44,7 +44,7 @@ export async function enforceAbusePolicy(
     const hash = contentFingerprint(opts.contentBody);
     const dedupKey = `abuse:dedup:${action}:${identity.userId}:${hash}`;
     const isNew = await checkDedup(dedupKey, policy.dedup.windowSec);
-    if (isNew === false) {
+    if (!isNew) {
       // Duplicate content
       return {
         decision: "deny",
@@ -52,7 +52,6 @@ export async function enforceAbusePolicy(
         triggeredRule: `dedup:${policy.dedup.windowSec}s`,
       };
     }
-    // isNew === null means Redis is down, fail open
   }
 
   // Check pending count if provided
@@ -73,13 +72,8 @@ export async function enforceAbusePolicy(
     const keyValue = identity[rule.keyBy];
     if (!keyValue) continue;
 
-    const redisKey = `abuse:rate:${action}:${rule.keyBy}:${keyValue}`;
-    const count = await incrementCounter(redisKey, rule.windowSec);
-
-    if (count === null) {
-      // Redis is down — fail open
-      return { decision: "allow", reason: "redis_down" };
-    }
+    const counterKey = `abuse:rate:${action}:${rule.keyBy}:${keyValue}`;
+    const count = await incrementCounter(counterKey, rule.windowSec);
 
     let ruleDecision: AbuseDecision = "allow";
     if (count > rule.hardLimit) {
@@ -118,15 +112,6 @@ export async function guard(
 
   // Log non-allow decisions
   if (result.decision !== "allow") {
-    logAbuseEvent({
-      action,
-      decision: isShadowMode() ? `shadow:${result.decision}` : result.decision,
-      reason: result.reason,
-      userId: identity.userId,
-      ipHash: identity.ipHash,
-      timestamp: Date.now(),
-    });
-
     // Persist to database (fire-and-forget)
     persistAbuseEvent(action, result, identity, isShadowMode() ? "shadow" : "enforce");
   }

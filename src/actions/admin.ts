@@ -2254,7 +2254,7 @@ export async function adminRevokeFlair(
 
 // ─── Abuse Monitor ──────────────────────────────────────────────────────────
 
-import { clearUserCooldowns } from "@/lib/abuse/store-redis";
+import { clearUserCooldowns } from "@/lib/abuse/store";
 
 export async function adminGetAbuseStats(): Promise<
   ActionResult<{
